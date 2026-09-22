@@ -1,0 +1,154 @@
+# The two allowlists that decide what leaves the process and when.
+#
+# Both are ALLOWLISTS on purpose (RIUS-917): content exclusion must hold for
+# third-party instrumentors' attribute families too, and a blocklist would
+# have to enumerate all of them.
+#
+# Entries are emitted in order. `ref` names a constant from attributes.yaml
+# and is emitted as that identifier; `key` is emitted as a string literal.
+
+pending_identity:
+  doc: |
+    Attributes allowed to ride a pending snapshot: identity/taxonomy known at
+    span start. An ALLOWLIST on purpose: content exclusion must hold for
+    third-party instrumentors' attribute families too, and a blocklist would
+    have to enumerate all of them.
+  attributes:
+    - ref: OPENINFERENCE_SPAN_KIND
+    - ref: GEN_AI_OPERATION_NAME
+    - ref: GEN_AI_PROVIDER_NAME
+    - ref: GEN_AI_TOOL_NAME
+    - ref: MCP_METHOD_NAME
+      note: |
+        Protocol identity, not content: a still-running MCP call must be
+        distinguishable from a local tool in the live view — the one place
+        setting the marker at creation pays off.
+    - ref: MCP_PROTOCOL_VERSION
+    - ref: SESSION_ID
+      note: |
+        Identity, not content: a pending span must be groupable into its
+        session while still running, that is the live view's whole point.
+    - ref: USER_ID
+      note: |
+        Same reason: a crashed run's partial spans must still be
+        attributable to the user they served.
+    - ref: WORKSPACE_ROUTE
+      note: |
+        Routing, not content: a crashed run's snapshot must land in the same
+        workspace its final span would have. Stripped at export either way.
+  prefixes:
+    - ref: GEN_AI_REQUEST_PREFIX
+      note: |
+        gen_ai.request.* (model, temperature, ...) is identity, not content.
+    - ref: RIUS_REQUEST_PREFIX
+      status: planned
+      note: |
+        rius.request. joins the pending identity prefixes alongside
+        gen_ai.request., so caller parameters reach live views the same way
+        spec ones do (RIUS-917).
+
+content:
+  doc: |
+    Attribute keys carrying user content, masked/stripped at export (see masking.py).
+  attributes:
+    - ref: INPUT_VALUE
+    - ref: OUTPUT_VALUE
+    - ref: GEN_AI_INPUT_MESSAGES
+    - ref: GEN_AI_OUTPUT_MESSAGES
+    - key: gen_ai.tool.description
+      note: |
+        Sensitive per the GenAI conventions (semconv-genai#431): tool
+        definitions routinely embed proprietary prompt engineering, and
+        sometimes credentials or internal URLs in parameter defaults.
+        gen_ai.tool.name stays: it is identity, not content.
+    - ref: GEN_AI_TOOL_DEFINITIONS
+    - key: gen_ai.system_instructions
+      note: |
+        GenAI semconv keys emitted by OTel-native instrumentations (the
+        Vercel AI SDK's @ai-sdk/otel among them, pinned 2026-09-14): the
+        system prompt and each tool call's input and output are content in
+        the same sense messages are. gen_ai.tool.call.id stays: identity.
+    - key: gen_ai.tool.call.arguments
+    - key: gen_ai.tool.call.result
+    - key: tool.description
+      note: |
+        OpenInference TOOL-kind spans carry the definition under these two
+        bare keys, sensitive for the reason gen_ai.tool.description is.
+    - key: tool.parameters
+    - key: gen_ai.prompt
+      note: |
+        common third-party content keys (bundled instrumentation)
+    - key: gen_ai.completion
+    - key: llm.input_messages
+    - key: llm.output_messages
+    - key: llm.prompts
+      note: |
+        bare (unflattened) forms of the prefix-covered families below:
+        instrumentations vary on whether they flatten these into indexed
+        keys, and a prefix match never covers its own bare key
+    - key: llm.prompt_template
+    - key: mlflow.spanInputs
+    - key: mlflow.spanOutputs
+    - key: traceloop.entity.input
+      note: |
+        OpenLLMetry workflow/task spans carry full I/O here
+    - key: traceloop.entity.output
+    - key: llm.tools
+      note: |
+        Every bundled OpenInference instrumentor emits tool definitions as
+        llm.tools.{i}.tool.json_schema (pinned empirically 2026-09-14);
+        covered by prefix below, bare key listed per the bare-key rule.
+    - key: ai.prompt
+      note: |
+        The Vercel AI SDK's own telemetry keys survive the OpenInference
+        transform untouched, and they carry the full prompt (messages AND
+        tool definitions), response content, and tool-call I/O. Names, ids
+        and models (ai.toolCall.name, ai.response.model, ...) are identity
+        and stay.
+    - key: ai.response.text
+    - key: ai.response.object
+    - key: ai.toolCall.args
+    - key: ai.toolCall.result
+    - key: ai.response.reasoning
+      note: |
+        Same family, keys enumerated from the ai v7 telemetry surface
+        (2026-09-14): model reasoning, tool calls in the response, response
+        files, embedding inputs, rerank documents, and the generateObject
+        schema (a tool definition by another name).
+    - key: ai.response.toolCalls
+    - key: ai.response.files
+    - key: ai.value
+    - key: ai.values
+    - key: ai.documents
+    - key: ai.schema
+    - key: ai.schema.description
+  prefixes:
+    doc: |
+      OpenInference/OpenLLMetry instrumentors flatten message content into indexed
+      keys (e.g. `llm.input_messages.0.message.content`), matched by prefix.
+    values:
+      - llm.input_messages.
+      - llm.output_messages.
+      - gen_ai.prompt.
+      - gen_ai.completion.
+      - llm.prompts.
+      - llm.prompt_template.
+      - llm.tools.
+      - ai.prompt.
+  suffixes:
+    doc: |
+      Indexed families where only the content leaf is sensitive (siblings like
+      `.document.id` / `.document.score` are metadata), matched by suffix.
+    values:
+      - .document.content
+      - .embedding.text
+
+# Partially-sensitive JSON bags: the attribute stays, named members are redacted.
+partial_content:
+  - attribute: LLM_INVOCATION_PARAMETERS
+    members_const: INVOCATION_PARAMETERS_CONTENT_MEMBERS
+    doc: |
+      JSON members of LLM_INVOCATION_PARAMETERS that carry tool definitions.
+    members:
+      - tools
+      - functions

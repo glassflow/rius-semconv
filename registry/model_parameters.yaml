@@ -1,0 +1,53 @@
+# Model-parameter routing (RIUS-917, "Unknown model parameters").
+#
+# Keys the GenAI spec defines, including recognised provider spellings,
+# normalise to gen_ai.request.*. Everything else goes to rius.request.<key>.
+#
+# STATUS: planned, in full. rius-sdk-python @ origin/main (c9344c6) has NO
+# alias table: generation._configure writes every model_parameters key
+# verbatim as gen_ai.request.<key>. See DISCREPANCIES.md.
+status: planned
+ticket: RIUS-917
+
+# Spec-defined parameters. A key here keeps the gen_ai.request. namespace.
+spec:
+  - max_tokens
+  - temperature
+  - top_p
+  - top_k
+  - frequency_penalty
+  - presence_penalty
+  - stop_sequences
+  - seed
+  - choice_count
+  - encoding_formats
+  - output_type
+  - model
+  - stream
+
+# Provider spellings recognised as an alias of a spec parameter. The target is
+# the spec name; the source key is deleted after mapping ("mapped source keys
+# are deleted", RIUS-917).
+aliases:
+  max_tokens_to_sample: max_tokens
+  max_completion_tokens: max_tokens
+  maxTokens: max_tokens
+  maxOutputTokens: max_tokens
+  topP: top_p
+  topK: top_k
+  frequencyPenalty: frequency_penalty
+  presencePenalty: presence_penalty
+  stop: stop_sequences
+  stopSequences: stop_sequences
+  candidate_count: choice_count
+  n: choice_count
+
+# Everything not listed above.
+fallback_prefix_const: RIUS_REQUEST_PREFIX
+
+masking:
+  # Decided 2026-09-23: rius.request.* follows gen_ai.request.* exactly.
+  # Today neither is on the content allowlist, so both export in clear. The
+  # RULE is the tie, not the current value.
+  follows: GEN_AI_REQUEST_PREFIX
+  on_content_allowlist: false

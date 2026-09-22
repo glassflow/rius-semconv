@@ -1,0 +1,98 @@
+# The span-kind taxonomy and the maps in both directions.
+
+span_kind:
+  doc: |
+    Observation kind. Values are OpenInference ``openinference.span.kind`` values.
+  values:
+    - name: AGENT
+      value: AGENT
+      doc: an agent invocation or run
+    - name: LLM
+      value: LLM
+      doc: a model call (generations use this)
+    - name: TOOL
+      value: TOOL
+      doc: a tool execution
+    - name: RETRIEVER
+      value: RETRIEVER
+      doc: a retrieval / search step
+    - name: EMBEDDING
+      value: EMBEDDING
+      doc: an embedding computation
+    - name: CHAIN
+      value: CHAIN
+      doc: a generic processing step (the default)
+
+# NOTE: RIUS-917's table also uses "MCP" in its Kinds column. MCP is NOT a
+# span kind: an MCP call is a TOOL span carrying mcp.method.name. The
+# attributes registry keeps the ticket's spelling in `kinds:` and this note
+# is the reconciliation; nothing generates an MCP enum member.
+
+operation_by_kind:
+  doc: |
+    SpanKind -> OTel GenAI gen_ai.operation.name, where a canonical operation exists.
+  map:
+    LLM: chat
+    TOOL: execute_tool
+    EMBEDDING: embeddings
+    AGENT: invoke_agent
+  # CHAIN has no operation: it is a generic processing step, which is why
+  # gen_ai.operation.name is "R, all but CHAIN" in RIUS-917.
+  planned:
+    RETRIEVER: retrieval   # RIUS-957; not emitted today
+
+# The reverse direction, for the sink normalizing foreign traffic that carries
+# gen_ai.operation.name but no openinference.span.kind. Derived from the map
+# above plus the aliases the conventions allow.
+kind_by_operation:
+  map:
+    chat: LLM
+    text_completion: LLM
+    generate_content: LLM
+    embeddings: EMBEDDING
+    execute_tool: TOOL
+    invoke_agent: AGENT
+    create_agent: AGENT
+    retrieval: RETRIEVER
+  status: planned   # no consumer generates this yet; RIUS-920 (sink) is the first.
+
+otel_kind_by_kind:
+  doc: |
+    SpanKind (our taxonomy ATTRIBUTE) -> the OpenTelemetry SpanKind FIELD, set
+    centrally at span creation. The GenAI conventions decide the field per
+    operation: inference, embeddings and retrieval call out of the process
+    (CLIENT); execute_tool is INTERNAL; invoke_agent is CLIENT only for a hosted
+    agent. Hence:
+    - LLM / EMBEDDING / RETRIEVER -> CLIENT: a remote model or index is called.
+    - TOOL -> INTERNAL: a bare TOOL span is an in-process function, and the
+      execute-tool convention says INTERNAL. The MCP wrapper overrides this to
+      CLIENT at its own call site because a tools/call crosses a process
+      boundary and the MCP client convention says CLIENT.
+    - AGENT -> INTERNAL: `@observe(kind=AGENT)` wraps an in-process agent, the
+      convention's INTERNAL case; a hosted agent would need a call-site override.
+    - CHAIN -> INTERNAL: a workflow step by definition.
+    Nothing in the backend groups on this field (it reads the attributes), so
+    the mapping is free to follow the conventions exactly.
+  map:
+    LLM: CLIENT
+    EMBEDDING: CLIENT
+    RETRIEVER: CLIENT
+    TOOL: INTERNAL
+    AGENT: INTERNAL
+    CHAIN: INTERNAL
+
+# Span naming, RIUS-917 "Span naming" (reversed 2026-09-23 to `{operation}
+# {target}`). RIUS-960 / RIUS-961 carry the implementation; nothing generates
+# from this block yet, it is here so the decision has one home.
+span_name:
+  status: planned
+  tickets: [RIUS-960, RIUS-961]
+  rule: "{operation} {target}"
+  caller_supplied_name_wins: true
+  target_by_kind:
+    LLM: gen_ai.request.model
+    EMBEDDING: gen_ai.request.model
+    TOOL: gen_ai.tool.name
+    AGENT: gen_ai.agent.name
+    RETRIEVER: gen_ai.data_source.id
+    CHAIN: null   # keeps the function name: it has no operation
