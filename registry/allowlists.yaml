@@ -1,13 +1,23 @@
-# The two allowlists that decide what leaves the process and when.
+# The allowlists that decide what leaves the process, and when.
 #
-# Both are ALLOWLISTS on purpose (RIUS-917): content exclusion must hold for
-# third-party instrumentors' attribute families too, and a blocklist would
-# have to enumerate all of them.
+# Both are ALLOWLISTS on purpose: content exclusion must hold for third-party
+# instrumentors' attribute families too, and a blocklist would have to
+# enumerate all of them.
 #
-# Entries are emitted in order. `ref` names a constant from attributes.yaml
-# and is emitted as that identifier; `key` is emitted as a string literal.
+# Membership is AUTHORED here, never derived from an attribute's category.
+# The registry linter checks the two agree (an identity attribute that is not
+# a pending member must say why in `not_pending`), but it never fills one in
+# from the other: "rides a pending snapshot" and "is a member of this
+# constant" are two facts, and rius.span.pending is where they differ.
+#
+# Members are emitted in order. `ref` names a constant from attributes.yaml
+# and is emitted as that identifier; `key` is emitted as a string literal, for
+# third-party keys the registry has no constant for. `shipped_in` and
+# `divergence` work as they do on attribute rows.
 
 pending_identity:
+  const: PENDING_IDENTITY_ATTRIBUTES
+  go: PendingIdentityAttributes
   doc: |
     Attributes allowed to ride a pending snapshot: identity/taxonomy known at
     span start. An ALLOWLIST on purpose: content exclusion must hold for
@@ -18,6 +28,43 @@ pending_identity:
     - ref: GEN_AI_OPERATION_NAME
     - ref: GEN_AI_PROVIDER_NAME
     - ref: GEN_AI_TOOL_NAME
+    - ref: GEN_AI_TOOL_CALL_ID
+      note: |
+        Which tool call a still-running execution answers, and what kind of
+        tool it is. Both are caller-supplied at creation, and the call id is
+        what joins the pending tool span back to the generation that asked
+        for it while the tool is still running.
+    - ref: GEN_AI_TOOL_TYPE
+    - ref: GEN_AI_OUTPUT_TYPE
+      note: |
+        The requested output modality describes the request, so it is known
+        before the model answers. Listed explicitly because the key sits
+        outside gen_ai.request. and the prefix rule does not reach it.
+    - ref: GEN_AI_DATA_SOURCE_ID
+      note: |
+        Which index a still-running retrieval is searching is identity, and
+        the live view has nothing else to tell two searches apart by.
+    - ref: GEN_AI_RETRIEVAL_TOP_K
+      note: |
+        How many documents were asked for is a property of the request, so
+        it is known before the search returns and belongs on the snapshot.
+        Its counterpart, gen_ai.retrieval.documents, deliberately is not:
+        what came back cannot be known while the span is still open.
+    - ref: GEN_AI_AGENT_NAME
+      note: |
+        Which agent a span invokes is chosen by the caller before the work
+        starts, so a still-running agent is attributable in the live view.
+        On a TOOL span the same key instead names the agent EXECUTING the
+        call, known from the enclosing scope at creation for the same
+        reason: which agent is stuck is the live view's first question.
+        Distinct from the resource key of the same name, which says which
+        PROCESS is running; this says which agent that process invoked here.
+    - ref: GEN_AI_AGENT_ID
+    - ref: GEN_AI_AGENT_VERSION
+      note: |
+        Which VERSION of that agent definition was invoked. Chosen by the
+        caller at creation like the other two, and the live view's follow-up
+        question once it knows which agent is stuck.
     - ref: MCP_METHOD_NAME
       note: |
         Protocol identity, not content: a still-running MCP call must be
@@ -36,20 +83,40 @@ pending_identity:
       note: |
         Routing, not content: a crashed run's snapshot must land in the same
         workspace its final span would have. Stripped at export either way.
-  prefixes:
-    - ref: GEN_AI_REQUEST_PREFIX
-      note: |
-        gen_ai.request.* (model, temperature, ...) is identity, not content.
-    - ref: RIUS_REQUEST_PREFIX
-      status: planned
-      note: |
-        rius.request. joins the pending identity prefixes alongside
-        gen_ai.request., so caller parameters reach live views the same way
-        spec ones do (RIUS-917).
+
+pending_identity_prefixes:
+  const: PENDING_IDENTITY_PREFIXES
+  go: PendingIdentityPrefixes
+  doc: |
+    gen_ai.request.* (model, temperature, ...) is identity, not content, and so
+    is rius.request.* (the caller parameters the conventions do not define):
+    both are chosen before the call runs, so a live view of a still-running
+    generation must already show them. The two namespaces are deliberately
+    treated alike here as well as in CONTENT_ATTRIBUTES.
+  refs:
+    - GEN_AI_REQUEST_PREFIX
+    - RIUS_REQUEST_PREFIX
+
+invocation_parameters_content_members:
+  const: INVOCATION_PARAMETERS_CONTENT_MEMBERS
+  go: InvocationParametersContentMembers
+  doc: |
+    Parameter names that carry TOOL DEFINITIONS rather than a sampling knob.
+    Named once and consumed by every route to the same definitions, so the
+    routes cannot drift apart: as gen_ai.request.<member> and
+    rius.request.<member> (derived into CONTENT_ATTRIBUTES), and as JSON
+    members of llm.invocation_parameters. Tool definitions are content in the
+    same sense messages are, and which route they arrived by cannot be what
+    decides whether they are protected.
+  values:
+    - tools
+    - functions
 
 content:
+  const: CONTENT_ATTRIBUTES
+  go: ContentAttributes
   doc: |
-    Attribute keys carrying user content, masked/stripped at export (see masking.py).
+    Attribute keys carrying user content, masked/stripped at export.
   attributes:
     - ref: INPUT_VALUE
     - ref: OUTPUT_VALUE
@@ -83,7 +150,7 @@ content:
     - key: llm.output_messages
     - key: llm.prompts
       note: |
-        bare (unflattened) forms of the prefix-covered families below:
+        bare (unflattened) forms of the prefix-covered families:
         instrumentations vary on whether they flatten these into indexed
         keys, and a prefix match never covers its own bare key
     - key: llm.prompt_template
@@ -97,7 +164,7 @@ content:
       note: |
         Every bundled OpenInference instrumentor emits tool definitions as
         llm.tools.{i}.tool.json_schema (pinned empirically 2026-09-14);
-        covered by prefix below, bare key listed per the bare-key rule.
+        covered by prefix, bare key listed per the bare-key rule.
     - key: ai.prompt
       note: |
         The Vercel AI SDK's own telemetry keys survive the OpenInference
@@ -122,33 +189,58 @@ content:
     - key: ai.documents
     - key: ai.schema
     - key: ai.schema.description
-  prefixes:
-    doc: |
-      OpenInference/OpenLLMetry instrumentors flatten message content into indexed
-      keys (e.g. `llm.input_messages.0.message.content`), matched by prefix.
-    values:
-      - llm.input_messages.
-      - llm.output_messages.
-      - gen_ai.prompt.
-      - gen_ai.completion.
-      - llm.prompts.
-      - llm.prompt_template.
-      - llm.tools.
-      - ai.prompt.
-  suffixes:
-    doc: |
-      Indexed families where only the content leaf is sensitive (siblings like
-      `.document.id` / `.document.score` are metadata), matched by suffix.
-    values:
-      - .document.content
-      - .embedding.text
+    - ref: LLM_INVOCATION_PARAMETERS
+      shipped_in: [python, go]
+      divergence: |
+        Python treats the whole OpenInference request-parameters bag as
+        content, because normalization runs before masking and has already
+        promoted every member the rule table recognises. TypeScript still
+        keeps the bag and redacts only its tools/functions members
+        (masking.ts). One of the two has to move; until then the registry
+        records both.
+      note: |
+        The OpenInference request-parameters bag, whole. Its membership is
+        open and provider-defined — litellm and langchain put the request's
+        tools array in it, and providers are free to add anything else —
+        so a per-member blocklist is always one provider behind. It is only
+        safe to treat the whole bag as content because normalization runs
+        BEFORE masking and has already promoted every member the rule table
+        recognises onto gen_ai.request.*, so what reaches here is exactly
+        the set nothing has classified.
+  # Keys derived as {prefix}{member}, for every prefix and every member.
+  derived:
+    prefixes: [GEN_AI_REQUEST_PREFIX, RIUS_REQUEST_PREFIX]
+    members: INVOCATION_PARAMETERS_CONTENT_MEMBERS
+    note: |
+      The NAMED EXCEPTION to the rule that request parameters export in clear.
+      That rule is right for scalar knobs, but a caller passing tools through
+      model parameters would otherwise export proprietary prompt engineering
+      verbatim with content capture off. Per KEY, not per namespace: both
+      namespaces stay non-content wholesale, which is what keeps their tie
+      intact.
 
-# Partially-sensitive JSON bags: the attribute stays, named members are redacted.
-partial_content:
-  - attribute: LLM_INVOCATION_PARAMETERS
-    members_const: INVOCATION_PARAMETERS_CONTENT_MEMBERS
-    doc: |
-      JSON members of LLM_INVOCATION_PARAMETERS that carry tool definitions.
-    members:
-      - tools
-      - functions
+content_prefixes:
+  const: CONTENT_ATTRIBUTE_PREFIXES
+  go: ContentAttributePrefixes
+  doc: |
+    OpenInference/OpenLLMetry instrumentors flatten message content into indexed
+    keys (e.g. `llm.input_messages.0.message.content`), matched by prefix.
+  values:
+    - llm.input_messages.
+    - llm.output_messages.
+    - gen_ai.prompt.
+    - gen_ai.completion.
+    - llm.prompts.
+    - llm.prompt_template.
+    - llm.tools.
+    - ai.prompt.
+
+content_suffixes:
+  const: CONTENT_ATTRIBUTE_SUFFIXES
+  go: ContentAttributeSuffixes
+  doc: |
+    Indexed families where only the content leaf is sensitive (siblings like
+    `.document.id` / `.document.score` are metadata), matched by suffix.
+  values:
+    - .document.content
+    - .embedding.text

@@ -1,161 +1,177 @@
-"""Emits semconv.py.
+"""Emits the Python constants module (`_semconv_generated.py`).
 
-One template, read top to bottom. The only clever part is `_blank`: a blank
-line goes before a row that opens a section, and nowhere else.
+Constants and tables only. The SDK's hand-written semconv.py re-exports this
+module and keeps the helper functions (kind_attributes, compose_span_name,
+request_attribute_key, ...), because logic is not registry data.
+
+Output is shaped to pass `ruff format --check` and `ruff check` under the
+Python SDK's configuration, so vendoring it needs no formatter exemption.
 """
 
 from __future__ import annotations
 
 from .registry import Registry, comment
 
-TAIL = '''
-
-def otel_span_kind(kind: SpanKind) -> OtelSpanKind:
-    """The OpenTelemetry ``SpanKind`` field a span of taxonomy ``kind`` should carry."""
-    return _OTEL_KIND_BY_KIND[kind]
+LANG = "python"
 
 
-def kind_attributes(kind: SpanKind, name: str | None = None) -> dict[str, str]:
-    """Identity attributes for a span of ``kind``, for setting at CREATION.
-
-    Pending snapshots (pending.py) are built at ``on_start``, so taxonomy set
-    via ``set_attribute`` afterwards is invisible to them; passing these at
-    span creation is what makes a pending span classifiable.
-
-    ``name`` is the span name. The GenAI execute-tool convention requires
-    ``gen_ai.tool.name``, and for a local tool the span name IS the tool
-    name, so a TOOL span with a name gets it here rather than relying on
-    every caller to remember.
-    """
-    attributes = {OPENINFERENCE_SPAN_KIND: kind.value}
-    operation = _OPERATION_BY_KIND.get(kind)
-    if operation is not None:
-        attributes[GEN_AI_OPERATION_NAME] = operation
-    if kind is SpanKind.TOOL and name is not None:
-        attributes[GEN_AI_TOOL_NAME] = name
-    return attributes
+def _literal(value: str) -> str:
+    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
-def set_span_kind(span: Span, kind: SpanKind) -> None:
-    """Stamp a span with its OpenInference kind and (if applicable) gen_ai operation."""
-    span.set_attribute(OPENINFERENCE_SPAN_KIND, kind.value)
-    operation = _OPERATION_BY_KIND.get(kind)
-    if operation is not None:
-        span.set_attribute(GEN_AI_OPERATION_NAME, operation)
-'''
+def _ref_or_literal(reg: Registry, key: str) -> str:
+    const = reg.const_for_key(key, LANG)
+    return const if const is not None else _literal(key)
 
 
-def _member(entry: dict, out: list[str]) -> None:
-    """One member of a frozenset/tuple literal: `ref` -> identifier, `key` -> string."""
-    out.extend(comment(entry.get("note"), "#", "        "))
-    if "ref" in entry:
-        out.append(f"        {entry['ref']},")
-    else:
-        out.append(f'        "{entry["key"]}",')
+def _member_lines(reg: Registry, members: list[dict], indent: str) -> list[str]:
+    out = []
+    for m in members:
+        out.extend(comment(m.get("note"), "#", indent))
+        out.append(f"{indent}{m['ref'] if 'ref' in m else _literal(m['key'])},")
+    return out
 
 
-def render(reg: Registry, preamble: dict) -> str:
+def render(reg: Registry) -> str:
+    pre = reg.preamble
+    al = reg.allowlists
     out: list[str] = []
+    public: list[str] = []
 
-    out.append('"""' + preamble["python"]["docstring"].rstrip("\n"))
+    out.append('"""' + pre["python"]["docstring"].rstrip("\n"))
     out.append('"""')
     out.append("")
-    out.extend(comment(preamble["header"], "#"))
+    out.extend(comment(pre["notice"], "#"))
+    out.extend(comment(pre["header"], "#"))
     out.append("")
-    out.append(preamble["python"]["imports"].rstrip("\n"))
+    out.append("from __future__ import annotations")
     out.append("")
+    out.append("from enum import Enum")
+    if reg.table("otel_kind_by_kind", LANG) is not None:
+        out.append("")
+        out.append("from opentelemetry.trace import SpanKind as OtelSpanKind")
 
     # --- constants ---
-    for entry in reg.symbols():
-        if "section" in entry or entry.get("blank_before"):
+    for row in reg.rows(LANG):
+        if "section" in row or "rationale" in row:
             out.append("")
-        if "section" in entry:
-            out.extend(comment(entry["section"], "#"))
-        out.extend(comment(entry.get("rationale"), "#"))
-        out.append(f'{entry["const"]} = "{entry["key"]}"')
+        out.extend(comment(row.get("section"), "#"))
+        out.extend(comment(row.get("rationale"), "#"))
+        out.append(f"{row['const']} = {_literal(row['key'])}")
+        public.append(row["const"])
 
-    # --- pending allowlist ---
-    pending = reg.allowlist("pending_identity")
+    # --- request parameters ---
+    mp = reg.model_parameters
+    out.append("")
+    out.extend(comment(mp["doc"], "#"))
+    out.append(f"{mp['const']}: dict[str, str] = {{")
+    for spelling, target, note in reg.model_parameter_items():
+        out.extend(comment(note, "#", "    "))
+        out.append(f"    {_literal(spelling)}: {_ref_or_literal(reg, target)},")
+    out.append("}")
+    public.append(mp["const"])
+
+    # --- allowlists ---
+    pending = al["pending_identity"]
     out.append("")
     out.extend(comment(pending["doc"], "#"))
-    out.append("PENDING_IDENTITY_ATTRIBUTES = frozenset(")
+    out.append(f"{pending['const']} = frozenset(")
     out.append("    {")
-    for e in pending["attributes"]:
-        _member(e, out)
+    out.extend(_member_lines(reg, reg.members("pending_identity", LANG), "        "))
     out.append("    }")
     out.append(")")
-    for e in pending["prefixes"]:
-        out.extend(comment(e.get("note"), "#"))
-    refs = ", ".join(e["ref"] for e in pending["prefixes"])
-    trailing = "," if len(pending["prefixes"]) == 1 else ""
-    out.append(f"PENDING_IDENTITY_PREFIXES = ({refs}{trailing})")
+    public.append(pending["const"])
 
-    # --- content allowlist ---
-    content = reg.allowlist("content")
+    prefixes = al["pending_identity_prefixes"]
+    out.extend(comment(prefixes["doc"], "#"))
+    refs = prefixes["refs"]
+    trailing = "," if len(refs) == 1 else ""
+    out.append(f"{prefixes['const']} = ({', '.join(refs)}{trailing})")
+    public.append(prefixes["const"])
+
+    members = al["invocation_parameters_content_members"]
+    out.append("")
+    out.extend(comment(members["doc"], "#"))
+    values = ", ".join(_literal(v) for v in members["values"])
+    out.append(f"{members['const']} = ({values}{',' if len(members['values']) == 1 else ''})")
+    public.append(members["const"])
+
+    content = al["content"]
     out.append("")
     out.extend(comment(content["doc"], "#"))
-    out.append("CONTENT_ATTRIBUTES = frozenset(")
+    out.append(f"{content['const']} = frozenset(")
     out.append("    {")
-    for e in content["attributes"]:
-        _member(e, out)
+    out.extend(_member_lines(reg, reg.members("content", LANG), "        "))
     out.append("    }")
+    derived = content.get("derived")
+    if derived:
+        out.extend(comment(derived.get("note"), "#", "    "))
+        out.append("    | {")
+        out.append('        f"{prefix}{member}"')
+        out.append(f"        for prefix in ({', '.join(derived['prefixes'])})")
+        out.append(f"        for member in {derived['members']}")
+        out.append("    }")
     out.append(")")
+    public.append(content["const"])
 
-    # --- partially sensitive bags ---
-    for spec in reg.partial_content():
-        entry = spec["entry"]
-        out.append("")
-        out.extend(comment(entry.get("rationale"), "#"))
-        out.append(f'{entry["const"]} = "{entry["key"]}"')
-        out.extend(comment(spec["doc"], "#"))
-        members = ", ".join(f'"{m}"' for m in spec["members"])
-        out.append(f'{spec["members_const"]} = ({members})')
-
-    # --- prefixes / suffixes ---
-    for const, block in (
-        ("CONTENT_ATTRIBUTE_PREFIXES", reg.allowlists["content"]["prefixes"]),
-        ("CONTENT_ATTRIBUTE_SUFFIXES", reg.allowlists["content"]["suffixes"]),
-    ):
+    for section in ("content_prefixes", "content_suffixes"):
+        block = al[section]
         out.append("")
         out.extend(comment(block["doc"], "#"))
-        out.append(f"{const} = (")
-        for value in block["values"]:
-            out.append(f'    "{value}",')
+        out.append(f"{block['const']} = (")
+        out.extend(f"    {_literal(v)}," for v in block["values"])
         out.append(")")
+        public.append(block["const"])
 
-    # --- span kind enum ---
-    kinds = reg.span_kinds()
+    # --- span kinds ---
+    sk = reg.taxonomy["span_kind"]
     out.append("")
     out.append("")
-    out.append("class SpanKind(str, Enum):")
-    out.append(
-        '    """Observation kind. Values are OpenInference '
-        "``openinference.span.kind`` values."
-    )
+    out.append(f"class {sk['names'][LANG]}(str, Enum):")
+    out.append('    """' + sk["doc"].rstrip("\n"))
     out.append("")
-    for k in kinds:
-        out.append(f'    - ``{k["name"]}``: {k["doc"]}')
+    for k in sk["values"]:
+        out.append(f"    - ``{k['name']}``: {k['doc']}")
     out.append('    """')
     out.append("")
-    for k in kinds:
-        out.append(f'    {k["name"]} = "{k["value"]}"')
+    for k in sk["values"]:
+        out.append(f"    {k['name']} = {_literal(k['name'])}")
+    public.append(sk["names"][LANG])
+    out.append("")
 
-    # --- maps ---
-    out.append("")
-    out.append("")
-    out.extend(comment(reg.taxonomy["operation_by_kind"]["doc"], "#"))
-    out.append("_OPERATION_BY_KIND: dict[SpanKind, str] = {")
-    for kind, operation in reg.operation_by_kind().items():
-        out.append(f'    SpanKind.{kind}: "{operation}",')
-    out.append("}")
+    # --- tables ---
+    kind_type = sk["names"][LANG]
+    for name, key_fmt, value_fmt, annotation in (
+        ("operation_by_kind", "kind", "literal", f"dict[{kind_type}, str]"),
+        ("kind_by_operation", "literal", "kind", f"dict[str, {kind_type}]"),
+        ("otel_kind_by_kind", "kind", "otel", f"dict[{kind_type}, OtelSpanKind]"),
+        ("name_target_by_kind", "kind", "ref", f"dict[{kind_type}, str]"),
+    ):
+        table = reg.table(name, LANG)
+        if table is None:
+            continue
+        ident = table["names"][LANG]
+        out.append("")
+        out.extend(comment(table["doc"], "#"))
+        out.append(f"{ident}: {annotation} = {{")
+        for k, v in table["map"].items():
+            out.append(f"    {_fmt(k, key_fmt, kind_type)}: {_fmt(v, value_fmt, kind_type)},")
+        out.append("}")
+        if not ident.startswith("_"):
+            public.append(ident)
 
     out.append("")
-    out.append("")
-    out.extend(comment(reg.taxonomy["otel_kind_by_kind"]["doc"], "#"))
-    out.append("_OTEL_KIND_BY_KIND: dict[SpanKind, OtelSpanKind] = {")
-    for kind, otel in reg.otel_kind_by_kind().items():
-        out.append(f"    SpanKind.{kind}: OtelSpanKind.{otel},")
-    out.append("}")
+    out.append("__all__ = [")
+    out.extend(f"    {_literal(name)}," for name in sorted(public))
+    out.append("]")
+    return "\n".join(out) + "\n"
 
-    out.append("")
-    return "\n".join(out) + TAIL
+
+def _fmt(value: str, how: str, kind_type: str) -> str:
+    if how == "kind":
+        return f"{kind_type}.{value}"
+    if how == "otel":
+        return f"OtelSpanKind.{value}"
+    if how == "ref":
+        return value
+    return _literal(value)

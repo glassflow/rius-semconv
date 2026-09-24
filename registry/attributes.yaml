@@ -1,46 +1,71 @@
-# The canonical Rius attribute registry.
+# The Rius attribute registry: every named wire string the SDKs and the sink
+# share, one row per constant.
 #
-# Authored from RIUS-917 ("Define the canonical core attribute set and
-# normalization rules"), cross-checked against rius-sdk-python
-# src/rius/semconv.py @ origin/main c9344c6 (2026-09-23), which is today's
-# parity source.
+# Level with rius-sdk-python src/rius/semconv.py (the reference implementation)
+# and rius-sdk-typescript src/semconv.ts on their `main` branches. Where the two
+# SDKs disagree, the row says so with `shipped_in` and `divergence` rather than
+# picking a winner silently. tools/check_parity.py proves both claims.
 #
-# Every row is one emitted symbol, in emission order. Order is the Python
-# file's order, because the generated semconv.py has to be a drop-in
-# replacement for the hand-written one.
+# Rows are emitted in file order. Order carries no meaning beyond readability.
 #
-# Fields
-#   const        Python/TypeScript constant name. Go name is derived, or
-#                overridden with `go:`.
-#   key          The wire value.
-#   symbol       attribute | value | prefix | event | scope
-#                  attribute - an attribute key; carries the table columns
-#                  value     - an enumerated VALUE of some attribute
-#                  prefix    - a key prefix used for matching
-#                  event     - a span event name
-#                  scope     - the instrumentation scope name
-#   category     identity | content | metadata | process_local   (attributes)
-#   level        required | conditionally_required | recommended | opt_in |
-#                vendor        (RIUS-917: R / CR / Rec / Opt-In / V)
-#   level_note   the condition, for conditionally_required / opt_in
-#   kinds        all | all_but: [...] | explicit list of span kinds |
-#                resource   (a resource attribute, not a span attribute)
-#   fill         who populates it: native | openinference | vercel
-#   type         string | boolean | double | int | string[] | json
-#   group        the RIUS-917 table section this row came from
-#   status       shipped  - present in semconv.py @ origin/main today
-#                planned  - in the RIUS-917 table, not yet in any SDK.
-#                           Generators SKIP these unless --include-planned.
-#   ticket       for status: planned, the ticket that lands it
-#   rationale    prose. Line breaks are authored, not reflowed: the Python
-#                generator emits these verbatim behind "# " so the generated
-#                file keeps the wording the hand-written one had.
+# Columns (the README has the long form)
+#
+#   const        Constant name in Python and TypeScript. Required, unique.
+#   go           Go identifier, when the derived PascalCase name is not the one
+#                argus-core already uses.
+#   key          The wire string. Required.
+#   symbol       What the string is:
+#                  attribute  an attribute key (span or resource)
+#                  prefix     a key prefix, matched with startswith
+#                  event      a span event name
+#                  value      an enumerated VALUE of some attribute (`of:`)
+#                  scope      the instrumentation scope name
+#                  name       a span name
+#   origin       Who defines the key:
+#                  otel           an OpenTelemetry convention (general, GenAI, MCP)
+#                  openinference  the OpenInference conventions
+#                  rius           ours. Must live under rius.*, or carry a
+#                                 `namespace_exception` saying why it does not.
+#   direction    emitted (default): the SDKs write it.
+#                read: the SDKs only ever READ it, from other producers' spans.
+#   kinds        Where an attribute lives: `resource`, `all`, `{all_but: [...]}`,
+#                or a list of span kinds (AGENT LLM TOOL RETRIEVER EMBEDDING CHAIN).
+#   category     Span attributes only, never resource ones:
+#                  identity       known at span start, rides pending snapshots
+#                  content        what was said; masked or stripped at export
+#                  metadata       known only once the work ran; survives masking
+#                  process_local  never leaves the process
+#   level        required | conditionally_required | recommended | opt_in | vendor
+#   level_note   The condition, for conditionally_required and opt_in.
+#   type         string | boolean | int | double | string[] | json
+#   fill         Which producers populate it: native (our SDKs), openinference,
+#                vercel (the AI SDK's ai.* telemetry, via normalization).
+#   placements   For a key that means different things in different places.
+#                One entry per meaning; see gen_ai.agent.name.
+#   not_pending  An identity attribute that is NOT on the pending allowlist and
+#                not covered by a pending prefix must say why here.
+#   status       shipped (default) | planned. Planned rows are decisions no SDK
+#                ships yet. Generators skip them unless --include-planned.
+#   shipped_in   Languages the row is generated for, when not all of
+#                [python, typescript, go]. Requires `divergence`.
+#   divergence   Why the row is not in every language.
+#   ts_alias     {name, from}: TypeScript re-exports an upstream constant
+#                instead of restating the literal.
+#   section      A heading comment emitted above the row.
+#   rationale    Prose, emitted as a comment above the constant in every
+#                language. Line breaks are authored, not reflowed.
 
 attributes:
   - const: TRACER_NAME
     key: rius
     symbol: scope
-    status: shipped
+    origin: rius
+    namespace_exception: |
+      A scope name, not an attribute key, so there is no namespace to be in.
+    shipped_in: [python, typescript]
+    divergence: |
+      argus-core deliberately names no instrumentation scope: the sink stores
+      whatever scope name arrives and no reader keys on it.
     rationale: |
       Instrumentation scope name (stamped on every span as otel.scope.name).
       "rius" since the vendor keys were normalized under the product name; it was
@@ -48,227 +73,393 @@ attributes:
       sink stores the scope name verbatim and no reader filters on it, so the two
       values coexist in stored data without any special handling.
 
+  # --- Resource attributes -------------------------------------------------
+
   - const: SERVICE_NAME
+    section: "--- Resource attribute keys ---"
     key: service.name
     symbol: attribute
-    category: identity
-    level: required
+    origin: otel
     kinds: resource
-    fill: [native]
+    level: required
     type: string
-    group: resource
-    status: planned
-    ticket: RIUS-917
+    fill: [native]
+    shipped_in: [go]
+    divergence: |
+      Both SDKs set service.name through the OpenTelemetry SDK's own resource
+      handling and name no constant for it; the sink reads it by this constant.
     rationale: |
-      The logical service. Set by the SDK from config, and the key the trace
-      list filters on until an agent name is set. Not a constant in
-      semconv.py today: the SDK passes the OTel SDK's own key. Listed here
-      because RIUS-917 makes it a required row of the canonical table and
-      argus-core already has the constant.
+      OTel standard logical service name. The backend falls back to it when a
+      process names no agent.
 
   - const: SERVICE_INSTANCE_ID
-    section: "--- Resource attribute keys ---"
     key: service.instance.id
     symbol: attribute
-    category: identity
-    level: required
+    origin: otel
     kinds: resource
-    fill: [native]
+    level: required
     type: string
-    group: resource
-    status: shipped
+    fill: [native]
     rationale: |
       OTel standard identity of one process lifetime (one uuid per client, minted
       at init). The heartbeat payload's instance_id carries the SAME value, which
       is what lets the backend join heartbeats to traces and count replicas.
 
+  - const: SERVICE_VERSION
+    key: service.version
+    symbol: attribute
+    origin: otel
+    kinds: resource
+    level: recommended
+    type: string
+    fill: [native]
+    ts_alias:
+      name: ATTR_SERVICE_VERSION
+      from: "@opentelemetry/semantic-conventions"
+    rationale: |
+      OTel standard version of the deployed service. Metadata about the process,
+      not about any one span. Stamped only when a version is actually known: there
+      is deliberately no placeholder default, because a fake one merges every
+      deployment into a single bucket — the same mistake `unknown_service` makes
+      for service.name.
+
   - const: TELEMETRY_DISTRO_NAME
     key: telemetry.distro.name
     symbol: attribute
-    category: identity
-    level: required
+    origin: otel
     kinds: resource
-    fill: [native]
+    level: required
     type: string
-    group: resource
+    fill: [native]
     status: planned
-    ticket: RIUS-917
     rationale: |
-      Names the distribution that normalized and exported the span. Together
-      with telemetry.distro.version it is how provenance is answered from the
-      span alone: a resource with no distro attributes is foreign traffic that
-      the sink normalized. Set by the SDK today without a semconv constant.
+      Names the distribution that exported the span. Both SDKs set it today as
+      an inline literal with no semconv constant, which is why the row is
+      planned rather than shipped.
 
   - const: TELEMETRY_DISTRO_VERSION
     key: telemetry.distro.version
     symbol: attribute
-    category: identity
-    level: required
+    origin: otel
     kinds: resource
-    fill: [native]
+    level: required
     type: string
-    group: resource
+    fill: [native]
     status: planned
-    ticket: RIUS-917
     rationale: |
-      The SDK version that normalized the span. Travels separately from the
-      instrumentation scope, which names the library that PRODUCED the span
-      (RIUS-919). Because normalization has no opt-out, this version pins
-      exactly what was applied.
+      The SDK version that exported the span. Inline literal in both SDKs today,
+      like telemetry.distro.name.
+
+  - const: GEN_AI_AGENT_NAME
+    key: gen_ai.agent.name
+    symbol: attribute
+    origin: otel
+    kinds: [AGENT, TOOL]
+    category: identity
+    level: conditionally_required
+    level_note: when the agent is known
+    type: string
+    fill: [native]
+    placements:
+      - scope: resource
+        level: recommended
+        brief: the agent this PROCESS is
+      - scope: span
+        when: {operation: invoke_agent}
+        kinds: [AGENT]
+        level: conditionally_required
+        brief: the agent BEING INVOKED
+      - scope: span
+        when: {operation: execute_tool}
+        kinds: [TOOL]
+        level: conditionally_required
+        brief: the agent EXECUTING the tool
+    rationale: |
+      The agent this process IS, stamped once on the resource so every span it
+      emits groups under the same name its heartbeats do. Without it the backend
+      falls through to service.name per span, and a process whose agent name
+      differs from its service name has its agents view and its trace list
+      disagreeing about what it is called.
+
+  - const: GEN_AI_AGENT_ID
+    key: gen_ai.agent.id
+    symbol: attribute
+    origin: otel
+    kinds: [AGENT]
+    category: identity
+    level: conditionally_required
+    level_note: when the invoked agent is a hosted resource with an id
+    type: string
+    fill: [native]
+    rationale: |
+      The identifier of a HOSTED agent resource, not of an agent in general: the
+      conventions give an AWS Bedrock agent ARN and a GCP Agent Registry id as the
+      examples, and say it is NOT RECOMMENDED to record in-memory agent instance
+      ids here, because those are transient. So an in-process agent leaves it
+      unset and there is no configured default to fall back to — a name is the
+      only identity such an agent has. Adopted rather than deferred because the
+      callers who do run hosted agents have nowhere else to put the id.
+
+  - const: GEN_AI_AGENT_VERSION
+    key: gen_ai.agent.version
+    symbol: attribute
+    origin: otel
+    kinds: [AGENT]
+    category: identity
+    level: recommended
+    type: string
+    fill: [native]
+    rationale: |
+      The version of the agent an AGENT span INVOKED — the same callee
+      gen_ai.agent.name and gen_ai.agent.id describe on that span, never
+      the process's own version and never service.version. Registry type is a
+      plain string and the conventions' own examples are "1.0.0" and "2025-05-01",
+      so the caller's value is taken verbatim: there is no format to validate.
+
+  - const: RIUS_MAIN_AGENT_NAME
+    section: |
+      --- The MAIN agent: the agent this PROCESS is ---
+      Our own namespace, because the question is ours. gen_ai.agent.name has no
+      resource-level meaning in the conventions, and ON A SPAN it means the agent
+      being INVOKED — one key answering two different questions, told apart only by
+      which of a resource and a span you happen to be reading. These four keys say
+      "the process emitting this telemetry IS this agent", once per OTLP batch.
+
+      gen_ai.agent.name stays on the resource alongside them, deliberately and
+      indefinitely: a swap would be a flag day, breaking agent identity for every
+      deployment running an SDK newer than the sink. Resource attributes ride once
+      per batch, not per span, so carrying both costs essentially nothing.
+
+      Named so a future rename to gen_ai.main_agent.* is a prefix substitution,
+      should the conventions ever grow the concept.
+    key: rius.main_agent.name
+    symbol: attribute
+    origin: rius
+    kinds: resource
+    level: vendor
+    type: string
+    fill: [native]
+
+  - const: RIUS_MAIN_AGENT_ID
+    key: rius.main_agent.id
+    symbol: attribute
+    origin: rius
+    kinds: resource
+    level: vendor
+    type: string
+    fill: [native]
+    rationale: |
+      The SAME stability constraint the conventions put on gen_ai.agent.id,
+      adopted rather than loosened because we own the namespace: a transient
+      in-memory or process-local id here would mint a new "agent" every restart and
+      make the key useless for grouping. Taking the constraint now is what keeps
+      that future rename mechanical instead of a data-quality problem.
+
+  - const: RIUS_MAIN_AGENT_DESCRIPTION
+    key: rius.main_agent.description
+    symbol: attribute
+    origin: rius
+    kinds: resource
+    level: vendor
+    type: string
+    fill: [native]
+
+  - const: RIUS_MAIN_AGENT_VERSION
+    key: rius.main_agent.version
+    symbol: attribute
+    origin: rius
+    kinds: resource
+    level: vendor
+    type: string
+    fill: [native]
+    rationale: |
+      The version of the agent DEFINITION — its prompt, tools and policy — which is
+      deliberately NOT service.version. A service can sit at 2.3.1 while its
+      agent definition is at 7, and the two move independently; deriving either
+      from the other produces confidently wrong data on every deployment where
+      they disagree, which is most of them.
+
+  # --- Span attributes: OpenInference and correlation ----------------------
 
   - const: OPENINFERENCE_SPAN_KIND
+    section: |
+      --- Attribute keys ---
+      OpenInference
     go: OpenInferenceSpanKind
-    section: "--- Attribute keys ---\nOpenInference"
     key: openinference.span.kind
     symbol: attribute
+    origin: openinference
+    kinds: all
     category: identity
     level: required
-    kinds: all
-    fill: [native, openinference, vercel]
     type: string
-    group: taxonomy
-    status: shipped
+    fill: [native, openinference, vercel]
 
   - const: INPUT_VALUE
     key: input.value
     symbol: attribute
+    origin: openinference
+    kinds: [AGENT, TOOL, RETRIEVER, CHAIN]
     category: content
     level: vendor
-    kinds: [AGENT, TOOL, RETRIEVER, CHAIN]
-    fill: [native, openinference, vercel]
     type: string
-    group: content
-    status: shipped
+    fill: [native, openinference, vercel]
 
   - const: OUTPUT_VALUE
     key: output.value
     symbol: attribute
+    origin: openinference
+    kinds: [AGENT, TOOL, RETRIEVER, CHAIN]
     category: content
     level: vendor
-    kinds: [AGENT, TOOL, RETRIEVER, CHAIN]
-    fill: [native, openinference, vercel]
     type: string
-    group: content
-    status: shipped
+    fill: [native, openinference, vercel]
 
   - const: SESSION_ID
     key: session.id
     symbol: attribute
+    origin: openinference
+    kinds: all
     category: identity
     level: vendor
-    kinds: all
-    fill: [native]
     type: string
-    group: correlation
-    status: shipped
+    fill: [native]
     rationale: |
-      The session grouping key (see session.py). OpenInference's spelling, and the
-      one the sink reads first; gen_ai.conversation.id is deliberately not emitted
-      alongside it, one name for one fact.
+      The session grouping key. OpenInference's spelling, and the one the sink
+      reads first; gen_ai.conversation.id is deliberately not emitted alongside
+      it, one name for one fact.
 
   - const: USER_ID
     key: user.id
     symbol: attribute
+    origin: openinference
+    kinds: all
     category: identity
     level: vendor
-    kinds: all
-    fill: [native]
     type: string
-    group: correlation
-    status: shipped
+    fill: [native]
     rationale: |
-      The end-user identity (see user.py). OpenInference's spelling, also what
-      Langfuse reads and what the OTel registry lists; the sink additionally
-      accepts OTel's enduser.id / enduser.pseudo.id from third-party instrumentors,
-      but this SDK emits one name for one fact.
+      The end-user identity. OpenInference's spelling, also what Langfuse reads
+      and what the OTel registry lists; the sink additionally accepts OTel's
+      enduser.id / enduser.pseudo.id from third-party instrumentors, but the SDKs
+      emit one name for one fact.
 
   - const: WORKSPACE_ROUTE
-    blank_before: true  # formatting only: keeps the generated Python byte-identical
     key: rius.workspace
     symbol: attribute
+    origin: rius
+    kinds: all
     category: process_local
     level: vendor
-    kinds: all
-    fill: [native]
     type: string
-    group: vendor
-    status: shipped
+    fill: [native]
     rationale: |
-      Process-local routing marker for multi-workspace export (see workspace.py).
-      Stamped at span start so pending snapshots route too, and ALWAYS stripped by
-      the routing exporter before spans leave the process: the destination's API
-      key is what tells the backend which workspace a span belongs to.
+      Process-local routing marker for multi-workspace export. Stamped at span
+      start so pending snapshots route too, and ALWAYS stripped by the routing
+      exporter before spans leave the process: the destination's API key is what
+      tells the backend which workspace a span belongs to.
+
+  # --- Span attributes: OTel GenAI -----------------------------------------
 
   - const: GEN_AI_OPERATION_NAME
     section: "OTel GenAI (subset we emit)"
     key: gen_ai.operation.name
     symbol: attribute
+    origin: otel
+    kinds: {all_but: [CHAIN]}
     category: identity
     level: required
-    kinds:
-      all_but: [CHAIN]
-    fill: [native, openinference, vercel]
     type: string
-    group: taxonomy
-    status: shipped
+    fill: [native, openinference, vercel]
 
   - const: GEN_AI_PROVIDER_NAME
     key: gen_ai.provider.name
     symbol: attribute
+    origin: otel
+    kinds: [LLM, EMBEDDING]
     category: identity
     level: conditionally_required
     level_note: when known
-    kinds: [LLM, EMBEDDING]
-    fill: [native, openinference, vercel]
     type: string
-    group: model_call
-    status: shipped
+    fill: [native, openinference, vercel]
 
   - const: GEN_AI_REQUEST_MODEL
     key: gen_ai.request.model
     symbol: attribute
+    origin: otel
+    kinds: [LLM, EMBEDDING]
     category: identity
     level: conditionally_required
     level_note: when known
-    kinds: [LLM, EMBEDDING]
-    fill: [native, openinference, vercel]
     type: string
-    group: model_call
-    status: shipped
+    fill: [native, openinference, vercel]
 
   - const: GEN_AI_REQUEST_REASONING_LEVEL
     key: gen_ai.request.reasoning.level
     symbol: attribute
+    origin: otel
+    kinds: [LLM]
     category: identity
     level: recommended
-    kinds: [LLM]
-    fill: [native]
     type: string
-    group: model_call
-    status: shipped
+    fill: [native]
 
   - const: GEN_AI_RESPONSE_MODEL
     key: gen_ai.response.model
     symbol: attribute
+    origin: otel
+    kinds: [LLM, EMBEDDING]
     category: metadata
     level: recommended
-    kinds: [LLM, EMBEDDING]
-    fill: [native, openinference, vercel]
     type: string
-    group: model_call
-    status: shipped
+    fill: [native, openinference, vercel]
+
+  - const: GEN_AI_RESPONSE_ID
+    key: gen_ai.response.id
+    symbol: attribute
+    origin: otel
+    kinds: [LLM]
+    category: metadata
+    level: recommended
+    type: string
+    fill: [native]
+    rationale: |
+      The provider's own identifier for the completion ("chatcmpl-123"),
+      Recommended on an inference span. Metadata: it exists only once the provider
+      has answered, so it is a post-call setter and never reaches a pending
+      snapshot. Not content — an opaque id says nothing about what was said — so
+      it survives capture_content=False.
+
+  - const: GEN_AI_OUTPUT_TYPE
+    key: gen_ai.output.type
+    symbol: attribute
+    origin: otel
+    kinds: [LLM]
+    category: identity
+    level: conditionally_required
+    level_note: when the request specifies an output format
+    type: string
+    fill: [native]
+    rationale: |
+      The output modality the client ASKED for (text / json / image / speech in
+      the registry today), Conditionally Required when the request specifies one.
+      Identity: it describes the request, so it is known at span creation and must
+      ride pending snapshots. Note the key is NOT under gen_ai.request., so
+      PENDING_IDENTITY_PREFIXES does not cover it and it needs its own allowlist
+      entry. Recorded verbatim rather than validated against the enum: the
+      conventions are free to extend it, and a value we do not recognise is still
+      the caller's truth. Not content, for the reason the response id is not.
 
   - const: GEN_AI_REQUEST_STREAM
     key: gen_ai.request.stream
     symbol: attribute
+    origin: otel
+    kinds: [LLM]
     category: identity
     level: conditionally_required
     level_note: when streaming
-    kinds: [LLM]
-    fill: [native, openinference]
     type: boolean
-    group: model_call
-    status: shipped
+    fill: [native, openinference]
     rationale: |
       Streaming, per the GenAI inference-span conventions: gen_ai.request.stream
       (boolean, Conditionally Required when streaming) and
@@ -280,180 +471,318 @@ attributes:
   - const: GEN_AI_RESPONSE_TIME_TO_FIRST_CHUNK
     key: gen_ai.response.time_to_first_chunk
     symbol: attribute
+    origin: otel
+    kinds: [LLM]
     category: metadata
     level: recommended
     level_note: when streaming
-    kinds: [LLM]
-    fill: [native, openinference]
     type: double
-    group: model_call
-    status: shipped
+    fill: [native, openinference]
+
+  - const: GEN_AI_REQUEST_TEMPERATURE
+    key: gen_ai.request.temperature
+    symbol: attribute
+    origin: otel
+    kinds: [LLM]
+    category: identity
+    level: recommended
+    type: double
+    fill: [native, openinference]
+    rationale: |
+      Sampling parameters. Produced from a generation's model parameters through
+      GEN_AI_REQUEST_PARAMETERS, and by normalization, which promotes them out of
+      a third-party instrumentor's request bag (llm.invocation_parameters). Names
+      and types are the GenAI registry's.
+
+  - const: GEN_AI_REQUEST_TOP_P
+    key: gen_ai.request.top_p
+    symbol: attribute
+    origin: otel
+    kinds: [LLM]
+    category: identity
+    level: recommended
+    type: double
+    fill: [native, openinference]
+
+  - const: GEN_AI_REQUEST_TOP_K
+    key: gen_ai.request.top_k
+    symbol: attribute
+    origin: otel
+    kinds: [LLM]
+    category: identity
+    level: recommended
+    type: double
+    fill: [native, openinference]
+
+  - const: GEN_AI_REQUEST_MAX_TOKENS
+    key: gen_ai.request.max_tokens
+    symbol: attribute
+    origin: otel
+    kinds: [LLM]
+    category: identity
+    level: recommended
+    type: int
+    fill: [native, openinference]
+
+  - const: GEN_AI_REQUEST_FREQUENCY_PENALTY
+    key: gen_ai.request.frequency_penalty
+    symbol: attribute
+    origin: otel
+    kinds: [LLM]
+    category: identity
+    level: recommended
+    type: double
+    fill: [native, openinference]
+
+  - const: GEN_AI_REQUEST_PRESENCE_PENALTY
+    key: gen_ai.request.presence_penalty
+    symbol: attribute
+    origin: otel
+    kinds: [LLM]
+    category: identity
+    level: recommended
+    type: double
+    fill: [native, openinference]
+
+  - const: GEN_AI_REQUEST_SEED
+    key: gen_ai.request.seed
+    symbol: attribute
+    origin: otel
+    kinds: [LLM]
+    category: identity
+    level: conditionally_required
+    level_note: when the request includes a seed
+    type: int
+    fill: [native, openinference]
+
+  - const: GEN_AI_REQUEST_STOP_SEQUENCES
+    key: gen_ai.request.stop_sequences
+    symbol: attribute
+    origin: otel
+    kinds: [LLM]
+    category: identity
+    level: recommended
+    type: string[]
+    fill: [native, openinference]
+
+  - const: GEN_AI_REQUEST_CHOICE_COUNT
+    key: gen_ai.request.choice.count
+    symbol: attribute
+    origin: otel
+    kinds: [LLM]
+    category: identity
+    level: conditionally_required
+    level_note: when available and not 1
+    type: int
+    fill: [native, openinference]
+    rationale: |
+      "The target number of candidate completions to return" — OpenAI's `n`.
 
   - const: GEN_AI_USAGE_INPUT_TOKENS
     key: gen_ai.usage.input_tokens
     symbol: attribute
+    origin: otel
+    kinds: [LLM]
     category: metadata
     level: recommended
-    kinds: [LLM]
-    fill: [native, openinference, vercel]
     type: int
-    group: usage
-    status: shipped
+    fill: [native, openinference, vercel]
 
   - const: GEN_AI_USAGE_OUTPUT_TOKENS
     key: gen_ai.usage.output_tokens
     symbol: attribute
+    origin: otel
+    kinds: [LLM]
     category: metadata
     level: recommended
-    kinds: [LLM]
-    fill: [native, openinference, vercel]
     type: int
-    group: usage
-    status: shipped
+    fill: [native, openinference, vercel]
 
   - const: GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS
     key: gen_ai.usage.cache_read.input_tokens
     symbol: attribute
+    origin: otel
+    kinds: [LLM]
     category: metadata
     level: recommended
     level_note: when applicable
-    kinds: [LLM]
-    fill: [native, openinference, vercel]
     type: int
-    group: usage
-    status: shipped
+    fill: [native, openinference, vercel]
 
   - const: GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS
     key: gen_ai.usage.cache_write.input_tokens
     symbol: attribute
+    origin: otel
+    kinds: [LLM]
     category: metadata
     level: recommended
     level_note: when applicable
-    kinds: [LLM]
-    fill: [native, openinference]
     type: int
-    group: usage
-    status: shipped
+    fill: [native, openinference]
     rationale: |
       semconv-genai renamed cache_creation -> cache_write (PR #440) before our
-      cache fields first shipped; SDKs 0.12.x emitted the pre-rename name.
+      cache fields first shipped; no released SDK version carries the old name.
 
   - const: GEN_AI_USAGE_REASONING_OUTPUT_TOKENS
     key: gen_ai.usage.reasoning.output_tokens
     symbol: attribute
+    origin: otel
+    kinds: [LLM]
     category: metadata
     level: recommended
     level_note: when applicable
-    kinds: [LLM]
-    fill: [native, openinference, vercel]
     type: int
-    group: usage
-    status: shipped
+    fill: [native, openinference, vercel]
 
   - const: GEN_AI_INPUT_MESSAGES
     key: gen_ai.input.messages
     symbol: attribute
+    origin: otel
+    kinds: [LLM]
     category: content
     level: opt_in
     level_note: on by default
-    kinds: [LLM]
-    fill: [native, openinference, vercel]
     type: json
-    group: content
-    status: shipped
+    fill: [native, openinference, vercel]
 
   - const: GEN_AI_OUTPUT_MESSAGES
     key: gen_ai.output.messages
     symbol: attribute
+    origin: otel
+    kinds: [LLM]
     category: content
     level: opt_in
     level_note: on by default
-    kinds: [LLM]
-    fill: [native, openinference, vercel]
     type: json
-    group: content
-    status: shipped
+    fill: [native, openinference, vercel]
 
   - const: GEN_AI_RESPONSE_FINISH_REASONS
+    go: GenAIResponseFinishReason
     key: gen_ai.response.finish_reasons
     symbol: attribute
+    origin: otel
+    kinds: [LLM]
     category: metadata
     level: recommended
-    kinds: [LLM]
-    fill: [native, openinference, vercel]
     type: string[]
-    group: model_call
-    status: shipped
+    fill: [native, openinference, vercel]
 
   - const: GEN_AI_TOOL_NAME
     key: gen_ai.tool.name
     symbol: attribute
+    origin: otel
+    kinds: [TOOL]
     category: identity
     level: required
-    kinds: [TOOL]
-    fill: [native, openinference, vercel]
     type: string
-    group: tools
-    status: shipped
+    fill: [native, openinference, vercel]
+
+  - const: GEN_AI_TOOL_CALL_ID
+    key: gen_ai.tool.call.id
+    symbol: attribute
+    origin: otel
+    kinds: [TOOL]
+    category: identity
+    level: recommended
+    level_note: if available
+    type: string
+    fill: [native]
+    rationale: |
+      The identifier of the tool call this execution answers — the id the MODEL
+      minted on its tool-call message, which is what joins a tool span back to the
+      generation that asked for it. Identity, set at span creation, so it needs an
+      allowlist entry. Never derived: only the caller holds the model's
+      response. Its sibling gen_ai.tool.call.arguments IS content and is listed in
+      CONTENT_ATTRIBUTES; an opaque id is not.
+
+  - const: GEN_AI_TOOL_TYPE
+    key: gen_ai.tool.type
+    symbol: attribute
+    origin: otel
+    kinds: [TOOL]
+    category: identity
+    level: recommended
+    level_note: if available
+    type: string
+    fill: [native]
+    rationale: |
+      What KIND of tool ran, the conventions' own examples being "function"
+      (client-side), "extension" (agent-side) and "datastore". Identity for the
+      same reason the call id is: caller-supplied, known before the tool runs.
+      A free string, not an enum, in the registry.
 
   - const: GEN_AI_TOOL_DEFINITIONS
     key: gen_ai.tool.definitions
     symbol: attribute
+    origin: otel
+    kinds: [LLM]
     category: content
     level: opt_in
-    kinds: [LLM]
-    fill: [native, openinference, vercel]
     type: json
-    group: content
-    status: shipped
+    fill: [native, openinference, vercel]
     rationale: |
       The request's tool/function definitions, serialized verbatim (provider
       shapes differ; the backend reads names and sizes from either). Content,
-      not identity — listed in CONTENT_ATTRIBUTES below.
-
-  - const: GEN_AI_AGENT_NAME
-    key: gen_ai.agent.name
-    symbol: attribute
-    category: identity
-    level: conditionally_required
-    kinds: [AGENT]
-    fill: [native]
-    type: string
-    group: agent
-    status: planned
-    ticket: RIUS-953, RIUS-954
-    rationale: |
-      Names the agent. RIUS-917 lists it twice: Recommended on the RESOURCE
-      (RIUS-953, the durable fleet identity) and Conditionally Required on an
-      AGENT span (RIUS-954, with an explicit way to name the agent at the call
-      site). One key, two placements. The sink already reads both
-      (argus-core apps/sink/internal/mapper.agentName).
+      not identity — listed in CONTENT_ATTRIBUTES.
 
   - const: GEN_AI_DATA_SOURCE_ID
     key: gen_ai.data_source.id
     symbol: attribute
+    origin: otel
+    kinds: [RETRIEVER]
     category: identity
     level: conditionally_required
-    kinds: [RETRIEVER]
-    fill: [native]
+    level_note: when the retrieval has a single identifiable data source
     type: string
-    group: retrieval
-    status: planned
-    ticket: RIUS-957
+    fill: [native]
     rationale: |
-      The index or collection a retrieval hit. Pairs with the "retrieval"
-      operation name, which RETRIEVER does not carry today.
+      The index, collection or knowledge base a retrieval ran against. Identity,
+      set at span creation: it is what a retriever span is named after and the
+      only thing that distinguishes two otherwise identical searches.
+
+  - const: GEN_AI_RETRIEVAL_TOP_K
+    key: gen_ai.retrieval.top_k
+    symbol: attribute
+    origin: otel
+    kinds: [RETRIEVER]
+    category: identity
+    level: recommended
+    type: int
+    fill: [native]
+    rationale: |
+      How many documents the retriever was ASKED for, the spec's own framing
+      ("also known as k, limit, or max_num_results"). Identity: it is a property
+      of the request, known before the search runs, so it rides pending snapshots.
+
+  - const: GEN_AI_RETRIEVAL_DOCUMENTS
+    key: gen_ai.retrieval.documents
+    symbol: attribute
+    origin: otel
+    kinds: [RETRIEVER]
+    category: metadata
+    level: recommended
+    type: json
+    fill: [native]
+    rationale: |
+      What the retriever RETURNED, as the conventions define it: a JSON array of
+      objects each with an optional `id` and an optional `score`. Identifiers and
+      relevance only, never document text, which is why the spec does not mark it
+      sensitive and why it is NOT on the content allowlist. It is metadata: known
+      only once the search has run, so it never reaches a pending snapshot, and
+      it survives capture_content=False because a document id is not content.
+
+  # --- MCP and errors ------------------------------------------------------
 
   - const: MCP_METHOD_NAME
     key: mcp.method.name
     symbol: attribute
+    origin: otel
+    kinds: [TOOL]
     category: identity
     level: required
-    kinds: [MCP]
-    fill: [native]
+    level_note: on a TOOL span that is an MCP client call
     type: string
-    group: tools
-    status: shipped
+    fill: [native]
     rationale: |
       OTel MCP semantic conventions (semantic-conventions-genai, Development
       stability). mcp.method.name is the REQUIRED attribute of an MCP client span
@@ -464,32 +793,30 @@ attributes:
     key: tools/call
     symbol: value
     of: MCP_METHOD_NAME
-    status: shipped
 
   - const: MCP_PROTOCOL_VERSION
     key: mcp.protocol.version
     symbol: attribute
+    origin: otel
+    kinds: [TOOL]
     category: identity
     level: recommended
-    kinds: [MCP]
-    fill: [native]
+    level_note: on a TOOL span that is an MCP client call
     type: string
-    group: tools
-    status: shipped
+    fill: [native]
     rationale: |
       The version the initialize handshake negotiated — not the one we asked for.
 
   - const: ERROR_TYPE
     key: error.type
     symbol: attribute
+    origin: otel
+    kinds: all
     category: metadata
     level: conditionally_required
     level_note: on error
-    kinds: all
-    fill: [native, openinference, vercel]
     type: string
-    group: errors
-    status: shipped
+    fill: [native, openinference, vercel]
     rationale: |
       OTel general error.type: on an MCP tools/call it is "tool_error" when the
       result carries isError (the tool ran and reported failure), else the
@@ -499,19 +826,45 @@ attributes:
     key: tool_error
     symbol: value
     of: ERROR_TYPE
-    status: shipped
+
+  - const: EXCEPTION_EVENT
+    key: exception
+    symbol: event
+    origin: otel
+    direction: read
+    rationale: |
+      The OTel exception event, as record_exception() writes it, and its attribute
+      naming the exception's class. Read, never emitted by us directly: an
+      auto-instrumented failure carries these but no error.type, so normalization
+      derives error.type from EXCEPTION_TYPE.
+
+  - const: EXCEPTION_TYPE
+    key: exception.type
+    symbol: attribute
+    origin: otel
+    direction: read
+    kinds: all
+    category: metadata
+    type: string
+    fill: [openinference, vercel]
+    note: an attribute of the exception EVENT, not of the span
 
   - const: MCP_RESULT_TYPE
     key: mcp.result_type
     symbol: attribute
+    origin: rius
+    namespace_exception: |
+      Predates the rule. The key borrows the mcp SDK's own `mcp.*` spelling for
+      its result-type field, and the backend reads it under this name.
+    kinds: [TOOL]
     category: identity
     level: vendor
-    kinds: [MCP]
-    kinds_note: interim rounds only
-    fill: [native]
+    level_note: interim tools/call rounds only
     type: string
-    group: tools
-    status: shipped
+    fill: [native]
+    not_pending: |
+      Set when an interim round ENDS, so it is never known at span start and a
+      pending snapshot has nothing to carry.
     rationale: |
       MCP spec 2026-07-28: a tools/call round can end with an interim
       "input_required" result (MRTR) instead of a final one. Set ONLY on interim
@@ -519,51 +872,50 @@ attributes:
       borrows the mcp SDK's own `mcp.*` spelling for its result-type field, and
       no convention defines it. Kept as-is because the backend reads it.
 
+  # --- Request-parameter namespaces ----------------------------------------
+
   - const: GEN_AI_REQUEST_PREFIX
     key: gen_ai.request.
     symbol: prefix
-    category: identity
-    level: recommended
-    kinds: [LLM, EMBEDDING]
-    fill: [native, openinference, vercel]
-    group: model_call
-    status: shipped
-    covers: gen_ai.request.<param>
+    origin: otel
+    covers: gen_ai.request.<parameter>
 
   - const: RIUS_REQUEST_PREFIX
     key: rius.request.
     symbol: prefix
-    category: identity
-    level: vendor
-    kinds: [LLM]
-    fill: [native]
-    group: model_call
-    status: planned
-    ticket: RIUS-917
-    covers: rius.request.<key>
+    origin: rius
+    covers: rius.request.<parameter>
     rationale: |
-      Caller model parameters the GenAI spec does not define. Our own
-      namespace, per the OTel naming guidance against prefixing an existing
-      convention namespace with application-specific keys. Masking follows
-      gen_ai.request.* exactly: neither is on the content allowlist today,
-      and neither may be added alone.
+      Where a request parameter the GenAI registry does NOT define goes. Our own
+      namespace rather than gen_ai.request.<key>, per OTel's naming guidance: an
+      existing semantic-convention namespace must not be used as a prefix for
+      application-specific attributes, because the convention is free to define
+      that exact key later and mean something else. The GenAI conventions offer
+      no catch-all of their own, so we own one.
+
+      Masking: rius.request.* follows gen_ai.request.* exactly. Today neither is
+      in CONTENT_ATTRIBUTES, so both export in clear. The TIE is the rule, not
+      the current value — if request parameters ever become maskable, both
+      namespaces change together, and neither may join the content allowlist
+      alone.
+
+  # --- Rius vendor keys ----------------------------------------------------
 
   - const: RIUS_CONTEXT_SIZES
     key: rius.context.sizes
     symbol: attribute
+    origin: rius
+    kinds: [LLM]
     category: metadata
     level: vendor
-    kinds: [LLM]
-    fill: [native]
     type: json
-    group: vendor
-    status: shipped
+    fill: [native]
     rationale: |
       Per-part byte sizes of a generation's context, as compact JSON with
       readable keys: tool_definitions (name, bytes), input_messages and
       output_messages (literal role, parts typed text / tool_call /
       tool_call_response with bytes and tool name), cache_marker, and a folded
-      summary of older input; see _context_sizes.py for the full shape.
+      summary of older input.
       A Rius vendor attribute, NOT a convention:
       the backend reads it to attribute gen_ai.usage.input_tokens across the
       context, and no convention describes context composition. Deliberately
@@ -576,19 +928,16 @@ attributes:
     section: "--- Span event names ---"
     key: gen_ai.first_token
     symbol: event
-    category: metadata
-    level: recommended
-    level_note: when streaming
-    kinds: [LLM]
-    fill: [native, openinference]
-    group: events
-    status: shipped
+    origin: rius
+    namespace_exception: |
+      Predates the rule, and a rename is a wire change the backend keys on. No
+      convention defines an event for the first streamed token.
     rationale: |
       First streamed token/chunk arrived: the exact timestamp the backend reads to
       derive TTFT (event time minus span start). The GenAI conventions express the
       same signal as the derived span attribute
-      gen_ai.response.time_to_first_chunk (see above), which record_first_token
-      emits alongside this event; the event stays because it is what the backend
+      gen_ai.response.time_to_first_chunk, which record_first_token emits
+      alongside this event; the event stays because it is what the backend
       keys on, and an absolute timestamp is not recoverable from the duration
       once the span is stored. The name follows the gen_ai.* style (precedent
       Langfuse's completion_start_time); no convention defines an event for this.
@@ -597,13 +946,16 @@ attributes:
     section: "--- Pending (partial) spans ---"
     key: rius.span.pending
     symbol: attribute
+    origin: rius
+    kinds: all
     category: identity
     level: vendor
-    kinds: all
-    fill: [native]
     type: boolean
-    group: vendor
-    status: shipped
+    fill: [native]
+    not_pending: |
+      The snapshot builder stamps this marker onto the snapshot; it is not
+      copied from the span, so listing it in PENDING_IDENTITY_ATTRIBUTES would
+      be a no-op at best and a double write at worst.
     rationale: |
       Marks the content-free snapshot exported at span START; the backend maps it
       to Finished=0 and the real span replaces it at end. This key knowingly bends
@@ -617,15 +969,20 @@ attributes:
   - const: LLM_INVOCATION_PARAMETERS
     key: llm.invocation_parameters
     symbol: attribute
-    category: content
-    level: vendor
+    origin: openinference
+    direction: read
     kinds: [LLM]
-    fill: [openinference]
+    category: content
     type: json
-    group: partial_content
-    status: shipped
+    fill: [openinference]
     rationale: |
-      The request-parameters bag OpenInference instrumentors emit. Not wholly
-      content — sampling parameters are identity — but the litellm and langchain
-      instrumentations embed the request's tools/functions arrays inside it, so
-      masking redacts those members and keeps the rest (see masking.py).
+      The request-parameters bag OpenInference instrumentors emit.
+
+  - const: CHAIN_SPAN_NAME
+    key: chain
+    symbol: name
+    rationale: |
+      The name of a span whose kind has no operation and nothing else to compose
+      from. The conventions define no operation for a generic workflow step, and
+      the manual span helpers see nothing but the kind. A literal beats an empty
+      name.
