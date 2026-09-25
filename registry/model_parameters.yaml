@@ -1,53 +1,128 @@
-# Model-parameter routing (RIUS-917, "Unknown model parameters").
+# Request parameters the GenAI conventions define, mapped from every spelling
+# we recognise to the canonical attribute key. A spelling absent from this
+# table is a caller parameter, and the SDKs record it verbatim under
+# RIUS_REQUEST_PREFIX.
 #
-# Keys the GenAI spec defines, including recognised provider spellings,
-# normalise to gen_ai.request.*. Everything else goes to rius.request.<key>.
-#
-# STATUS: planned, in full. rius-sdk-python @ origin/main (c9344c6) has NO
-# alias table: generation._configure writes every model_parameters key
-# verbatim as gen_ai.request.<key>. See DISCREPANCIES.md.
-status: planned
-ticket: RIUS-917
+# Each group is one canonical key: its own bare spelling first, then the
+# provider spellings that mean the SAME parameter. `target` is a wire key;
+# the generators emit the registry constant for it where one exists and the
+# string literal otherwise.
 
-# Spec-defined parameters. A key here keeps the gen_ai.request. namespace.
-spec:
-  - max_tokens
-  - temperature
-  - top_p
-  - top_k
-  - frequency_penalty
-  - presence_penalty
-  - stop_sequences
-  - seed
-  - choice_count
-  - encoding_formats
-  - output_type
-  - model
-  - stream
+const: GEN_AI_REQUEST_PARAMETERS
+go: GenAIRequestParameters
+fallback_prefix: RIUS_REQUEST_PREFIX
 
-# Provider spellings recognised as an alias of a spec parameter. The target is
-# the spec name; the source key is deleted after mapping ("mapped source keys
-# are deleted", RIUS-917).
-aliases:
-  max_tokens_to_sample: max_tokens
-  max_completion_tokens: max_tokens
-  maxTokens: max_tokens
-  maxOutputTokens: max_tokens
-  topP: top_p
-  topK: top_k
-  frequencyPenalty: frequency_penalty
-  presencePenalty: presence_penalty
-  stop: stop_sequences
-  stopSequences: stop_sequences
-  candidate_count: choice_count
-  n: choice_count
+doc: |
+  Request parameters the GenAI conventions define, mapped from every spelling
+  we recognise to the canonical attribute key. Verified against
+  open-telemetry/semantic-conventions-genai at commit
+  8ffdf568e1b4391a99adb081db16e8102e36918e (2026-09-22),
+  model/gen-ai/registry.yaml — the repo cuts no releases, so a commit is the
+  only citable pin. Each canonical key appears under its own bare spelling
+  plus the provider spellings that mean the SAME parameter; anything absent
+  here is a caller parameter and goes to RIUS_REQUEST_PREFIX verbatim.
 
-# Everything not listed above.
-fallback_prefix_const: RIUS_REQUEST_PREFIX
+  A provider spelling normalises to ONE key, the canonical one: the provider
+  spelling is not also emitted. Two keys for one parameter would make every
+  consumer de-duplicate, and the point of a convention is that there is one
+  place to look.
 
-masking:
-  # Decided 2026-09-23: rius.request.* follows gen_ai.request.* exactly.
-  # Today neither is on the content allowlist, so both export in clear. The
-  # RULE is the tie, not the current value.
-  follows: GEN_AI_REQUEST_PREFIX
-  on_content_allowlist: false
+groups:
+  - target: gen_ai.request.model
+    note: model — the request's model; also settable as its own argument.
+    spellings: [model]
+
+  - target: gen_ai.request.max_tokens
+    note: |
+      max_tokens — OpenAI Chat Completions `max_tokens`, its successor
+      `max_completion_tokens`, the Responses API's `max_output_tokens`, and
+      Google's `maxOutputTokens`.
+    spellings:
+      - max_tokens
+      - maxTokens
+      - max_completion_tokens
+      - maxCompletionTokens
+      - max_output_tokens
+      - maxOutputTokens
+
+  - target: gen_ai.request.choice.count
+    note: |
+      choice.count — "the target number of candidate completions to return":
+      OpenAI `n`, Google `candidateCount`, Cohere `num_generations`.
+    spellings:
+      - choice.count
+      - n
+      - candidate_count
+      - candidateCount
+      - num_generations
+
+  - target: gen_ai.request.temperature
+    spellings: [temperature]
+
+  - target: gen_ai.request.top_p
+    note: top_p — Google `topP`, Cohere `p`.
+    spellings: [top_p, topP, p]
+
+  - target: gen_ai.request.top_k
+    note: |
+      top_k — the registry's own note names Anthropic `top_k`, Cohere `k` and
+      Google `topK`, and says OpenAI's `top_logprobs` MUST NOT be reported
+      here (it shapes the response, not the sampling). So top_logprobs is
+      deliberately absent and lands in rius.request.*.
+    spellings: [top_k, topK, k]
+
+  - target: gen_ai.request.stop_sequences
+    note: stop_sequences — OpenAI `stop`, Google `stopSequences`.
+    spellings: [stop_sequences, stopSequences, stop]
+
+  - target: gen_ai.request.frequency_penalty
+    spellings: [frequency_penalty, frequencyPenalty]
+
+  - target: gen_ai.request.presence_penalty
+    spellings: [presence_penalty, presencePenalty]
+
+  - target: gen_ai.request.encoding_formats
+    note: |
+      encoding_formats — plural in the registry; OpenAI's embeddings endpoint
+      sends the singular `encoding_format`, and the registry's note says some
+      systems call these "embedding types" (Cohere `embedding_types`).
+    spellings:
+      - encoding_formats
+      - encoding_format
+      - encodingFormat
+      - embedding_types
+
+  - target: gen_ai.request.seed
+    spellings: [seed]
+
+  - target: gen_ai.request.stream
+    spellings: [stream]
+
+  - target: gen_ai.request.reasoning.level
+    note: |
+      reasoning.level — "the exact string value sent to the provider";
+      OpenAI sends it as `reasoning_effort`.
+    spellings:
+      - reasoning.level
+      - reasoning_level
+      - reasoning_effort
+      - reasoningEffort
+
+  - target: gen_ai.request.previous_response.id
+    note: |
+      previous_response.id — the registry names OpenAI's
+      `previous_response_id` and Google's `previous_interaction_id`.
+    spellings:
+      - previous_response.id
+      - previous_response_id
+      - previousResponseId
+      - previous_interaction_id
+
+  - target: gen_ai.request.stream_cursor
+    note: |
+      stream_cursor — the registry names OpenAI's `starting_after` and
+      Google's `last_event_id`.
+    spellings:
+      - stream_cursor
+      - starting_after
+      - last_event_id

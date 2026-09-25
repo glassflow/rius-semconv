@@ -1,0 +1,56 @@
+# Lints the registry, proves generation is deterministic, fails if out/ is
+# stale, and runs the tests. Needs no secrets: everything here reads only this
+# repository. Parity with the consumers is parity.yml.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # gofmt formats the generated Go, and the tests compile it. Pinned to the
+      # Go line argus-core builds with, so gofmt output cannot drift between a
+      # developer's machine and CI.
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+      # The tests evaluate generated TypeScript with --experimental-transform-types.
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "24"
+      - run: pip install -r requirements-dev.txt
+
+      - name: Lint this repository's code
+        run: |
+          ruff check .
+          ruff format --check .
+
+      - name: Lint the registry
+        run: python tools/check_registry.py
+
+      - name: Generation is deterministic
+        run: |
+          python -m generators.generate --out "$RUNNER_TEMP/first"
+          python -m generators.generate --out "$RUNNER_TEMP/second"
+          diff -r "$RUNNER_TEMP/first" "$RUNNER_TEMP/second"
+
+      - name: out/ is current
+        run: |
+          if ! python -m generators.generate --check; then
+            echo "::error::out/ is stale. Run 'python -m generators.generate' and commit the result."
+            exit 1
+          fi
+
+      - name: Tests
+        run: python -m pytest -q -rs

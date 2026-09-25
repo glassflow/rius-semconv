@@ -1,0 +1,129 @@
+# Constants in argus-core's packages/argus-core/semconv/semconv.go that the
+# registry deliberately does NOT generate, and why. check_parity.py fails on
+# any argus-core-only constant missing from this list, so the list is also
+# the precise inventory of what has to move into the registry before the
+# whole Go file can be generated. The README's "Go" section groups it into
+# the tables that would have to exist.
+#
+# Classes
+#   normalizer_input  a key the SDKs never emit, which the sink reads from
+#                     OTHER producers and maps onto a canonical key. Belongs
+#                     in a per-source-family mapping table (source key,
+#                     target key, converter, deletion rule), not in the
+#                     attributes table.
+#   legacy_spelling   an old spelling of a canonical key that released SDKs
+#                     still send; read as an alias until they age out.
+#   dynamic_key       one member of a namespace the registry owns only as a
+#                     prefix (rius.request.<parameter>).
+#   otel_sdk_resource an OpenTelemetry SDK resource key, not a Rius key.
+
+names:
+  EndUserID:
+    class: normalizer_input
+    family: otel-legacy
+    reason: OTel's older end-user spelling; the sink falls back to it for user.id.
+  EndUserPseudoID:
+    class: normalizer_input
+    family: otel-legacy
+    reason: Pseudonymous end-user id; the sink accepts it as a user.id fallback.
+  GenAIConversationID:
+    class: normalizer_input
+    family: otel-genai
+    reason: The GenAI conventions' session id; the sink falls back to it for session.id.
+  LLMPrefix:
+    class: normalizer_input
+    family: openinference
+    reason: Any llm.* key marks a span as OpenInference-instrumented.
+  LLMModelName:
+    class: normalizer_input
+    family: openinference
+    reason: Mapped to gen_ai.request.model / gen_ai.response.model.
+  LLMProvider:
+    class: normalizer_input
+    family: openinference
+    reason: Mapped to gen_ai.provider.name.
+  LLMTokenCountPrompt:
+    class: normalizer_input
+    family: openinference
+    reason: Mapped to gen_ai.usage.input_tokens.
+  LLMTokenCountCompletion:
+    class: normalizer_input
+    family: openinference
+    reason: Mapped to gen_ai.usage.output_tokens.
+  LLMTokenCountTotal:
+    class: normalizer_input
+    family: openinference
+    reason: Read for validation only; the conventions define no total.
+  LLMFinishReason:
+    class: normalizer_input
+    family: openinference
+    reason: Mapped to gen_ai.response.finish_reasons.
+  LLMInputMessagesPrefix:
+    class: normalizer_input
+    family: openinference
+    reason: Flattened input messages, mapped to gen_ai.input.messages.
+  LLMOutputMessagesPrefix:
+    class: normalizer_input
+    family: openinference
+    reason: Flattened output messages, mapped to gen_ai.output.messages.
+  LLMRequestModelName:
+    class: normalizer_input
+    family: openinference
+    reason: The unambiguous request model, mapped to gen_ai.request.model.
+  LLMResponseModelName:
+    class: normalizer_input
+    family: openinference
+    reason: The unambiguous response model, mapped to gen_ai.response.model.
+  LLMTokenCountPromptCacheRead:
+    class: normalizer_input
+    family: openinference
+    reason: Mapped to gen_ai.usage.cache_read.input_tokens.
+  LLMTokenCountPromptCacheWrite:
+    class: normalizer_input
+    family: openinference
+    reason: Mapped to gen_ai.usage.cache_write.input_tokens.
+  LLMTokenCountCompletionReasoning:
+    class: normalizer_input
+    family: openinference
+    reason: Mapped to gen_ai.usage.reasoning.output_tokens.
+  LLMToolsPrefix:
+    class: normalizer_input
+    family: openinference
+    reason: Indexed tool definitions (llm.tools.<i>.tool.json_schema), mapped to gen_ai.tool.definitions.
+  LLMToolsSchemaSuffix:
+    class: normalizer_input
+    family: openinference
+    reason: The leaf of the indexed tool-definition keys above.
+  OpenInferenceFirstTokenEvent:
+    class: normalizer_input
+    family: openinference
+    reason: The openai instrumentor's first-token event name, renamed to gen_ai.first_token.
+  VercelAIPromptTools:
+    class: normalizer_input
+    family: vercel
+    reason: The AI SDK's tool definitions, mapped to gen_ai.tool.definitions.
+  GenAISystem:
+    class: legacy_spelling
+    reason: The provider key before gen_ai.provider.name; no current SDK emits it.
+  GlassflowSpanPending:
+    class: legacy_spelling
+    reason: rius.span.pending before the vendor keys moved under rius.*.
+  GenAIRequestToolChoice:
+    class: legacy_spelling
+    reason: >-
+      tool_choice as SDK releases before the rius.request.* split sent it.
+      Not a convention attribute, so a Rius registry must not define it.
+  RiusRequestToolChoice:
+    class: dynamic_key
+    reason: >-
+      rius.request.tool_choice, one member of the rius.request.* fan-out. The
+      registry owns the prefix, not the caller's parameter names.
+  TelemetrySDKName:
+    class: otel_sdk_resource
+    reason: Set by the OpenTelemetry SDK itself; unreferenced in argus-core today.
+  TelemetrySDKVer:
+    class: otel_sdk_resource
+    reason: Set by the OpenTelemetry SDK itself; unreferenced in argus-core today.
+  TelemetrySDKLang:
+    class: otel_sdk_resource
+    reason: Set by the OpenTelemetry SDK itself; unreferenced in argus-core today.

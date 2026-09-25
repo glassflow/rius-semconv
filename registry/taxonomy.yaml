@@ -1,62 +1,86 @@
-# The span-kind taxonomy and the maps in both directions.
+# The span-kind taxonomy and the maps between it and the conventions.
+#
+# The taxonomy is OpenInference's openinference.span.kind. Every span carries
+# BOTH it and gen_ai.operation.name where the kind maps, so the maps below run
+# in both directions. MCP is not a kind: an MCP call is a TOOL span that
+# carries mcp.method.name.
+#
+# Each table names the identifier it is emitted as, per language, so no
+# generator special-cases a table by name. A table with `shipped_in` is
+# emitted only for those languages.
 
 span_kind:
+  names: {python: SpanKind, typescript: SpanKind, go: SpanKind}
   doc: |
     Observation kind. Values are OpenInference ``openinference.span.kind`` values.
   values:
     - name: AGENT
-      value: AGENT
       doc: an agent invocation or run
     - name: LLM
-      value: LLM
       doc: a model call (generations use this)
     - name: TOOL
-      value: TOOL
       doc: a tool execution
     - name: RETRIEVER
-      value: RETRIEVER
       doc: a retrieval / search step
     - name: EMBEDDING
-      value: EMBEDDING
       doc: an embedding computation
     - name: CHAIN
-      value: CHAIN
       doc: a generic processing step (the default)
 
-# NOTE: RIUS-917's table also uses "MCP" in its Kinds column. MCP is NOT a
-# span kind: an MCP call is a TOOL span carrying mcp.method.name. The
-# attributes registry keeps the ticket's spelling in `kinds:` and this note
-# is the reconciliation; nothing generates an MCP enum member.
-
 operation_by_kind:
+  names: {python: _OPERATION_BY_KIND, typescript: OPERATION_BY_KIND, go: OperationByKind}
   doc: |
     SpanKind -> OTel GenAI gen_ai.operation.name, where a canonical operation exists.
+    CHAIN is deliberately absent: the conventions define no operation for a
+    generic workflow step, and inventing one would put a non-spec value in a
+    spec-defined enum. Revisit only if the upstream invoke_node proposal lands.
   map:
     LLM: chat
     TOOL: execute_tool
     EMBEDDING: embeddings
     AGENT: invoke_agent
-  # CHAIN has no operation: it is a generic processing step, which is why
-  # gen_ai.operation.name is "R, all but CHAIN" in RIUS-917.
-  planned:
-    RETRIEVER: retrieval   # RIUS-957; not emitted today
+    RETRIEVER: retrieval
+  # Partiality is explicit, so a missing kind reads as a decision rather than
+  # an omission. The linter requires every kind to be in `map` or here.
+  unmapped:
+    CHAIN: the conventions define no operation for a generic workflow step
 
-# The reverse direction, for the sink normalizing foreign traffic that carries
-# gen_ai.operation.name but no openinference.span.kind. Derived from the map
-# above plus the aliases the conventions allow.
 kind_by_operation:
+  names: {python: _KIND_BY_OPERATION, typescript: KIND_BY_OPERATION, go: KindByOperation}
+  doc: |
+    The inverse, for spans that speak only the conventions. A GenAI-native
+    instrumentation sets gen_ai.operation.name and never heard of
+    openinference.span.kind, and both keys must be present on every span, so the
+    derivation has to run in both directions.
+
+    Not a mechanical inversion of the map above, and it cannot be generated from
+    it, for two reasons:
+      - several operations share one kind. text_completion and generate_content
+        are LLM calls the same way chat is, and create_agent is an AGENT span
+        just as invoke_agent is, so the mapping is many-to-one and only the
+        chat/invoke_agent entries round-trip.
+      - CHAIN has no operation of its own, but two operations land on it.
+        invoke_workflow and plan are real GenAI operations with no taxonomy
+        value of their own; CHAIN is the honest home for both, and the reverse
+        direction is the only one that can say so.
   map:
     chat: LLM
     text_completion: LLM
     generate_content: LLM
-    embeddings: EMBEDDING
     execute_tool: TOOL
+    embeddings: EMBEDDING
     invoke_agent: AGENT
     create_agent: AGENT
     retrieval: RETRIEVER
-  status: planned   # no consumer generates this yet; RIUS-920 (sink) is the first.
+    invoke_workflow: CHAIN
+    plan: CHAIN
 
 otel_kind_by_kind:
+  names: {python: _OTEL_KIND_BY_KIND, typescript: OTEL_KIND_BY_KIND}
+  shipped_in: [python, typescript]
+  divergence: |
+    Only the SDKs create spans. Emitting it in Go would add an OpenTelemetry
+    dependency to a constants package for a map the sink never reads.
   doc: |
     SpanKind (our taxonomy ATTRIBUTE) -> the OpenTelemetry SpanKind FIELD, set
     centrally at span creation. The GenAI conventions decide the field per
@@ -68,7 +92,7 @@ otel_kind_by_kind:
       execute-tool convention says INTERNAL. The MCP wrapper overrides this to
       CLIENT at its own call site because a tools/call crosses a process
       boundary and the MCP client convention says CLIENT.
-    - AGENT -> INTERNAL: `@observe(kind=AGENT)` wraps an in-process agent, the
+    - AGENT -> INTERNAL: an observed agent function is an in-process agent, the
       convention's INTERNAL case; a hosted agent would need a call-site override.
     - CHAIN -> INTERNAL: a workflow step by definition.
     Nothing in the backend groups on this field (it reads the attributes), so
@@ -81,18 +105,20 @@ otel_kind_by_kind:
     AGENT: INTERNAL
     CHAIN: INTERNAL
 
-# Span naming, RIUS-917 "Span naming" (reversed 2026-09-23 to `{operation}
-# {target}`). RIUS-960 / RIUS-961 carry the implementation; nothing generates
-# from this block yet, it is here so the decision has one home.
-span_name:
-  status: planned
-  tickets: [RIUS-960, RIUS-961]
-  rule: "{operation} {target}"
-  caller_supplied_name_wins: true
-  target_by_kind:
-    LLM: gen_ai.request.model
-    EMBEDDING: gen_ai.request.model
-    TOOL: gen_ai.tool.name
-    AGENT: gen_ai.agent.name
-    RETRIEVER: gen_ai.data_source.id
-    CHAIN: null   # keeps the function name: it has no operation
+name_target_by_kind:
+  names: {python: _NAME_TARGET_BY_KIND, typescript: NAME_TARGET_BY_KIND, go: NameTargetByKind}
+  doc: |
+    Which attribute names the target of a span's `{operation} {target}` name,
+    per kind. One key each, so a tool name can never surface in an agent's name
+    and the composed name stays a reliable filter value. CHAIN is absent: it has
+    no operation and so no composed name. LLM reads the REQUEST model on
+    purpose: a pending snapshot must carry the same name as the final span.
+  # Values are constants from attributes.yaml.
+  map:
+    LLM: GEN_AI_REQUEST_MODEL
+    EMBEDDING: GEN_AI_REQUEST_MODEL
+    TOOL: GEN_AI_TOOL_NAME
+    AGENT: GEN_AI_AGENT_NAME
+    RETRIEVER: GEN_AI_DATA_SOURCE_ID
+  unmapped:
+    CHAIN: no operation, so nothing to compose a name from

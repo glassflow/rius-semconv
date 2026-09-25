@@ -1,0 +1,103 @@
+# Checks the generated constants against what each consumer ships on its main
+# branch: rius-sdk-python, rius-sdk-typescript and argus-core. See the README,
+# "CI", and tools/check_parity.py for what is compared.
+#
+# The consumer repositories are private, so reading them needs the
+# SDK_READ_TOKEN secret: a token with read-only Contents access to those three
+# repositories. Without it the job SKIPS the comparison and says so with a
+# warning annotation and a step summary. It does not fail, but it is never a
+# silent green either: a run without the warning is the only proof of parity.
+name: parity
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  # Consumers change without touching this repository; a daily run notices.
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  parity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Check for SDK_READ_TOKEN
+        id: token
+        env:
+          SDK_READ_TOKEN: ${{ secrets.SDK_READ_TOKEN }}
+        run: |
+          if [ -n "$SDK_READ_TOKEN" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "present=false" >> "$GITHUB_OUTPUT"
+          message="SDK_READ_TOKEN is not set, so the generated constants were NOT compared with rius-sdk-python, rius-sdk-typescript or argus-core. This run proves nothing about parity. See the README, section CI."
+          echo "::warning title=Parity NOT checked::${message}"
+          {
+            echo "## ⚠️ Parity NOT checked"
+            echo
+            echo "${message}"
+            echo
+            echo "Run it locally instead: \`python tools/check_parity.py --fetch --cross\`."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Check out rius-sdk-python
+        if: steps.token.outputs.present == 'true'
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: glassflow/rius-sdk-python
+          ref: main
+          path: consumers/rius-sdk-python
+          token: ${{ secrets.SDK_READ_TOKEN }}
+          persist-credentials: false
+
+      - name: Check out rius-sdk-typescript
+        if: steps.token.outputs.present == 'true'
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: glassflow/rius-sdk-typescript
+          ref: main
+          path: consumers/rius-sdk-typescript
+          token: ${{ secrets.SDK_READ_TOKEN }}
+          persist-credentials: false
+
+      - name: Check out argus-core
+        if: steps.token.outputs.present == 'true'
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: glassflow/argus-core
+          ref: main
+          path: consumers/argus-core
+          token: ${{ secrets.SDK_READ_TOKEN }}
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        if: steps.token.outputs.present == 'true'
+        with:
+          python-version: "3.12"
+      # Evaluates semconv.ts with --experimental-transform-types.
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        if: steps.token.outputs.present == 'true'
+        with:
+          node-version: "24"
+
+      - name: Compare
+        if: steps.token.outputs.present == 'true'
+        run: |
+          set -o pipefail
+          pip install -r requirements-dev.txt
+          # `|| status=$?` so a failure still reaches the summary below; the
+          # step's shell runs with -e.
+          status=0
+          python tools/check_parity.py --ref HEAD --cross \
+            --python-repo consumers/rius-sdk-python \
+            --typescript-repo consumers/rius-sdk-typescript \
+            --go-repo consumers/argus-core | tee parity.txt || status=$?
+          { echo '```'; cat parity.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit $status

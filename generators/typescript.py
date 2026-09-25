@@ -1,117 +1,185 @@
-"""Emits semconv.ts."""
+"""Emits the TypeScript constants module (`semconv.generated.ts`).
+
+Constants and tables only. The SDK's hand-written semconv.ts re-exports this
+module and keeps the helper functions (kindAttributes, composeSpanName,
+requestAttributeKey, ...), because logic is not registry data.
+
+Output is shaped to pass `biome check` under the TypeScript SDK's
+configuration (100 columns, double quotes, trailing commas), so vendoring it
+needs no lint exemption. Arrays that fit on one line are emitted on one line,
+the way biome's formatter prints them.
+"""
 
 from __future__ import annotations
 
+import json
+import re
+
 from .registry import Registry, comment
 
-TAIL = """
-/** The OpenTelemetry `SpanKind` field a span of taxonomy `kind` should carry. */
-export function otelSpanKind(kind: SpanKind): OtelSpanKind {
-  return OTEL_KIND_BY_KIND[kind];
-}
-
-/**
- * Identity attributes for a span of `kind`, for setting AT CREATION.
- * Set at creation so pending-span snapshots can classify the span.
- *
- * `name` is the span name. The GenAI execute-tool convention requires
- * `gen_ai.tool.name`, and for a local tool the span name IS the tool name,
- * so a TOOL span with a name gets it here rather than relying on every
- * caller to remember.
- */
-export function kindAttributes(kind: SpanKind, name?: string): Record<string, string> {
-  const attributes: Record<string, string> = { [OPENINFERENCE_SPAN_KIND]: kind };
-  const operation = OPERATION_BY_KIND[kind];
-  if (operation !== undefined) attributes[GEN_AI_OPERATION_NAME] = operation;
-  if (kind === SpanKind.TOOL && name !== undefined) attributes[GEN_AI_TOOL_NAME] = name;
-  return attributes;
-}
-"""
+LANG = "typescript"
+WIDTH = 100
+IDENT = re.compile(r"^[A-Za-z_$][A-Za-z0-9_$]*$")
 
 
-def _member(entry: dict, out: list[str]) -> None:
-    out.extend(comment(entry.get("note"), "//", "  "))
-    if "ref" in entry:
-        out.append(f"  {entry['ref']},")
-    else:
-        out.append(f'  "{entry["key"]}",')
+def _literal(value: str) -> str:
+    return json.dumps(value)
 
 
-def render(reg: Registry, preamble: dict) -> str:
+def _prop(key: str) -> str:
+    return key if IDENT.match(key) else _literal(key)
+
+
+def _ref_or_literal(reg: Registry, key: str) -> str:
+    const = reg.const_for_key(key, LANG)
+    return const if const is not None else _literal(key)
+
+
+def _array(head: str, items: list[str], tail: str = ";") -> list[str]:
+    """`head[items]tail` on one line when it fits, else one item per line."""
+    flat = f"{head}[{', '.join(items)}]{tail}"
+    if len(flat) <= WIDTH:
+        return [flat]
+    return [f"{head}[", *(f"  {i}," for i in items), f"]{tail}"]
+
+
+def _set(head: str, members: list[dict], extra: list[str] | None = None) -> list[str]:
+    out = [f"{head}new Set(["]
+    for m in members:
+        out.extend(comment(m.get("note"), "//", "  "))
+        out.append(f"  {m['ref'] if 'ref' in m else _literal(m['key'])},")
+    out.extend(extra or [])
+    out.append("]);")
+    return out
+
+
+def render(reg: Registry) -> str:
+    pre = reg.preamble
+    al = reg.allowlists
+    sk = reg.taxonomy["span_kind"]
+    kind_type = sk["names"][LANG]
     out: list[str] = []
-    out.extend(comment(preamble["header"], "//"))
+
+    out.extend(comment(pre["notice"], "//"))
+    out.extend(comment(pre["header"], "//"))
     out.append("")
-    out.append(preamble["typescript"]["imports"].rstrip("\n"))
+    if reg.table("otel_kind_by_kind", LANG) is not None:
+        out.append('import { SpanKind as OtelSpanKind } from "@opentelemetry/api";')
+    aliases: dict[str, list[str]] = {}
+    for row in reg.rows(LANG):
+        if "ts_alias" in row:
+            aliases.setdefault(row["ts_alias"]["from"], []).append(row["ts_alias"]["name"])
+    for module in sorted(aliases):
+        out.append(f"import {{ {', '.join(sorted(aliases[module]))} }} from {_literal(module)};")
 
-    for entry in reg.symbols():
-        if "section" in entry:
+    # --- constants ---
+    for row in reg.rows(LANG):
+        if "section" in row or "rationale" in row:
             out.append("")
-            out.extend(comment(entry["section"], "//"))
-        out.extend(comment(entry.get("rationale"), "//"))
-        out.append(f'export const {entry["const"]} = "{entry["key"]}";')
+        out.extend(comment(row.get("section"), "//"))
+        out.extend(comment(row.get("rationale"), "//"))
+        value = row["ts_alias"]["name"] if "ts_alias" in row else _literal(row["key"])
+        out.append(f"export const {row['const']} = {value};")
 
-    pending = reg.allowlist("pending_identity")
+    # --- request parameters ---
+    mp = reg.model_parameters
+    out.append("")
+    out.extend(comment(mp["doc"], "//"))
+    out.append(f"export const {mp['const']}: Readonly<Record<string, string>> = {{")
+    for spelling, target, note in reg.model_parameter_items():
+        out.extend(comment(note, "//", "  "))
+        out.append(f"  {_prop(spelling)}: {_ref_or_literal(reg, target)},")
+    out.append("};")
+
+    # --- allowlists ---
+    pending = al["pending_identity"]
     out.append("")
     out.extend(comment(pending["doc"], "//"))
-    out.append("export const PENDING_IDENTITY_ATTRIBUTES: ReadonlySet<string> = new Set([")
-    for e in pending["attributes"]:
-        _member(e, out)
-    out.append("]);")
-    for e in pending["prefixes"]:
-        out.extend(comment(e.get("note"), "//"))
-    refs = ", ".join(e["ref"] for e in pending["prefixes"])
-    out.append(f"export const PENDING_IDENTITY_PREFIXES: readonly string[] = [{refs}];")
+    out.extend(
+        _set(
+            f"export const {pending['const']}: ReadonlySet<string> = ",
+            reg.members("pending_identity", LANG),
+        )
+    )
 
-    content = reg.allowlist("content")
+    prefixes = al["pending_identity_prefixes"]
+    out.append("")
+    out.extend(comment(prefixes["doc"], "//"))
+    out.extend(_array(f"export const {prefixes['const']}: readonly string[] = ", prefixes["refs"]))
+
+    members = al["invocation_parameters_content_members"]
+    out.append("")
+    out.extend(comment(members["doc"], "//"))
+    out.extend(
+        _array(
+            f"export const {members['const']}: readonly string[] = ",
+            [_literal(v) for v in members["values"]],
+        )
+    )
+
+    content = al["content"]
+    derived = content.get("derived")
+    extra: list[str] = []
+    if derived:
+        extra.extend(comment(derived.get("note"), "//", "  "))
+        extra.append(f"  ...[{', '.join(derived['prefixes'])}].flatMap((prefix) =>")
+        extra.append(f"    {derived['members']}.map((member) => `${{prefix}}${{member}}`),")
+        extra.append("  ),")
     out.append("")
     out.extend(comment(content["doc"], "//"))
-    out.append("export const CONTENT_ATTRIBUTES: ReadonlySet<string> = new Set([")
-    for e in content["attributes"]:
-        _member(e, out)
-    out.append("]);")
-
-    for spec in reg.partial_content():
-        entry = spec["entry"]
-        out.append("")
-        out.extend(comment(entry.get("rationale"), "//"))
-        out.append(f'export const {entry["const"]} = "{entry["key"]}";')
-        out.extend(comment(spec["doc"], "//"))
-        members = ", ".join(f'"{m}"' for m in spec["members"])
-        out.append(
-            f'export const {spec["members_const"]}: readonly string[] = [{members}];'
+    out.extend(
+        _set(
+            f"export const {content['const']}: ReadonlySet<string> = ",
+            reg.members("content", LANG),
+            extra,
         )
+    )
 
-    for const, block in (
-        ("CONTENT_ATTRIBUTE_PREFIXES", reg.allowlists["content"]["prefixes"]),
-        ("CONTENT_ATTRIBUTE_SUFFIXES", reg.allowlists["content"]["suffixes"]),
-    ):
+    for section in ("content_prefixes", "content_suffixes"):
+        block = al[section]
         out.append("")
         out.extend(comment(block["doc"], "//"))
-        out.append(f"export const {const}: readonly string[] = [")
-        for value in block["values"]:
-            out.append(f'  "{value}",')
-        out.append("];")
+        out.extend(
+            _array(
+                f"export const {block['const']}: readonly string[] = ",
+                [_literal(v) for v in block["values"]],
+            )
+        )
 
-    kinds = reg.span_kinds()
+    # --- span kinds ---
     out.append("")
-    out.extend(comment(reg.taxonomy["span_kind"]["doc"], "//"))
-    out.append("export enum SpanKind {")
-    for k in kinds:
-        out.append(f'  {k["name"]} = "{k["value"]}", // {k["doc"]}')
+    out.extend(comment(sk["doc"].replace("``", "`"), "//"))
+    out.append(f"export enum {kind_type} {{")
+    for k in sk["values"]:
+        out.append(f"  {k['name']} = {_literal(k['name'])}, // {k['doc']}")
     out.append("}")
 
-    out.append("")
-    out.extend(comment(reg.taxonomy["operation_by_kind"]["doc"], "//"))
-    out.append("const OPERATION_BY_KIND: Partial<Record<SpanKind, string>> = {")
-    for kind, operation in reg.operation_by_kind().items():
-        out.append(f'  [SpanKind.{kind}]: "{operation}",')
-    out.append("};")
+    # --- tables ---
+    for name, key_fmt, value_fmt, annotation in (
+        ("operation_by_kind", "kind", "literal", f"Partial<Record<{kind_type}, string>>"),
+        ("kind_by_operation", "literal", "kind", f"Record<string, {kind_type}>"),
+        ("otel_kind_by_kind", "kind", "otel", f"Record<{kind_type}, OtelSpanKind>"),
+        ("name_target_by_kind", "kind", "ref", f"Partial<Record<{kind_type}, string>>"),
+    ):
+        table = reg.table(name, LANG)
+        if table is None:
+            continue
+        out.append("")
+        out.extend(comment(table["doc"], "//"))
+        out.append(f"export const {table['names'][LANG]}: {annotation} = {{")
+        for k, v in table["map"].items():
+            key = f"[{kind_type}.{k}]" if key_fmt == "kind" else _prop(k)
+            out.append(f"  {key}: {_fmt(v, value_fmt, kind_type)},")
+        out.append("};")
 
-    out.append("")
-    out.extend(comment(reg.taxonomy["otel_kind_by_kind"]["doc"], "//"))
-    out.append("const OTEL_KIND_BY_KIND: Record<SpanKind, OtelSpanKind> = {")
-    for kind, otel in reg.otel_kind_by_kind().items():
-        out.append(f"  [SpanKind.{kind}]: OtelSpanKind.{otel},")
-    out.append("};")
+    return "\n".join(out) + "\n"
 
-    return "\n".join(out) + TAIL
+
+def _fmt(value: str, how: str, kind_type: str) -> str:
+    if how == "kind":
+        return f"{kind_type}.{value}"
+    if how == "otel":
+        return f"OtelSpanKind.{value}"
+    if how == "ref":
+        return value
+    return _literal(value)
