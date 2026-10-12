@@ -899,6 +899,49 @@ attributes:
       namespaces change together, and neither may join the content allowlist
       alone.
 
+  # --- Usage namespaces ----------------------------------------------------
+
+  - const: GEN_AI_USAGE_PREFIX
+    key: gen_ai.usage.
+    symbol: prefix
+    origin: otel
+    covers: gen_ai.usage.<usage key>
+    shipped_in: [typescript]
+    divergence: |
+      Only the TypeScript SDK matches the usage family by prefix, to move it off
+      an aggregating producer's invoke_agent span (see
+      RIUS_AGGREGATED_USAGE_PREFIX). The Python SDK has no such producer.
+
+  - const: RIUS_AGGREGATED_USAGE_PREFIX
+    key: rius.aggregated_usage.
+    symbol: prefix
+    origin: rius
+    covers: rius.aggregated_usage.<usage key suffix>
+    shipped_in: [typescript]
+    divergence: |
+      Written only for the Vercel AI SDK v7 (@ai-sdk/otel), which is
+      JavaScript-only. The Python SDK instruments no producer that reports a
+      run's total on its invoke_agent span. argus-core adds the key when the
+      trace view displays the aggregate.
+    rationale: |
+      Where a whole agent run's token usage goes when the same producer also
+      reports each model call's usage on that call's own span:
+      gen_ai.usage.<suffix> becomes rius.aggregated_usage.<suffix>, on the
+      in-process (INTERNAL) invoke_agent span only. Left under gen_ai.usage.*,
+      the run's tokens are counted once per call span and once more on the
+      agent span by any backend that sums usage across spans.
+
+      Applied only to producers KNOWN to repeat the usage on per-call spans,
+      because a span on its own cannot say whether its usage is an aggregate
+      or the only record. CLIENT invoke_agent spans keep their usage: a remote
+      agent's model calls are not in the trace.
+
+      Our namespace, not pydantic-ai's gen_ai.aggregated_usage.*: the GenAI
+      conventions define no aggregate yet (semantic-conventions-genai#19), and
+      one could be defined later with different semantics (sub-agents included
+      or not). A backend reads both spellings, for display only; totals read
+      gen_ai.usage.* alone.
+
   # --- Rius vendor keys ----------------------------------------------------
 
   - const: RIUS_CONTEXT_SIZES
