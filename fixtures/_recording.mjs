@@ -10,7 +10,9 @@
 // - times: every timestamp in the scenario (span starts and ends, event times)
 //   is replaced by its rank in the scenario's timeline, one millisecond apart
 //   from a fixed base;
-// - an exception event's stack trace is elided;
+// - an exception event's stack trace is elided, and a status message or an
+//   exception.message is cut at the first stack frame (LangChain JS appends
+//   the error's stack, with machine paths, to both);
 // - every UUID in a string value becomes a placeholder numbered by first
 //   appearance.
 //
@@ -27,6 +29,15 @@ const BASE_TIME_NS = 1_700_000_000_000_000_000n;
 const TICK_NS = 1_000_000n;
 const STACKTRACE = "exception.stacktrace";
 const ELIDED = "<stacktrace elided>";
+// Where a Node stack trace starts: its first frame. LangChain JS appends the
+// error's whole stack to the status message and to exception.message.
+const STACK_FRAME = "\n    at ";
+const EXCEPTION_MESSAGE = "exception.message";
+
+function cutStack(text) {
+  const at = text.indexOf(STACK_FRAME);
+  return at === -1 ? text : text.slice(0, at).trimEnd();
+}
 const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
 
 const KINDS = ["SPAN_KIND_INTERNAL", "SPAN_KIND_SERVER", "SPAN_KIND_CLIENT", "SPAN_KIND_PRODUCER", "SPAN_KIND_CONSUMER"];
@@ -150,16 +161,20 @@ export function scenarioJson(name, spans, { canonicalize = true } = {}) {
     if (span.events.length) {
       d.events = span.events.map((event, k) => {
         const e = { timeUnixNano: rank.get(`event:${i}:${k}`), name: event.name };
-        const eventAttributes = attributesJson(event.attributes).map((a) =>
-          a.key === STACKTRACE ? { key: a.key, value: { stringValue: ELIDED } } : a,
-        );
+        const eventAttributes = attributesJson(event.attributes).map((a) => {
+          if (a.key === STACKTRACE) return { key: a.key, value: { stringValue: ELIDED } };
+          if (a.key === EXCEPTION_MESSAGE && typeof a.value.stringValue === "string") {
+            return { key: a.key, value: { stringValue: cutStack(a.value.stringValue) } };
+          }
+          return a;
+        });
         e.attributes = eventAttributes;
         return e;
       });
     }
     const status = {};
     if (span.status?.code) status.code = STATUS[span.status.code];
-    if (span.status?.message) status.message = span.status.message;
+    if (span.status?.message) status.message = cutStack(span.status.message);
     d.status = status;
     const scope = span.instrumentationScope ?? span.instrumentationLibrary;
     return { scope: { name: scope.name, version: scope.version ?? "" }, span: d };

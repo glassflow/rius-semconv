@@ -32,9 +32,11 @@ RECORD_SCRIPTS = ("record.py", "record.mjs")
 EXPECTED_SUFFIX = ".expected.json"
 SOURCES = {"python-sdk", "typescript-sdk", "sink"}
 #: Text that only appears when a recording kept something from the recording
-#: machine: a traceback, or a local path.
+#: machine: a traceback or a stack frame, or a local path. Matched against the
+#: file's JSON text, where a newline is the two characters backslash and n.
 MACHINE_MARKERS = (
     "Traceback (most recent call last)",
+    "\\n    at ",
     "site-packages",
     "/Users/",
     "/home/",

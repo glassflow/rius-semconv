@@ -130,3 +130,12 @@ def test_a_traceback_with_local_paths_is_a_leak(family):
     problems = [e for e in check_family(family) if "from the recording machine" in e]
     assert len(problems) == 3
     assert all(e.startswith(f"{FAMILY}/{RECORDING}: ") for e in problems)
+
+
+def test_a_node_stack_frame_is_a_leak(family):
+    def leak(data):
+        status = data["recordings"][0]["spans"][0]["span"].setdefault("status", {})
+        status["message"] = "Error: boom\n    at f (file:///srv/app.js:1:1)"
+
+    edit(family / RECORDING, leak)
+    assert any("'\\\\n    at '" in e for e in check_family(family))

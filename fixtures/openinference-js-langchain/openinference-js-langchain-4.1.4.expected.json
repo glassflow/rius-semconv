@@ -1036,14 +1036,14 @@
                   {
                     "key": "exception.message",
                     "value": {
-                      "stringValue": "400 The model `gpt-nope` does not exist.\n\nError: 400 The model `gpt-nope` does not exist.\n    at APIError.generate (file:///Users/pablopardogarcia/Documents/code/wt/rius-semconv-927c/fixtures/openinference-js-langchain/node_modules/openai/core/error.mjs:41:20)\n    at OpenAI.makeStatusError (file:///Users/pablopardogarcia/Documents/code/wt/rius-semconv-927c/fixtures/openinference-js-langchain/node_modules/openai/client.mjs:445:32)\n    at OpenAI.makeRequest (file:///Users/pablopardogarcia/Documents/code/wt/rius-semconv-927c/fixtures/openinference-js-langchain/node_modules/openai/client.mjs:993:30)\n    at async file:///Users/pablopardogarcia/Documents/code/wt/rius-semconv-927c/fixtures/openinference-js-langchain/node_modules/@langchain/openai/dist/chat_models/completions.js:273:17\n    at async pRetry (file:///Users/pablopardogarcia/Documents/code/wt/rius-semconv-927c/fixtures/openinference-js-langchain/node_modules/@langchain/core/dist/utils/p-retry/index.js:124:19)\n    at async run (/Users/pablopardogarcia/Documents/code/wt/rius-semconv-927c/fixtures/openinference-js-langchain/node_modules/p-queue/dist/index.js:163:29)"
+                      "stringValue": "400 The model `gpt-nope` does not exist.\n\nError: 400 The model `gpt-nope` does not exist."
                     }
                   }
                 ]
               }
             ],
             "status": {
-              "message": "400 The model `gpt-nope` does not exist.\n\nError: 400 The model `gpt-nope` does not exist.\n    at APIError.generate (file:///Users/pablopardogarcia/Documents/code/wt/rius-semconv-927c/fixtures/openinference-js-langchain/node_modules/openai/core/error.mjs:41:20)\n    at OpenAI.makeStatusError (file:///Users/pablopardogarcia/Documents/code/wt/rius-semconv-927c/fixtures/openinference-js-langchain/node_modules/openai/client.mjs:445:32)\n    at OpenAI.makeRequest (file:///Users/pablopardogarcia/Documents/code/wt/rius-semconv-927c/fixtures/openinference-js-langchain/node_modules/openai/client.mjs:993:30)\n    at async file:///Users/pablopardogarcia/Documents/code/wt/rius-semconv-927c/fixtures/openinference-js-langchain/node_modules/@langchain/openai/dist/chat_models/completions.js:273:17\n    at async pRetry (file:///Users/pablopardogarcia/Documents/code/wt/rius-semconv-927c/fixtures/openinference-js-langchain/node_modules/@langchain/core/dist/utils/p-retry/index.js:124:19)\n    at async run (/Users/pablopardogarcia/Documents/code/wt/rius-semconv-927c/fixtures/openinference-js-langchain/node_modules/p-queue/dist/index.js:163:29)",
+              "message": "400 The model `gpt-nope` does not exist.\n\nError: 400 The model `gpt-nope` does not exist.",
               "code": "STATUS_CODE_ERROR"
             }
           }

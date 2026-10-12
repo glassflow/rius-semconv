@@ -52,7 +52,9 @@ make a re-recording byte-identical in the pinned environment:
   `<stacktrace elided>`.
 - a span's status message is cut where a Python traceback starts
   (`Traceback (most recent call last):`). LangChain appends the formatted
-  traceback there, with machine paths in it.
+  traceback there, with machine paths in it. The Node recorders cut a status
+  message and an `exception.message` at the first stack frame (`\n    at `)
+  for the same reason: LangChain JS appends the error's stack to both.
 - every UUID in a string value becomes `00000000-0000-0000-0000-<n>`, numbered
   by first appearance in the scenario (frameworks such as LangChain write
   per-run ids into JSON payloads).
