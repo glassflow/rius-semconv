@@ -30,15 +30,18 @@ registry/                  the data (this is what you edit)
   allowlists.yaml          pending-snapshot and content allowlists
   taxonomy.yaml            span kinds, and the maps to and from gen_ai.operation.name
   model_parameters.yaml    provider parameter spellings -> gen_ai.request.* keys
+  usage_keys.yaml          a decision for every token, usage and cost key instrumentors send
   preamble.yaml            per-language headers and output file names
 generators/                one small module per language, plus the loader and linter
 out/                       generated files, committed so every change is a reviewable diff
+  docs/usage-keys.md       the usage-key table: each key, its decision, what each normalizer does
 fixtures/                  real instrumentor spans and the result every normalizer must
                            produce from them (see fixtures/README.md)
 tools/
   check_registry.py        lint the registry
   check_parity.py          compare out/ with what each consumer ships
   check_fixtures.py        every recording has a manifest entry and an expected result
+  check_usage_keys.py      every usage key in a recording has a decision, and it holds
   expect_python.py         write a recording's expected result with the Python SDK
   expect_typescript.mts    write one with the TypeScript SDK (Vercel families), under tsx
   review_expected.py       what a normalizer did to each span, for the hand review
@@ -57,6 +60,7 @@ python tools/check_registry.py            # lint
 python -m generators.generate             # regenerate out/
 python -m generators.generate --check     # exit 1 if out/ is stale
 python tools/check_fixtures.py            # every recording is complete
+python tools/check_usage_keys.py          # every recorded usage key is decided
 python -m pytest
 python tools/check_parity.py --fetch      # compare with the consumers' main branches
 ```
@@ -247,7 +251,8 @@ you pass `--include-planned`.
   defines must be covered by the registry. Comments, ordering, and literal
   versus constant-reference spellings are invisible, by design.
 - **Go** compares constants. A constant argus-core has and the registry does
-  not generate must be explained in `tools/go_reference_only.yaml`.
+  not generate must be explained in `tools/go_reference_only.yaml`, or be a
+  usage key `registry/usage_keys.yaml` decides (its `go` field).
 - **After a consumer vendors the file**, the check compares it byte for
   byte, and a difference means that consumer pins an older version.
 - `--cross` also diffs the two SDKs' hand-written files directly, for
@@ -257,7 +262,7 @@ you pass `--include-planned`.
 
 - **`ci.yml`** (no secrets): lints this repository's code and the registry,
   generates twice and diffs to prove determinism, fails if `out/` is stale,
-  and runs the tests.
+  checks the fixtures and the usage-key decisions, and runs the tests.
 - **`parity.yml`**: runs `check_parity.py` against each consumer's `main`
   on every pull request, on pushes to `main`, daily, and on demand.
 
@@ -277,13 +282,14 @@ are the ones the SDKs emit, and this registry generates them into
 `semconv_generated.go`, in the same package. The rest are the backend
 normalizer's **input spellings**, which the SDKs never emit and the sink
 reads from other producers. `tools/go_reference_only.yaml` lists every one
-by class. Before the whole Go file can be generated, the registry needs:
+by class, except the usage keys, which `registry/usage_keys.yaml` already
+decides with their mapping. Before the whole Go file can be generated, the
+registry needs:
 
 1. **Per-source-family mapping tables**, one per family, each row a
    source key, target key, converter, when it applies (span start or end) and
    whether the source key is deleted after mapping:
-   - OpenInference: `llm.model_name`, `llm.provider`, the `llm.token_count.*`
-     family, `llm.finish_reason`, the request/response model pair, the
+   - OpenInference: `llm.model_name`, `llm.provider`, `llm.finish_reason`, the request/response model pair, the
      flattened message prefixes, the indexed tool definitions
      (`llm.tools.<i>.tool.json_schema`), and the `First Token Stream Event`
      event rename.
@@ -301,6 +307,27 @@ the consumers, so encoding a guess here would create the second source of
 truth this repository exists to prevent. The inventory is kept exact instead:
 parity fails on any argus-core constant that is neither generated nor
 classified.
+
+## Usage keys
+
+A token count present on a span under a name nothing reads is priced as zero,
+or not at all, and nobody notices. `registry/usage_keys.yaml` gives every
+token, usage and cost key an instrumentor sends a decision: **canonical**,
+**mapped** (to which canonical key, and by which normalizers), **ignored**
+(and why nothing should read it), **not_usage**, or **gap** (a count that
+reaches no canonical key yet, and what that loses).
+
+`tools/check_usage_keys.py` scans every recording under `fixtures/` (span and
+event attributes) and fails on a key matching the file's `match` words that no
+entry decides, so a new instrumentor version that adds one fails CI. It also
+checks each decision against the expected results: a normalizer listed in
+`mapped_by` must drop the key and leave its target, and one not listed must
+leave it alone. Python is checked on the families it produced the expected
+result for, TypeScript on the Vercel families, the sink on its stored rows.
+
+The generated table, [`out/docs/usage-keys.md`](out/docs/usage-keys.md),
+lists each key with its decision, what each normalizer does with it, and the
+families it was recorded in.
 
 ## Versioning (proposed)
 

@@ -55,5 +55,8 @@ jobs:
       - name: Fixtures are complete
         run: python tools/check_fixtures.py
 
+      - name: Every usage key is decided
+        run: python tools/check_usage_keys.py
+
       - name: Tests
         run: python -m pytest -q -rs

@@ -5,6 +5,10 @@
 # whole Go file can be generated. The README's "Go" section groups it into
 # the tables that would have to exist.
 #
+# Usage keys are not listed here: registry/usage_keys.yaml decides each one,
+# and its `go` field names the argus-core constant, which check_parity.py
+# counts as classified.
+#
 # Classes
 #   normalizer_input  a key the SDKs never emit, which the sink reads from
 #                     OTHER producers and maps onto a canonical key. Belongs
@@ -46,18 +50,6 @@ names:
     class: normalizer_input
     family: openinference
     reason: The API flavor the client speaks; the provider's last resort when llm.provider is absent. Kept on the span.
-  LLMTokenCountPrompt:
-    class: normalizer_input
-    family: openinference
-    reason: Mapped to gen_ai.usage.input_tokens.
-  LLMTokenCountCompletion:
-    class: normalizer_input
-    family: openinference
-    reason: Mapped to gen_ai.usage.output_tokens.
-  LLMTokenCountTotal:
-    class: normalizer_input
-    family: openinference
-    reason: Read for validation only; the conventions define no total.
   LLMFinishReason:
     class: normalizer_input
     family: openinference
@@ -78,38 +70,10 @@ names:
     class: normalizer_input
     family: openinference
     reason: The unambiguous response model, mapped to gen_ai.response.model.
-  LLMTokenCountPromptCacheRead:
-    class: normalizer_input
-    family: openinference
-    reason: Mapped to gen_ai.usage.cache_read.input_tokens.
-  LLMTokenCountPromptCacheWrite:
-    class: normalizer_input
-    family: openinference
-    reason: Mapped to gen_ai.usage.cache_write.input_tokens.
   ToolName:
     class: normalizer_input
     family: openinference
     reason: OpenInference's executed-tool name on TOOL spans; mapped to gen_ai.tool.name.
-  GenAIUsageDetailsReasoningTokens:
-    class: normalizer_input
-    family: pydantic-ai
-    reason: pydantic-ai's OpenAI reasoning split; mapped to gen_ai.usage.reasoning.output_tokens.
-  GenAIUsageDetailsThinkingTokens:
-    class: normalizer_input
-    family: pydantic-ai
-    reason: pydantic-ai's Anthropic reasoning split; mapped to gen_ai.usage.reasoning.output_tokens.
-  GenAIUsageDetailsThoughtsTokens:
-    class: normalizer_input
-    family: pydantic-ai
-    reason: pydantic-ai's Google reasoning split; mapped to gen_ai.usage.reasoning.output_tokens.
-  GenAIUsageDetailsCacheWriteTokens:
-    class: normalizer_input
-    family: pydantic-ai
-    reason: pydantic-ai's backwards-compatible copy of its cache-write count; mapped to the canonical key.
-  GenAIUsageDetailsCacheReadTokens:
-    class: normalizer_input
-    family: pydantic-ai
-    reason: pydantic-ai's backwards-compatible copy of its cache-read count; mapped to the canonical key.
   GenAISystemInstructions:
     class: normalizer_input
     family: otel-genai
@@ -125,10 +89,6 @@ names:
     class: normalizer_input
     family: otel-genai
     reason: The spec's execute_tool result; mapped onto OutputValue for spans that carry only this spelling.
-  LLMTokenCountCompletionReasoning:
-    class: normalizer_input
-    family: openinference
-    reason: Mapped to gen_ai.usage.reasoning.output_tokens.
   LLMToolsPrefix:
     class: normalizer_input
     family: openinference
@@ -151,11 +111,6 @@ names:
   GlassflowSpanPending:
     class: legacy_spelling
     reason: rius.span.pending before the vendor keys moved under rius.*.
-  GenAIUsageCacheCreationInputTokens:
-    class: legacy_spelling
-    reason: >-
-      gen_ai.usage.cache_write.input_tokens before semconv-genai renamed it;
-      older SDKs and the current @ai-sdk/otel still send it. Mapped, never emitted.
   GenAIRequestToolChoice:
     class: legacy_spelling
     reason: >-
