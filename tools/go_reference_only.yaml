@@ -82,6 +82,45 @@ names:
     class: normalizer_input
     family: openinference
     reason: Mapped to gen_ai.usage.cache_write.input_tokens.
+  ToolName:
+    class: normalizer_input
+    family: openinference
+    reason: OpenInference's executed-tool name on TOOL spans; mapped to gen_ai.tool.name.
+  GenAIUsageDetailsReasoningTokens:
+    class: normalizer_input
+    family: pydantic-ai
+    reason: pydantic-ai's OpenAI reasoning split; mapped to gen_ai.usage.reasoning.output_tokens.
+  GenAIUsageDetailsThinkingTokens:
+    class: normalizer_input
+    family: pydantic-ai
+    reason: pydantic-ai's Anthropic reasoning split; mapped to gen_ai.usage.reasoning.output_tokens.
+  GenAIUsageDetailsThoughtsTokens:
+    class: normalizer_input
+    family: pydantic-ai
+    reason: pydantic-ai's Google reasoning split; mapped to gen_ai.usage.reasoning.output_tokens.
+  GenAIUsageDetailsCacheWriteTokens:
+    class: normalizer_input
+    family: pydantic-ai
+    reason: pydantic-ai's backwards-compatible copy of its cache-write count; mapped to the canonical key.
+  GenAIUsageDetailsCacheReadTokens:
+    class: normalizer_input
+    family: pydantic-ai
+    reason: pydantic-ai's backwards-compatible copy of its cache-read count; mapped to the canonical key.
+  GenAISystemInstructions:
+    class: normalizer_input
+    family: otel-genai
+    reason: >-
+      The system prompt as OTel-native instrumentations (@ai-sdk/otel) send it;
+      the sink folds it into the input messages. The SDKs list it only as a
+      content key, so the registry has no constant for it.
+  GenAIToolCallArguments:
+    class: normalizer_input
+    family: otel-genai
+    reason: The spec's execute_tool arguments; mapped onto InputValue for spans that carry only this spelling.
+  GenAIToolCallResult:
+    class: normalizer_input
+    family: otel-genai
+    reason: The spec's execute_tool result; mapped onto OutputValue for spans that carry only this spelling.
   LLMTokenCountCompletionReasoning:
     class: normalizer_input
     family: openinference
@@ -108,16 +147,16 @@ names:
   GlassflowSpanPending:
     class: legacy_spelling
     reason: rius.span.pending before the vendor keys moved under rius.*.
+  GenAIUsageCacheCreationInputTokens:
+    class: legacy_spelling
+    reason: >-
+      gen_ai.usage.cache_write.input_tokens before semconv-genai renamed it;
+      older SDKs and the current @ai-sdk/otel still send it. Mapped, never emitted.
   GenAIRequestToolChoice:
     class: legacy_spelling
     reason: >-
       tool_choice as SDK releases before the rius.request.* split sent it.
       Not a convention attribute, so a Rius registry must not define it.
-  RiusRequestToolChoice:
-    class: dynamic_key
-    reason: >-
-      rius.request.tool_choice, one member of the rius.request.* fan-out. The
-      registry owns the prefix, not the caller's parameter names.
   TelemetrySDKName:
     class: otel_sdk_resource
     reason: Set by the OpenTelemetry SDK itself; unreferenced in argus-core today.

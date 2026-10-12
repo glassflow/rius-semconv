@@ -48,12 +48,36 @@ def test_planned_rows_are_skipped_unless_asked_for(data):
     assert "TELEMETRY_DISTRO_NAME" in [r["const"] for r in planned]
 
 
-def test_allowlist_members_honour_shipped_in(registry):
-    def content_refs(lang):
-        return [m.get("ref") for m in registry.members("content", lang)]
+def test_allowlist_members_honour_shipped_in(data):
+    data["allowlists"]["content"]["attributes"].append(
+        {"key": "only.in.python", "shipped_in": ["python"], "divergence": "test"}
+    )
+    registry = Registry(data)
 
-    assert "LLM_INVOCATION_PARAMETERS" in content_refs("python")
-    assert "LLM_INVOCATION_PARAMETERS" not in content_refs("typescript")
+    def content_keys(lang):
+        return [m.get("key") for m in registry.members("content", lang)]
+
+    assert "only.in.python" in content_keys("python")
+    assert "only.in.python" not in content_keys("typescript")
+
+
+def test_included_allowlists_fold_into_content(registry):
+    assert registry.included("content") == ["third_party_content"]
+
+
+def test_a_key_in_content_and_an_included_allowlist_is_flagged(data):
+    data["allowlists"]["content"]["attributes"].append({"key": "langfuse.trace.input"})
+    assert any("in both content and third_party_content" in e for e in lint(data))
+
+
+def test_an_unknown_include_is_flagged(data):
+    data["allowlists"]["content"]["includes"] = ["no_such_list"]
+    assert any("no_such_list is not a member allowlist" in e for e in lint(data))
+
+
+def test_a_prefix_identity_key_outside_every_content_prefix_is_flagged(data):
+    data["allowlists"]["content_prefix_identity"]["attributes"].append({"key": "plain.key"})
+    assert any("plain.key is under no content prefix" in e for e in lint(data))
 
 
 def test_table_shipped_in_limits_a_table(registry):

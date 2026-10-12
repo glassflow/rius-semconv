@@ -133,8 +133,12 @@ def test_typescript_values(base_data):
     assert values["TRACER_NAME"] == "rius"
     assert values["SERVICE_VERSION"] == "service.version"  # via ATTR_SERVICE_VERSION
     content = values["CONTENT_ATTRIBUTES"]["__set__"]
-    assert "llm.invocation_parameters" not in content  # the divergence
+    assert "llm.invocation_parameters" in content
     assert "rius.request.tools" in content
+    assert "langfuse.trace.input" in content  # folded in from the third-party list
+    assert values["CONTENT_ATTRIBUTE_PREFIXED_SUFFIXES"] == [
+        ["llm.request.functions.", [".description", ".parameters", ".arguments"]]
+    ]
     assert len(values["PENDING_IDENTITY_ATTRIBUTES"]["__set__"]) == 17
     assert values["OTEL_KIND_BY_KIND"]["LLM"] == "OtelSpanKind.CLIENT"
     assert values["SpanKind"]["RETRIEVER"] == "RETRIEVER"
