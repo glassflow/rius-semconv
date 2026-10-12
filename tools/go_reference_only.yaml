@@ -42,6 +42,10 @@ names:
     class: normalizer_input
     family: openinference
     reason: Mapped to gen_ai.provider.name.
+  LLMSystem:
+    class: normalizer_input
+    family: openinference
+    reason: The API flavor the client speaks; the provider's last resort when llm.provider is absent. Kept on the span.
   LLMTokenCountPrompt:
     class: normalizer_input
     family: openinference
