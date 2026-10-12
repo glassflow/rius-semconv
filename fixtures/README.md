@@ -95,8 +95,14 @@ Where it comes from (`expected.source` in the manifest):
   `@ai-sdk/otel`. It imports the SDK's source from a checkout, so it runs under
   `tsx`:
   `npx tsx tools/expect_typescript.mts --sdk <checkout> --sdk-commit <sha> <recording.json>`
-- `sink`: families only the sink normalizes (OpenLLMetry, Laminar), produced by
-  the sink.
+- `sink`: families only the sink normalizes (OpenLLMetry, Laminar). No SDK
+  output exists to agree with, so the expected result is the **rows** the sink
+  stores, in `<recording>.expected-row.json`: for each scenario, the
+  ClickHouse rows (after the map and enrich stages, cost included) in span id
+  order, and the argus-core commit that produced them. Written by argus-core's
+  `go run ./internal/conformance/cmd/expect-rows -commit <sha> <recording.json>`
+  (run from `apps/sink`), with the conformance price table, and reviewed by
+  hand. argus-core's conformance test recomputes them.
 
 JavaScript recordings of families the Python SDK also covers (OpenInference's
 JS instrumentors) take the Python SDK's output as expected, like their Python
@@ -119,6 +125,10 @@ is recorded) cannot run on a replay, so it is not part of any expected result.
 - `recorder_resource()`: the provider's resource, with a fixed instance id.
 - `record_all(scenarios, exporter, script, packages, argv)`: runs every
   scenario and writes the recording and the environment.
+- `spans_from_otlp(captured)`: for a recorder that captures OTLP protobuf off
+  the wire instead of holding an in-memory exporter (Laminar's runs the
+  instrumented app as a child process), turns the captured (resource, scope,
+  span) triples into spans `scenario_json` can make canonical.
 
 Enable only the instrumentor under test. A combination (LangChain with the
 openai instrumentor, LiteLLM with it) produces extra spans for the same call

@@ -139,3 +139,44 @@ def test_a_node_stack_frame_is_a_leak(family):
 
     edit(family / RECORDING, leak)
     assert any("'\\\\n    at '" in e for e in check_family(family))
+
+
+SINK_FAMILY = "openllmetry"
+SINK_RECORDING = "openllmetry-0.62.3.json"
+SINK_ROWS = "openllmetry-0.62.3.expected-row.json"
+
+
+@pytest.fixture
+def sink_family(tmp_path: Path) -> Path:
+    """A copy of a real sink-only family, whose expected result is rows."""
+    target = tmp_path / SINK_FAMILY
+    shutil.copytree(ROOT / "fixtures" / SINK_FAMILY, target)
+    return target
+
+
+def test_a_sink_family_is_clean(sink_family):
+    assert check_family(sink_family) == []
+
+
+def test_row_files_are_not_recordings(sink_family):
+    assert not any(e.endswith("is not listed in manifest.json") for e in check_family(sink_family))
+
+
+def test_a_sink_expected_result_must_be_rows(sink_family):
+    edit(
+        sink_family / "manifest.json",
+        lambda m: m["recordings"][SINK_RECORDING]["expected"].__setitem__(
+            "file", "openllmetry-0.62.3.expected.json"
+        ),
+    )
+    assert any("must end in .expected-row.json" in e for e in check_family(sink_family))
+
+
+def test_rows_need_a_commit(sink_family):
+    edit(sink_family / SINK_ROWS, lambda d: d["normalizer"].pop("commit"))
+    assert any("normalizer has no commit" in e for e in check_family(sink_family))
+
+
+def test_rows_must_cover_the_recorded_spans(sink_family):
+    edit(sink_family / SINK_ROWS, lambda d: d["recordings"][0]["rows"].pop())
+    assert any("rows do not match the recorded span ids" in e for e in check_family(sink_family))
