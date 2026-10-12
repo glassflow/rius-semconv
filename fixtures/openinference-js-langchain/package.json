@@ -1,0 +1,14 @@
+{
+  "name": "rius-recorder-openinference-js-langchain",
+  "private": true,
+  "type": "module",
+  "description": "Pins for record.mjs. Install with npm ci.",
+  "dependencies": {
+    "@arizeai/openinference-instrumentation-langchain": "4.1.4",
+    "@langchain/core": "1.2.17",
+    "@langchain/openai": "1.6.2",
+    "@opentelemetry/api": "1.9.1",
+    "@opentelemetry/resources": "2.12.0",
+    "@opentelemetry/sdk-trace-base": "2.12.0"
+  }
+}
