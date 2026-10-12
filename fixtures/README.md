@@ -50,7 +50,15 @@ make a re-recording byte-identical in the pinned environment:
   chunk is still derivable (it reads as 1 ms per step).
 - an `exception` event's `exception.stacktrace` is replaced by
   `<stacktrace elided>`.
+- every UUID in a string value becomes `00000000-0000-0000-0000-<n>`, numbered
+  by first appearance in the scenario (frameworks such as LangChain write
+  per-run ids into JSON payloads).
 - the resource's `service.instance.id` is fixed (`recorder`).
+
+A value the instrumentor *measures* (pydantic-ai writes a time-to-first-chunk
+in seconds into an attribute) is made deterministic in the recorder itself, by
+pinning the clock it reads, never by editing the recording afterwards. The
+manifest says so when a recorder does this.
 
 The rius SDK is never involved in a recording: these are the instrumentor's
 raw spans.
@@ -76,6 +84,26 @@ Where it comes from (`expected.source` in the manifest):
 - `sink`: families only the sink normalizes (OpenLLMetry, Laminar), produced by
   the sink.
 
+## Writing a recorder
+
+`_recording.py` holds everything a recorder shares:
+
+- `ScriptedProvider(httpx)`: the scripted provider. `answer(url, *responses)`
+  queues responses, each answering exactly one request in order, and a
+  scenario fails if any is left unused. `transport()` gives a mock transport
+  for clients that accept one; `intercept_all()` answers every request in the
+  process, for libraries that build their HTTP clients internally (passing
+  `client=` would end up serialized in the span). Pass the httpx module the
+  client uses: openai >= 3 and anthropic >= 1 use the `httpx2` fork.
+- `sse(events)`: a server-sent-events body for streaming responses.
+- `recorder_resource()`: the provider's resource, with a fixed instance id.
+- `record_all(scenarios, exporter, script, packages, argv)`: runs every
+  scenario and writes the recording and the environment.
+
+Enable only the instrumentor under test. A combination (LangChain with the
+openai instrumentor, LiteLLM with it) produces extra spans for the same call
+and is recorded as its own family.
+
 ## Recording a family
 
 1. Make a virtualenv holding exactly the manifest's pins (Python version
@@ -86,6 +114,8 @@ Where it comes from (`expected.source` in the manifest):
 4. Produce the expected result, in a virtualenv with the Python SDK installed
    from the commit you name:
    `python tools/expect_python.py --sdk-commit <sha> fixtures/<family>/<file>.json`
-5. Review the expected result against the recording, scenario by scenario, and
-   write anything surprising into the pull request.
+5. Review the expected result against the recording, scenario by scenario:
+   `python tools/review_expected.py --unchanged fixtures/<family>/<file>.json`
+   lists what the normalizer removed, added, changed and left alone. Write
+   anything surprising into the pull request.
 6. `python tools/check_fixtures.py` must be clean.

@@ -15,6 +15,8 @@ byte-identical:
   from a fixed base, so ordering and nesting survive and the first-token
   event still lands after its span's start;
 - an exception event's stack trace, which names machine paths, is elided.
+- every UUID in a string value (frameworks write per-run ids into JSON
+  payloads) becomes a placeholder numbered by first appearance.
 
 This module is imported by recorders running in their own pinned virtualenv,
 so it depends only on opentelemetry-sdk, opentelemetry-exporter-otlp-proto-common
@@ -24,6 +26,7 @@ and protobuf, which every such environment already holds.
 from __future__ import annotations
 
 import json
+import re
 import sys
 from collections.abc import Sequence
 from importlib.metadata import version
@@ -41,6 +44,68 @@ TICK_NS = 1_000_000
 
 STACKTRACE = "exception.stacktrace"
 ELIDED = "<stacktrace elided>"
+
+
+class ScriptedProvider:
+    """A mock-transport handler: canned responses per URL, every request answered locally.
+
+    Each scripted response answers exactly one request, in order, so an agent
+    that calls the same endpoint twice (a tool call, then the final answer) is
+    scripted with two responses. Takes the httpx module the client under test
+    uses: openai >= 3 and anthropic >= 1 moved to the httpx2 fork, other
+    clients still use httpx.
+    """
+
+    def __init__(self, httpx: Any) -> None:
+        self.httpx = httpx
+        self.responses: dict[str, list[Any]] = {}
+        self.called: set[str] = set()
+
+    def answer(self, url: str, *responses: Any) -> None:
+        self.responses.setdefault(url, []).extend(responses)
+
+    def reset(self) -> None:
+        self.responses.clear()
+        self.called.clear()
+
+    def all_called(self) -> bool:
+        """Every scripted response was used: none is left over."""
+        return all(not queue for queue in self.responses.values())
+
+    def transport(self) -> Any:
+        return self.httpx.MockTransport(self)
+
+    def intercept_all(self) -> None:
+        """Answer every request any client in this process sends, from the script.
+
+        For libraries that build their HTTP clients internally (LiteLLM keeps
+        a module-level client per provider) and offer no clean injection point:
+        passing `client=` would also end up in the span, serialized into the
+        request-parameters bag. Replaces the real transport, so nothing can
+        reach the network either.
+        """
+        self.httpx.HTTPTransport.handle_request = lambda _transport, request: self(request)
+
+    def __call__(self, request: Any) -> Any:
+        url = str(request.url).split("?")[0]
+        if not self.responses.get(url):
+            raise AssertionError(f"unscripted request: {url}")
+        self.called.add(url)
+        canned = self.responses[url].pop(0)
+        return self.httpx.Response(
+            canned.status_code, headers=canned.headers, content=canned.content
+        )
+
+
+def sse(events: Sequence[tuple[str | None, dict[str, Any] | str]]) -> bytes:
+    """A server-sent-events body. Each item is (event name or None, data)."""
+    out = []
+    for name, data in events:
+        if name is not None:
+            out.append(f"event: {name}\n")
+        payload = data if isinstance(data, str) else json.dumps(data)
+        out.append(f"data: {payload}\n\n")
+    return "".join(out).encode()
 
 
 def recorder_resource() -> Resource:
@@ -128,13 +193,74 @@ def scenario_json(
                     attr["value"] = {"stringValue": ELIDED}
             event["attributes"] = sorted(event.get("attributes", []), key=lambda a: a["key"])
         out.append({"scope": scope, "span": d})
-    return {"scenario": name, "resource": resource, "spans": out}
+    scenario = {"scenario": name, "resource": resource, "spans": out}
+    return _scrub_uuids(scenario) if canonicalize else scenario
+
+
+_UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", re.I)
+
+
+def _scrub_uuids(scenario: dict[str, Any]) -> dict[str, Any]:
+    """Replace every UUID in the scenario's string values with a placeholder.
+
+    Frameworks mint ids per run and write them into attribute values, often
+    inside a JSON string (LangChain's lc_run--<uuid>). Each distinct UUID
+    becomes 00000000-0000-0000-0000-<n>, numbered by first appearance, so a
+    repeated id stays recognisably the same id.
+    """
+    seen: dict[str, str] = {}
+
+    def placeholder(match: re.Match[str]) -> str:
+        found = match.group(0).lower()
+        if found not in seen:
+            seen[found] = f"00000000-0000-0000-0000-{len(seen) + 1:012d}"
+        return seen[found]
+
+    def walk(value: Any) -> Any:
+        if isinstance(value, dict):
+            return {k: walk(v) for k, v in value.items()}
+        if isinstance(value, list):
+            return [walk(v) for v in value]
+        if isinstance(value, str):
+            return _UUID.sub(placeholder, value)
+        return value
+
+    return walk(scenario)
 
 
 def write_recording(path: Path, recordings: list[dict[str, Any]]) -> None:
     with open(path, "w") as f:
         json.dump({"recordings": recordings}, f, indent=2, ensure_ascii=False)
         f.write("\n")
+
+
+def record_all(
+    scenarios: dict[str, Any],
+    exporter: Any,
+    script: ScriptedProvider,
+    packages: Sequence[str],
+    argv: Sequence[str],
+) -> None:
+    """Run every scenario, write the recording, and report the environment.
+
+    `argv` is `[<recording.json>, <environment.json>?]`. Each scenario starts
+    from an empty exporter and an empty script, and must use every response it
+    scripted, so a scenario that silently stopped calling the provider fails.
+    """
+    recordings = []
+    for name, run in scenarios.items():
+        exporter.clear()
+        script.reset()
+        run()
+        leftover = {url: len(queue) for url, queue in script.responses.items() if queue}
+        assert script.all_called(), f"{name}: scripted responses never requested: {leftover}"
+        recordings.append(scenario_json(name, exporter.get_finished_spans()))
+    write_recording(Path(argv[0]), recordings)
+    env = json.dumps(environment(packages), indent=2)
+    if len(argv) > 1:
+        Path(argv[1]).write_text(env + "\n")
+    else:
+        print(env)
 
 
 def environment(packages: Sequence[str]) -> dict[str, Any]:

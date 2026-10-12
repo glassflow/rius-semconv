@@ -22,10 +22,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from _recording import (  # noqa: E402
-    environment,
+    ScriptedProvider,
+    record_all,
     recorder_resource,
-    scenario_json,
-    write_recording,
 )
 
 os.environ["OPENAI_API_KEY"] = "sk-test"
@@ -58,29 +57,8 @@ provider.add_span_processor(SimpleSpanProcessor(exporter))
 OpenAIInstrumentor().instrument(tracer_provider=provider)
 
 
-class Script:
-    """The scripted provider: one canned response per URL, every request answered locally."""
-
-    def __init__(self) -> None:
-        self.responses: dict[str, httpx.Response] = {}
-        self.called: set[str] = set()
-
-    def answer(self, url: str, response: httpx.Response) -> None:
-        self.responses[url] = response
-
-    def __call__(self, request: httpx.Request) -> httpx.Response:
-        url = str(request.url).split("?")[0]
-        if url not in self.responses:
-            raise AssertionError(f"unscripted request: {url}")
-        self.called.add(url)
-        canned = self.responses[url]
-        return httpx.Response(canned.status_code, headers=canned.headers, content=canned.content)
-
-
-script = Script()
-client = openai.OpenAI(
-    max_retries=0, http_client=httpx.Client(transport=httpx.MockTransport(script))
-)
+script = ScriptedProvider(httpx)
+client = openai.OpenAI(max_retries=0, http_client=httpx.Client(transport=script.transport()))
 
 WEATHER_TOOL = {
     "type": "function",
@@ -286,22 +264,5 @@ def embeddings() -> None:
     client.embeddings.create(model="text-embedding-3-small", input="Capital of France?")
 
 
-def main(out_path: str, environment_path: str | None) -> None:
-    recordings = []
-    for name, run in SCENARIOS.items():
-        exporter.clear()
-        script.responses.clear()
-        script.called.clear()
-        run()
-        assert script.called == set(script.responses), (name, script.called)
-        recordings.append(scenario_json(name, exporter.get_finished_spans()))
-    write_recording(Path(out_path), recordings)
-    env = json.dumps(environment(PACKAGES), indent=2)
-    if environment_path:
-        Path(environment_path).write_text(env + "\n")
-    else:
-        print(env)
-
-
 if __name__ == "__main__":
-    main(sys.argv[1], sys.argv[2] if len(sys.argv) > 2 else None)
+    record_all(SCENARIOS, exporter, script, PACKAGES, sys.argv[1:])
