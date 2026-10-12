@@ -13,6 +13,9 @@ start with "_"):
 - its expected result exists, names the normalizer that produced it, covers
   the same scenarios, and keeps the recording's span ids and times, so a
   consumer can match each expected span to its raw span;
+- in a control family (manifest `"control": true`: spans an SDK already
+  normalized), the expected result is the recording itself, since
+  normalizing canonical spans must change nothing;
 - no JSON file in it holds a traceback or a local path from the machine that
   recorded it.
 
@@ -161,6 +164,11 @@ def check_family(family: Path) -> list[str]:
                         f"{label}/{expected_name}: {scenario} span {span_id} changed its "
                         "trace, parent or times"
                     )
+            if manifest.get("control") and produced[scenario] != raw[scenario]:
+                errors.append(
+                    f"{label}/{expected_name}: {scenario} differs from the recording, "
+                    "but a control's spans are already canonical and must come out unchanged"
+                )
     return errors
 
 

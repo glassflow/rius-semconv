@@ -180,3 +180,30 @@ def test_rows_need_a_commit(sink_family):
 def test_rows_must_cover_the_recorded_spans(sink_family):
     edit(sink_family / SINK_ROWS, lambda d: d["recordings"][0]["rows"].pop())
     assert any("rows do not match the recorded span ids" in e for e in check_family(sink_family))
+
+
+CONTROL_FAMILY = "rius-python"
+CONTROL_EXPECTED = "rius-python-1.0.0.expected.json"
+
+
+@pytest.fixture
+def control_family(tmp_path: Path) -> Path:
+    """A copy of a real control family: spans an SDK already normalized."""
+    target = tmp_path / CONTROL_FAMILY
+    shutil.copytree(ROOT / "fixtures" / CONTROL_FAMILY, target)
+    return target
+
+
+def test_a_control_family_is_clean(control_family):
+    assert check_family(control_family) == []
+
+
+def test_a_control_must_come_out_unchanged(control_family):
+    def rename_model(data):
+        attributes = data["recordings"][0]["spans"][0]["span"]["attributes"]
+        for attribute in attributes:
+            if attribute["key"] == "gen_ai.request.model":
+                attribute["value"] = {"stringValue": "renamed"}
+
+    edit(control_family / CONTROL_EXPECTED, rename_model)
+    assert any("must come out unchanged" in e for e in check_family(control_family))
