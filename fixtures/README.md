@@ -84,8 +84,23 @@ Where it comes from (`expected.source` in the manifest):
 - `python-sdk`: families the SDKs cover. Produced by `tools/expect_python.py`
   with the Python SDK (the reference implementation) installed from a named
   commit, then **reviewed by hand** before it is committed.
+- `typescript-sdk`: families only the TypeScript SDK covers (the Vercel AI
+  SDK). Produced by `tools/expect_typescript.mts`, which replays each scenario
+  through a real tracer with the SDK's processor chain (the Vercel `ai.*`
+  transform, then the normalizer), the recorded ids handed out by an id
+  generator. A manifest entry's `replay.aggregating_producer` makes it start
+  spans through the SDK's `aggregatingTracer`, as the SDK does live for
+  `@ai-sdk/otel`. It imports the SDK's source from a checkout, so it runs under
+  `tsx`:
+  `npx tsx tools/expect_typescript.mts --sdk <checkout> --sdk-commit <sha> <recording.json>`
 - `sink`: families only the sink normalizes (OpenLLMetry, Laminar), produced by
   the sink.
+
+JavaScript recordings of families the Python SDK also covers (OpenInference's
+JS instrumentors) take the Python SDK's output as expected, like their Python
+counterparts. A JavaScript-specific step the TypeScript SDK takes live (for
+example qualifying a recorded exception's generic `Error` type at the moment it
+is recorded) cannot run on a replay, so it is not part of any expected result.
 
 ## Writing a recorder
 
@@ -106,6 +121,35 @@ Where it comes from (`expected.source` in the manifest):
 Enable only the instrumentor under test. A combination (LangChain with the
 openai instrumentor, LiteLLM with it) produces extra spans for the same call
 and is recorded as its own family.
+
+### Node recorders
+
+JavaScript instrumentors are recorded with `record.mjs` and
+`_recording.mjs`, which writes exactly the same shape as `_recording.py` (the
+round-trip test decodes Node recordings with the Python replay to prove it).
+Each Node family has its own `package.json` with exact pins and a committed
+`package-lock.json`; run `npm ci` in the family directory before recording.
+`node_modules` is never committed. The helpers mirror the Python ones
+(`ScriptedProvider` with a `fetch`, `sse`, `json`, `recordAll`), plus:
+
+- `deterministicClock()`: replaces `Date.now()` and `performance.now()` with
+  clocks that advance one tick per reading. Needed where an instrumentor mixes
+  clocks (LangChain stamps run records with `Date.now()` at millisecond
+  resolution while OpenTelemetry reads `performance.now()`), so that which of
+  two close moments came first cannot change between runs.
+- Register an `AsyncLocalStorageContextManager` when the instrumented library
+  nests spans through the active context (the AI SDK v5 does), as every Node
+  app's provider does.
+
+`_vercel.mjs` holds the Vercel AI SDK scenarios both Vercel families share;
+each family passes in its own `ai` and `@ai-sdk/openai` modules.
+
+### Timeline ties
+
+Where two moments share a timestamp, ties are broken by structure, the same
+way in both encoders: a start before an event before an end; among starts the
+parent first; among ends the child first. A span's start therefore always
+precedes its own end.
 
 ## Recording a family
 

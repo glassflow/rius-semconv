@@ -13,19 +13,14 @@ import sys
 
 import pytest
 
-from tools.check_fixtures import ROOT, families
+from tools.check_fixtures import ROOT, families, recording_files
 
 sys.path.insert(0, str(ROOT / "fixtures"))
 
 from _recording import scenario_json  # noqa: E402
 from _replay import scenario_spans  # noqa: E402
 
-RECORDINGS = [
-    path
-    for family in families(ROOT / "fixtures")
-    for path in sorted(family.glob("*.json"))
-    if path.name != "manifest.json" and not path.name.endswith(".expected.json")
-]
+RECORDINGS = [path for family in families(ROOT / "fixtures") for path in recording_files(family)]
 
 
 @pytest.mark.parametrize("path", RECORDINGS, ids=lambda p: p.name)

@@ -40,6 +40,7 @@ tools/
   check_parity.py          compare out/ with what each consumer ships
   check_fixtures.py        every recording has a manifest entry and an expected result
   expect_python.py         write a recording's expected result with the Python SDK
+  expect_typescript.mts    write one with the TypeScript SDK (Vercel families), under tsx
   review_expected.py       what a normalizer did to each span, for the hand review
   go_reference_only.yaml   argus-core constants the registry does not generate, and why
 tests/                     pytest suites for the loader, linter, generators and parity tools

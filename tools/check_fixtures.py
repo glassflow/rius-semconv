@@ -30,7 +30,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parent.parent
 RECORD_SCRIPTS = ("record.py", "record.mjs")
 EXPECTED_SUFFIX = ".expected.json"
-SOURCES = {"python-sdk", "sink"}
+SOURCES = {"python-sdk", "typescript-sdk", "sink"}
 #: Text that only appears when a recording kept something from the recording
 #: machine: a traceback, or a local path.
 MACHINE_MARKERS = (
@@ -83,11 +83,7 @@ def check_family(family: Path) -> list[str]:
         errors.append(f"{label}: manifest names family {manifest.get('family')!r}")
 
     listed = manifest.get("recordings", {})
-    on_disk = {
-        p.name
-        for p in family.glob("*.json")
-        if p.name != "manifest.json" and not p.name.endswith(EXPECTED_SUFFIX)
-    }
+    on_disk = {p.name for p in recording_files(family)}
     for name in sorted(on_disk - set(listed)):
         errors.append(f"{label}: {name} is not listed in manifest.json")
     for path in sorted(family.glob("*.json")):
@@ -100,9 +96,11 @@ def check_family(family: Path) -> list[str]:
         if not recording_path.exists():
             errors.append(f"{where}: listed in manifest.json but missing")
             continue
-        for field in ("python", "packages", "scenarios", "expected", "verified"):
+        for field in ("packages", "scenarios", "expected", "verified"):
             if field not in entry:
                 errors.append(f"{where}: manifest entry has no {field}")
+        if "python" not in entry and "node" not in entry:
+            errors.append(f"{where}: manifest entry names no runtime (python or node)")
         recording = _load(recording_path, errors)
         if recording is None:
             continue
@@ -155,6 +153,20 @@ def check_family(family: Path) -> list[str]:
                         "trace, parent or times"
                     )
     return errors
+
+
+#: JSON files in a family directory that are not recordings: its manifest, and
+#: a Node family's package pins.
+NOT_RECORDINGS = {"manifest.json", "package.json", "package-lock.json"}
+
+
+def recording_files(family: Path) -> list[Path]:
+    """The raw recordings in a family directory (not manifests, pins or expected results)."""
+    return sorted(
+        p
+        for p in family.glob("*.json")
+        if p.name not in NOT_RECORDINGS and not p.name.endswith(EXPECTED_SUFFIX)
+    )
 
 
 def families(fixtures: Path) -> list[Path]:

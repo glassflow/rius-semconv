@@ -126,6 +126,26 @@ def _hex(value: int, width: int) -> str:
     return format(value, f"0{width}x")
 
 
+def _sid(span: ReadableSpan) -> int:
+    return span.get_span_context().span_id
+
+
+def _depths(spans: Sequence[ReadableSpan]) -> dict[int, int]:
+    """Each span's depth below the scenario's roots (0 for a root)."""
+    parent_of = {_sid(s): (s.parent.span_id if s.parent is not None else None) for s in spans}
+    depth: dict[int, int] = {}
+
+    def of(span_id: int) -> int:
+        if span_id not in depth:
+            parent = parent_of.get(span_id)
+            depth[span_id] = 0 if parent not in parent_of else of(parent) + 1
+        return depth[span_id]
+
+    for span_id in parent_of:
+        of(span_id)
+    return depth
+
+
 def scenario_json(
     name: str, spans: Sequence[ReadableSpan], *, canonicalize: bool = True
 ) -> dict[str, Any]:
@@ -139,7 +159,15 @@ def scenario_json(
     """
     if not spans:
         return {"scenario": name, "resource": {"attributes": []}, "spans": []}
-    ordered = sorted(enumerate(spans), key=lambda pair: (pair[1].start_time or 0, pair[0]))
+    depth = _depths(spans)
+    # Start order; on a tie a parent comes before its child, then the order the
+    # spans finished in. Instrumentors that stamp times at millisecond
+    # resolution (LangChain's run records) tie often, and a tie must not decide
+    # the numbering by chance.
+    ordered = sorted(
+        enumerate(spans),
+        key=lambda pair: (pair[1].start_time or 0, depth[_sid(pair[1])], pair[0]),
+    )
     ordered_spans = [span for _, span in ordered]
 
     trace_ids: dict[int, str] = {}
@@ -153,15 +181,25 @@ def scenario_json(
             trace_ids[context.trace_id] = _hex(context.trace_id, 32)
             span_ids[context.span_id] = _hex(context.span_id, 16)
 
-    stamps = sorted(
-        {span.start_time for span in ordered_spans if span.start_time is not None}
-        | {span.end_time for span in ordered_spans if span.end_time is not None}
-        | {event.timestamp for span in ordered_spans for event in span.events}
-    )
+    # Every start, event and end is its own point on the timeline, so a tie in
+    # the real clock never merges two points. Ties are broken by structure: a
+    # start before an event before an end; among starts the parent first,
+    # among ends the child first; then span order. A span's start therefore
+    # always precedes its own end, even when the clock saw no time pass.
+    points: list[tuple[tuple, tuple]] = []
+    for i, span in enumerate(ordered_spans):
+        d = depth[_sid(span)]
+        points.append(((span.start_time or 0, 0, d, i, 0), ("start", i)))
+        for k, event in enumerate(span.events):
+            points.append(((event.timestamp, 1, d, i, k), ("event", i, k)))
+        points.append(((span.end_time or 0, 2, -d, i, 0), ("end", i)))
     if canonicalize:
-        rank = {stamp: str(BASE_TIME_NS + i * TICK_NS) for i, stamp in enumerate(stamps)}
+        rank = {
+            point: str(BASE_TIME_NS + n * TICK_NS)
+            for n, (_, point) in enumerate(sorted(points, key=lambda p: p[0]))
+        }
     else:
-        rank = {stamp: str(stamp) for stamp in stamps}
+        rank = {point: str(key[0]) for key, point in points}
 
     request = encode_spans(ordered_spans)
     resource_spans = request.resource_spans
@@ -177,7 +215,7 @@ def scenario_json(
                 encoded[span_id] = (scope, MessageToDict(pb))
 
     out = []
-    for span in ordered_spans:
+    for i, span in enumerate(ordered_spans):
         context = span.get_span_context()
         scope, d = encoded[context.span_id]
         d["traceId"] = trace_ids[context.trace_id]
@@ -188,14 +226,14 @@ def scenario_json(
         else:
             d.pop("parentSpanId", None)
         d.pop("flags", None)
-        d["startTimeUnixNano"] = rank[span.start_time]
-        d["endTimeUnixNano"] = rank[span.end_time]
+        d["startTimeUnixNano"] = rank[("start", i)]
+        d["endTimeUnixNano"] = rank[("end", i)]
         d["attributes"] = sorted(d.get("attributes", []), key=lambda a: a["key"])
         status = d.get("status", {})
         if TRACEBACK in status.get("message", ""):
             status["message"] = status["message"].split(TRACEBACK, 1)[0].rstrip()
-        for event, source in zip(d.get("events", []), span.events, strict=True):
-            event["timeUnixNano"] = rank[source.timestamp]
+        for k, event in enumerate(d.get("events", [])):
+            event["timeUnixNano"] = rank[("event", i, k)]
             for attr in event.get("attributes", []):
                 if attr["key"] == STACKTRACE:
                     attr["value"] = {"stringValue": ELIDED}
