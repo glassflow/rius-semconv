@@ -30,6 +30,8 @@ from typing import Any
 ROOT = Path(__file__).resolve().parent.parent
 RECORD_SCRIPTS = ("record.py", "record.mjs")
 EXPECTED_SUFFIX = ".expected.json"
+#: A sink-only family's expected result: the rows the sink stores, not spans.
+ROWS_SUFFIX = ".expected-row.json"
 SOURCES = {"python-sdk", "typescript-sdk", "sink"}
 #: Text that only appears when a recording kept something from the recording
 #: machine: a traceback or a stack frame, or a local path. Matched against the
@@ -121,8 +123,10 @@ def check_family(family: Path) -> list[str]:
         if expected_entry.get("source") not in SOURCES:
             errors.append(f"{where}: expected.source must be one of {sorted(SOURCES)}")
         expected_name = expected_entry.get("file", "")
-        if not expected_name.endswith(EXPECTED_SUFFIX):
-            errors.append(f"{where}: expected.file must end in {EXPECTED_SUFFIX}")
+        sink = expected_entry.get("source") == "sink"
+        suffix = ROWS_SUFFIX if sink else EXPECTED_SUFFIX
+        if not expected_name.endswith(suffix):
+            errors.append(f"{where}: expected.file must end in {suffix}")
             continue
         expected_path = family / expected_name
         if not expected_path.exists():
@@ -132,9 +136,12 @@ def check_family(family: Path) -> list[str]:
         if expected is None:
             continue
         normalizer = expected.get("normalizer", {})
-        for field in ("package", "version", "commit"):
+        for field in ("package", "commit") if sink else ("package", "version", "commit"):
             if not normalizer.get(field):
                 errors.append(f"{label}/{expected_name}: normalizer has no {field}")
+        if sink:
+            errors += _check_rows(label, expected_name, raw, expected)
+            continue
         produced = {s["scenario"]: s for s in expected.get("recordings", [])}
         if set(produced) != set(raw):
             errors.append(
@@ -157,6 +164,24 @@ def check_family(family: Path) -> list[str]:
     return errors
 
 
+def _check_rows(label: str, name: str, raw: dict[str, Any], expected: dict[str, Any]) -> list[str]:
+    """A sink-only family's rows: one per recorded span, keyed by the same ids."""
+    errors = []
+    produced = {s["scenario"]: s for s in expected.get("recordings", [])}
+    if set(produced) != set(raw):
+        errors.append(
+            f"{label}/{name}: scenarios differ from the recording "
+            f"(missing {sorted(set(raw) - set(produced))}, "
+            f"extra {sorted(set(produced) - set(raw))})"
+        )
+    for scenario in sorted(set(raw) & set(produced)):
+        span_ids = set(_spans_by_id(raw[scenario]))
+        row_ids = {row.get("SpanID") for row in produced[scenario].get("rows") or []}
+        if span_ids != row_ids:
+            errors.append(f"{label}/{name}: {scenario} rows do not match the recorded span ids")
+    return errors
+
+
 #: JSON files in a family directory that are not recordings: its manifest, and
 #: a Node family's package pins.
 NOT_RECORDINGS = {"manifest.json", "package.json", "package-lock.json"}
@@ -167,7 +192,9 @@ def recording_files(family: Path) -> list[Path]:
     return sorted(
         p
         for p in family.glob("*.json")
-        if p.name not in NOT_RECORDINGS and not p.name.endswith(EXPECTED_SUFFIX)
+        if p.name not in NOT_RECORDINGS
+        and not p.name.endswith(EXPECTED_SUFFIX)
+        and not p.name.endswith(ROWS_SUFFIX)
     )
 
 

@@ -21,6 +21,11 @@ from _recording import scenario_json  # noqa: E402
 from _replay import scenario_spans  # noqa: E402
 
 RECORDINGS = [path for family in families(ROOT / "fixtures") for path in recording_files(family)]
+# Sink-only families' expected results are rows, not spans: they have no
+# OTLP/JSON expected file to round-trip.
+SPAN_EXPECTED = [
+    path for path in RECORDINGS if path.with_name(path.stem + ".expected.json").exists()
+]
 
 
 @pytest.mark.parametrize("path", RECORDINGS, ids=lambda p: p.name)
@@ -30,7 +35,7 @@ def test_every_recording_round_trips(path):
         assert scenario_json(recording["scenario"], decoded, canonicalize=False) == recording
 
 
-@pytest.mark.parametrize("path", RECORDINGS, ids=lambda p: p.name)
+@pytest.mark.parametrize("path", SPAN_EXPECTED, ids=lambda p: p.name)
 def test_every_expected_result_round_trips(path):
     expected = path.with_name(path.stem + ".expected.json")
     for recording in json.loads(expected.read_text())["recordings"]:
