@@ -244,6 +244,26 @@ export const GEN_AI_REQUEST_PREFIX = "gen_ai.request.";
 // namespaces change together, and neither may join the content allowlist
 // alone.
 export const RIUS_REQUEST_PREFIX = "rius.request.";
+export const GEN_AI_USAGE_PREFIX = "gen_ai.usage.";
+
+// Where a whole agent run's token usage goes when the same producer also
+// reports each model call's usage on that call's own span:
+// gen_ai.usage.<suffix> becomes rius.aggregated_usage.<suffix>, on the
+// in-process (INTERNAL) invoke_agent span only. Left under gen_ai.usage.*,
+// the run's tokens are counted once per call span and once more on the
+// agent span by any backend that sums usage across spans.
+//
+// Applied only to producers KNOWN to repeat the usage on per-call spans,
+// because a span on its own cannot say whether its usage is an aggregate
+// or the only record. CLIENT invoke_agent spans keep their usage: a remote
+// agent's model calls are not in the trace.
+//
+// Our namespace, not pydantic-ai's gen_ai.aggregated_usage.*: the GenAI
+// conventions define no aggregate yet (semantic-conventions-genai#19), and
+// one could be defined later with different semantics (sub-agents included
+// or not). A backend reads both spellings, for display only; totals read
+// gen_ai.usage.* alone.
+export const RIUS_AGGREGATED_USAGE_PREFIX = "rius.aggregated_usage.";
 
 // Per-part byte sizes of a generation's context, as compact JSON with
 // readable keys: tool_definitions (name, bytes), input_messages and
