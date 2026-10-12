@@ -64,7 +64,8 @@ matter most (the file's header lists them all):
   `GenAIToolName`) unless `go:` overrides them.
 - **`symbol`**: an `attribute` key, a key `prefix`, an `event` name, an
   enumerated `value` of another attribute, the instrumentation `scope` name,
-  or a span `name`.
+  a span `name`, or a key `fragment` read relative to a prefix (the fields of
+  OpenInference's flattened messages, such as `message.role`).
 - **`origin`**: `otel` (an OpenTelemetry convention, including GenAI and MCP),
   `openinference`, or `rius` (ours).
 - **`direction`**: `emitted` (the default) or `read`, for keys the SDKs only
@@ -109,7 +110,14 @@ behaviour:
 - **`CONTENT_ATTRIBUTES`** (plus prefixes and suffixes) is what gets masked
   or stripped at export. It includes third-party keys the registry has no
   constant for, because content exclusion must hold for other
-  instrumentations' spans too.
+  instrumentations' spans too. The keys of other tracing SDKs a customer
+  runs next to rius (Langfuse, Traceloop, Logfire, MLflow, OpenLIT, Laminar)
+  are kept in their own list, `THIRD_PARTY_CONTENT_ATTRIBUTES`, each group
+  pinned to the source version it was read from, and folded into
+  `CONTENT_ATTRIBUTES` through `includes`. `CONTENT_PREFIX_IDENTITY_ATTRIBUTES`
+  names the few keys under a content prefix that are identity and must stay
+  in clear, and `CONTENT_ATTRIBUTE_PREFIXED_SUFFIXES` covers leaves that are
+  content only under a given prefix.
 
 Both are allowlists on purpose: a blocklist would have to enumerate every
 third-party attribute family. Membership is **authored**, never derived from

@@ -28,7 +28,7 @@ FILES = {
     "preamble": "preamble.yaml",
 }
 
-SYMBOLS = {"attribute", "prefix", "event", "value", "scope", "name"}
+SYMBOLS = {"attribute", "prefix", "event", "value", "scope", "name", "fragment"}
 ORIGINS = {"otel", "openinference", "rius"}
 DIRECTIONS = {"emitted", "read"}
 CATEGORIES = {"identity", "content", "metadata", "process_local"}
@@ -107,6 +107,16 @@ class Registry:
 
     def members(self, section: str, lang: str) -> list[dict]:
         return [m for m in self.allowlists[section]["attributes"] if self.wanted(m, lang)]
+
+    def included(self, section: str) -> list[str]:
+        """The member allowlists folded into `section`, in order. A name that
+        is not a member allowlist is skipped here and reported by the linter."""
+        al = self.allowlists
+        return [
+            name
+            for name in al[section].get("includes", [])
+            if name in al and "attributes" in al[name]
+        ]
 
     def table(self, name: str, lang: str) -> dict | None:
         """A taxonomy table, or None when it is not generated for `lang`."""
@@ -195,7 +205,7 @@ class Registry:
                 errors.append(f"{const}: key {key} is under glassflow.; Rius keys use rius.*")
             if symbol == "value" and r.get("of") not in self._by_const:
                 errors.append(f"{const}: value of unknown const {r.get('of')}")
-            if symbol in {"attribute", "prefix", "event", "scope"}:
+            if symbol in {"attribute", "prefix", "event", "scope", "fragment"}:
                 errors += _enum(r, "origin", ORIGINS, const, required=True)
                 if (
                     r.get("origin") == "rius"
@@ -280,9 +290,14 @@ class Registry:
     def _lint_allowlists(self) -> list[str]:
         errors: list[str] = []
         al = self.allowlists
-        for section in ("pending_identity", "content"):
+        for section in ("pending_identity", "content", *self.included("content")):
             for m in al[section]["attributes"]:
                 errors += self._lint_member(m, section)
+        for m in al["content_prefix_identity"]["attributes"]:
+            errors += self._lint_member(m, "content_prefix_identity")
+        for section in al["content"].get("includes", []):
+            if section not in al or "attributes" not in al[section]:
+                errors.append(f"content.includes: {section} is not a member allowlist")
         for ref in al["pending_identity_prefixes"]["refs"]:
             if ref not in self._by_const:
                 errors.append(f"pending_identity_prefixes: unknown const {ref}")
@@ -293,12 +308,26 @@ class Registry:
         pending_refs = {m["ref"] for m in al["pending_identity"]["attributes"] if "ref" in m}
         content_refs = {m["ref"] for m in al["content"]["attributes"] if "ref" in m}
         content_keys = {m["key"] for m in al["content"]["attributes"] if "key" in m}
+        for section in self.included("content"):
+            # A key in both would be a duplicate entry in Go's map literal,
+            # which does not compile, and a second place to forget to edit.
+            keys = {m["key"] for m in al[section]["attributes"] if "key" in m}
+            for key in sorted(keys & content_keys):
+                errors.append(f"{key}: in both content and {section}; list it once")
+            content_keys |= keys
         pending_prefixes = [
             self._by_const[r]["key"]
             for r in al["pending_identity_prefixes"]["refs"]
             if r in self._by_const
         ]
         content_prefixes = al["content_prefixes"]["values"]
+        for m in al["content_prefix_identity"]["attributes"]:
+            key = m.get("key", "")
+            if not any(key.startswith(p) for p in content_prefixes):
+                errors.append(
+                    f"content_prefix_identity: {key} is under no content prefix, "
+                    "so it needs no exception"
+                )
 
         for ref in sorted(pending_refs & set(self._by_const)):
             category = self._by_const[ref].get("category")

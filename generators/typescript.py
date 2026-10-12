@@ -117,6 +117,32 @@ def render(reg: Registry) -> str:
         )
     )
 
+    def member_set(section: str) -> None:
+        block = al[section]
+        out.append("")
+        out.extend(comment(block["doc"], "//"))
+        out.extend(
+            _set(
+                f"export const {block['const']}: ReadonlySet<string> = ",
+                reg.members(section, LANG),
+            )
+        )
+
+    def string_array(section: str) -> None:
+        block = al[section]
+        out.append("")
+        out.extend(comment(block["doc"], "//"))
+        out.extend(
+            _array(
+                f"export const {block['const']}: readonly string[] = ",
+                [_literal(v) for v in block["values"]],
+            )
+        )
+
+    # Before CONTENT_ATTRIBUTES, which spreads them in by name.
+    for section in reg.included("content"):
+        member_set(section)
+
     content = al["content"]
     derived = content.get("derived")
     extra: list[str] = []
@@ -125,6 +151,8 @@ def render(reg: Registry) -> str:
         extra.append(f"  ...[{', '.join(derived['prefixes'])}].flatMap((prefix) =>")
         extra.append(f"    {derived['members']}.map((member) => `${{prefix}}${{member}}`),")
         extra.append("  ),")
+    for section in reg.included("content"):
+        extra.append(f"  ...{al[section]['const']},")
     out.append("")
     out.extend(comment(content["doc"], "//"))
     out.extend(
@@ -135,16 +163,23 @@ def render(reg: Registry) -> str:
         )
     )
 
-    for section in ("content_prefixes", "content_suffixes"):
-        block = al[section]
-        out.append("")
-        out.extend(comment(block["doc"], "//"))
-        out.extend(
-            _array(
-                f"export const {block['const']}: readonly string[] = ",
-                [_literal(v) for v in block["values"]],
-            )
-        )
+    string_array("content_prefixes")
+    member_set("content_prefix_identity")
+    string_array("content_suffixes")
+
+    block = al["content_prefixed_suffixes"]
+    out.append("")
+    out.extend(comment(block["doc"], "//"))
+    # The annotation is laid out the way biome formats it, which is what the
+    # consumer's lint enforces.
+    out.append(f"export const {block['const']}: readonly (readonly [")
+    out.append("  string,")
+    out.append("  readonly string[],")
+    entries = [
+        f"[{_literal(e['prefix'])}, [{', '.join(_literal(s) for s in e['suffixes'])}]]"
+        for e in block["values"]
+    ]
+    out.extend(_array("])[] = ", entries))
 
     # --- span kinds ---
     out.append("")

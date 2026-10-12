@@ -21,6 +21,8 @@
 #                  value      an enumerated VALUE of some attribute (`of:`)
 #                  scope      the instrumentation scope name
 #                  name       a span name
+#                  fragment   a piece of a key, read relative to a prefix
+#                             (OpenInference's flattened message fields)
 #   origin       Who defines the key:
 #                  otel           an OpenTelemetry convention (general, GenAI, MCP)
 #                  openinference  the OpenInference conventions
@@ -578,6 +580,40 @@ attributes:
     rationale: |
       "The target number of candidate completions to return" — OpenAI's `n`.
 
+  - const: GEN_AI_REQUEST_ENCODING_FORMATS
+    key: gen_ai.request.encoding_formats
+    symbol: attribute
+    origin: otel
+    kinds: [EMBEDDING]
+    category: identity
+    level: recommended
+    type: string[]
+    fill: [native, openinference]
+    rationale: |
+      Reached only through model parameters (and so through the request
+      parameter table), named because the normalizer's per-key type guard is
+      keyed by it.
+
+  - const: GEN_AI_REQUEST_PREVIOUS_RESPONSE_ID
+    key: gen_ai.request.previous_response.id
+    symbol: attribute
+    origin: otel
+    kinds: [LLM]
+    category: identity
+    level: recommended
+    type: string
+    fill: [native, openinference]
+
+  - const: GEN_AI_REQUEST_STREAM_CURSOR
+    key: gen_ai.request.stream_cursor
+    symbol: attribute
+    origin: otel
+    kinds: [LLM]
+    category: identity
+    level: recommended
+    type: string
+    fill: [native, openinference]
+
   - const: GEN_AI_USAGE_INPUT_TOKENS
     key: gen_ai.usage.input_tokens
     symbol: attribute
@@ -899,6 +935,23 @@ attributes:
       namespaces change together, and neither may join the content allowlist
       alone.
 
+  - const: RIUS_REQUEST_TOOL_CHOICE
+    key: rius.request.tool_choice
+    symbol: attribute
+    origin: rius
+    kinds: [LLM]
+    category: identity
+    level: vendor
+    type: string
+    fill: [native, openinference]
+    rationale: |
+      How the request constrained tool use: a mode string ("auto", "required")
+      or, for a forced call, the provider's object as compact JSON. The GenAI
+      conventions define no tool_choice, so it lives in our namespace. Context
+      attribution reads it to price the tool-use preamble, which is why the
+      normalizer lifts it out of the OpenInference request bag (content) into
+      here (not content).
+
   # --- Usage namespaces ----------------------------------------------------
 
   - const: GEN_AI_USAGE_PREFIX
@@ -1009,6 +1062,38 @@ attributes:
       before the vendor keys moved under rius.*; the backend reads both spellings
       for as long as pre-rename SDK versions are in the field.
 
+  - const: RIUS_PARENT_FOREIGN
+    section: "--- Another SDK's tracer provider in the process ---"
+    key: rius.parent.foreign
+    symbol: attribute
+    origin: rius
+    kinds: all
+    category: identity
+    level: vendor
+    type: boolean
+    fill: [native]
+    not_pending: |
+      Set at span start but not on PENDING_IDENTITY_ATTRIBUTES in either SDK
+      today, so a pending snapshot does not carry it. Recorded as found; whether
+      the live view needs it is an SDK decision.
+    rationale: |
+      On a span: its parent is local to this process, yet rius never received
+      it, so the trace arrives without that parent. Remote parents are never
+      flagged.
+
+  - const: RIUS_SDK_GLOBAL_PROVIDER
+    key: rius.sdk.global_provider
+    symbol: attribute
+    origin: rius
+    kinds: resource
+    level: vendor
+    type: string
+    fill: [native]
+    rationale: |
+      On the resource: foreign:<module.Class> when another provider already
+      held the OpenTelemetry global at init(). Absent when rius registered the
+      global.
+
   - const: LLM_INVOCATION_PARAMETERS
     key: llm.invocation_parameters
     symbol: attribute
@@ -1020,6 +1105,114 @@ attributes:
     fill: [openinference]
     rationale: |
       The request-parameters bag OpenInference instrumentors emit.
+
+  - const: LLM_INPUT_MESSAGES_PREFIX
+    key: llm.input_messages.
+    symbol: prefix
+    origin: openinference
+    direction: read
+    covers: llm.input_messages.<i>.<message field>
+    shipped_in: [typescript]
+    divergence: &flattened_messages_divergence |
+      The Python SDK keeps the same strings private in normalization.py rather
+      than in semconv.py. Moving them there would let this row ship in Python
+      too.
+    rationale: |
+      OpenInference's flattened message families, read by normalization and
+      reassembled into gen_ai.input.messages / gen_ai.output.messages: one key
+      per field, <prefix><i>.message.role,
+      ...message.tool_calls.<j>.tool_call.id,
+      ...message.contents.<k>.message_content.type and so on. Source spellings,
+      never emitted.
+
+  - const: LLM_OUTPUT_MESSAGES_PREFIX
+    key: llm.output_messages.
+    symbol: prefix
+    origin: openinference
+    direction: read
+    covers: llm.output_messages.<i>.<message field>
+    shipped_in: [typescript]
+    divergence: *flattened_messages_divergence
+
+  - const: LLM_MESSAGE_ROLE
+    key: message.role
+    symbol: fragment
+    origin: openinference
+    shipped_in: [typescript]
+    divergence: *flattened_messages_divergence
+    rationale: |
+      The message fields read, relative to <prefix><i>.
+
+  - const: LLM_MESSAGE_CONTENT
+    key: message.content
+    symbol: fragment
+    origin: openinference
+    shipped_in: [typescript]
+    divergence: *flattened_messages_divergence
+
+  - const: LLM_MESSAGE_TOOL_CALL_ID
+    key: message.tool_call_id
+    symbol: fragment
+    origin: openinference
+    shipped_in: [typescript]
+    divergence: *flattened_messages_divergence
+
+  - const: LLM_MESSAGE_TOOL_CALLS_PREFIX
+    key: message.tool_calls.
+    symbol: fragment
+    origin: openinference
+    shipped_in: [typescript]
+    divergence: *flattened_messages_divergence
+    rationale: |
+      A message's tool calls: message.tool_calls.<j>.tool_call.<field>.
+
+  - const: LLM_TOOL_CALL_PREFIX
+    key: tool_call.
+    symbol: fragment
+    origin: openinference
+    shipped_in: [typescript]
+    divergence: *flattened_messages_divergence
+
+  - const: LLM_TOOL_CALL_ID
+    key: id
+    symbol: fragment
+    origin: openinference
+    shipped_in: [typescript]
+    divergence: *flattened_messages_divergence
+    rationale: |
+      Tool-call fields relative to tool_call.
+
+  - const: LLM_TOOL_CALL_FUNCTION_NAME
+    key: function.name
+    symbol: fragment
+    origin: openinference
+    shipped_in: [typescript]
+    divergence: *flattened_messages_divergence
+
+  - const: LLM_TOOL_CALL_FUNCTION_ARGUMENTS
+    key: function.arguments
+    symbol: fragment
+    origin: openinference
+    shipped_in: [typescript]
+    divergence: *flattened_messages_divergence
+
+  - const: LLM_MESSAGE_CONTENTS_PREFIX
+    key: message.contents.
+    symbol: fragment
+    origin: openinference
+    shipped_in: [typescript]
+    divergence: *flattened_messages_divergence
+    rationale: |
+      A message's multimodal items:
+      message.contents.<k>.message_content.<field>, plus
+      message.contents.<k>.tool_call.<field> on a tool_use item.
+
+  - const: LLM_MESSAGE_CONTENT_PREFIX
+    key: message_content.
+    symbol: fragment
+    origin: openinference
+    shipped_in: [typescript]
+    divergence: *flattened_messages_divergence
 
   - const: CHAIN_SPAN_NAME
     key: chain

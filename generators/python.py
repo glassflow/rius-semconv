@@ -96,6 +96,30 @@ def render(reg: Registry) -> str:
     out.append(f"{members['const']} = ({values}{',' if len(members['values']) == 1 else ''})")
     public.append(members["const"])
 
+    def member_set(section: str) -> None:
+        block = al[section]
+        out.append("")
+        out.extend(comment(block["doc"], "#"))
+        out.append(f"{block['const']} = frozenset(")
+        out.append("    {")
+        out.extend(_member_lines(reg, reg.members(section, LANG), "        "))
+        out.append("    }")
+        out.append(")")
+        public.append(block["const"])
+
+    def string_tuple(section: str) -> None:
+        block = al[section]
+        out.append("")
+        out.extend(comment(block["doc"], "#"))
+        out.append(f"{block['const']} = (")
+        out.extend(f"    {_literal(v)}," for v in block["values"])
+        out.append(")")
+        public.append(block["const"])
+
+    # Before CONTENT_ATTRIBUTES, which folds them in by name.
+    for section in reg.included("content"):
+        member_set(section)
+
     content = al["content"]
     out.append("")
     out.extend(comment(content["doc"], "#"))
@@ -111,17 +135,25 @@ def render(reg: Registry) -> str:
         out.append(f"        for prefix in ({', '.join(derived['prefixes'])})")
         out.append(f"        for member in {derived['members']}")
         out.append("    }")
+    for section in reg.included("content"):
+        out.append(f"    | {al[section]['const']}")
     out.append(")")
     public.append(content["const"])
 
-    for section in ("content_prefixes", "content_suffixes"):
-        block = al[section]
-        out.append("")
-        out.extend(comment(block["doc"], "#"))
-        out.append(f"{block['const']} = (")
-        out.extend(f"    {_literal(v)}," for v in block["values"])
-        out.append(")")
-        public.append(block["const"])
+    string_tuple("content_prefixes")
+    member_set("content_prefix_identity")
+    string_tuple("content_suffixes")
+
+    block = al["content_prefixed_suffixes"]
+    out.append("")
+    out.extend(comment(block["doc"], "#"))
+    out.append(f"{block['const']} = (")
+    for entry in block["values"]:
+        suffixes = ", ".join(_literal(s) for s in entry["suffixes"])
+        trailing = "," if len(entry["suffixes"]) == 1 else ""
+        out.append(f"    ({_literal(entry['prefix'])}, ({suffixes}{trailing})),")
+    out.append(")")
+    public.append(block["const"])
 
     # --- span kinds ---
     sk = reg.taxonomy["span_kind"]

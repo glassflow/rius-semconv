@@ -154,12 +154,6 @@ content:
         instrumentations vary on whether they flatten these into indexed
         keys, and a prefix match never covers its own bare key
     - key: llm.prompt_template
-    - key: mlflow.spanInputs
-    - key: mlflow.spanOutputs
-    - key: traceloop.entity.input
-      note: |
-        OpenLLMetry workflow/task spans carry full I/O here
-    - key: traceloop.entity.output
     - key: llm.tools
       note: |
         Every bundled OpenInference instrumentor emits tool definitions as
@@ -190,14 +184,6 @@ content:
     - key: ai.schema
     - key: ai.schema.description
     - ref: LLM_INVOCATION_PARAMETERS
-      shipped_in: [python, go]
-      divergence: |
-        Python treats the whole OpenInference request-parameters bag as
-        content, because normalization runs before masking and has already
-        promoted every member the rule table recognises. TypeScript still
-        keeps the bag and redacts only its tools/functions members
-        (masking.ts). One of the two has to move; until then the registry
-        records both.
       note: |
         The OpenInference request-parameters bag, whole. Its membership is
         open and provider-defined — litellm and langchain put the request's
@@ -218,6 +204,121 @@ content:
       verbatim with content capture off. Per KEY, not per namespace: both
       namespaces stay non-content wholesale, which is what keeps their tie
       intact.
+  # Whole allowlists folded into this one, after the members and the derived
+  # keys. Each name is a top-level section of this file.
+  includes: [third_party_content]
+
+third_party_content:
+  const: THIRD_PARTY_CONTENT_ATTRIBUTES
+  go: ThirdPartyContentAttributes
+  doc: |
+    Content keys of other OTel-based SDKs a customer runs next to rius. Their
+    spans reach rius's exporter through the foreign-provider bridge, or
+    directly when rius holds the global provider they write to, and an e2e
+    run found Langfuse's input and output stored with content capture off.
+    Each group is read off the SDK's own source at the version named; a key is
+    here only if that source writes it onto a span or span event. Names,
+    types, levels, usage and prompt keys/versions stay: identity, not content.
+
+    A denylist cannot cover Logfire whole. It writes every keyword argument of
+    logfire.span()/info()/@instrument as a top-level attribute under the
+    caller's own name, so its content has no fixed key. logfire.msg is listed
+    (the message with those values interpolated); logfire.msg_template stays,
+    because it is the literal from the caller's code and Logfire already uses
+    it as the span name.
+  attributes:
+    - key: langfuse.observation.input
+      note: |
+        langfuse 3.15.0, langfuse/_client/attributes.py. Metadata is the
+        caller's arbitrary payload (one key per member, see the prefixes), and
+        the OpenAI wrapper writes the exception's message into status_message.
+    - key: langfuse.observation.output
+    - key: langfuse.trace.input
+    - key: langfuse.trace.output
+    - key: langfuse.observation.metadata
+    - key: langfuse.trace.metadata
+    - key: langfuse.observation.status_message
+    - key: langfuse.experiment.metadata
+    - key: langfuse.experiment.item.metadata
+    - key: langfuse.experiment.item.expected_output
+    - key: traceloop.entity.input
+      note: |
+        traceloop-sdk 0.62.3 (opentelemetry-semantic-conventions-ai 0.5.1):
+        workflow/task I/O and the managed prompt's template and variables; the
+        LangChain instrumentation mirrors entity I/O into gen_ai.task.*, and
+        the MCP one writes each tool result to mcp.response.value.
+    - key: traceloop.entity.output
+    - key: traceloop.prompt.template
+    - key: traceloop.prompt.template_variables
+    - key: gen_ai.task.input
+    - key: gen_ai.task.output
+    - key: mcp.response.value
+    - key: request_data
+      note: |
+        logfire 5.1.1: the OpenAI/Anthropic integrations put the request and
+        the reply in request_data/response_data and the messages in events;
+        the OpenAI Agents one adds raw_input, the Response object, and a
+        function span's arguments and result under bare input/output.
+    - key: response_data
+    - key: events
+    - key: all_messages_events
+    - key: pydantic_ai.all_messages
+    - key: raw_input
+    - key: response
+    - key: input
+    - key: output
+    - key: logfire.msg
+    - key: mlflow.spanInputs
+      note: |
+        mlflow-tracing 3.16.1, mlflow/tracing/constant.py. chunk.value is a
+        streamed chunk, written on span events.
+    - key: mlflow.spanOutputs
+    - key: mlflow.chat.tools
+    - key: mlflow.trace.intermediate_outputs
+    - key: mlflow.chunk.value
+    - key: gen_ai.retrieval.query.text
+      note: |
+        openlit 1.45.0, openlit/semcov/__init__.py, each one written by at
+        least one of its instrumentations. gen_ai.retrieval.query.text is also
+        a GenAI convention key: the user's query, verbatim.
+    - key: gen_ai.content.reasoning
+    - key: gen_ai.content.revised_prompt
+    - key: gen_ai.tool.args
+    - key: gen_ai.response.tool_calls
+    - key: gen_ai.workflow.input
+    - key: gen_ai.workflow.output
+    - key: gen_ai.framework.pipeline.input_data
+    - key: gen_ai.framework.pipeline.output_data
+    - key: gen_ai.framework.error.message
+    - key: gen_ai.agent.context
+    - key: gen_ai.agent.instructions
+    - key: gen_ai.agent.goal
+    - key: gen_ai.agent.action.tool_input
+    - key: gen_ai.agent.final_result
+    - key: gen_ai.agent.next_goal
+    - key: gen_ai.agent.step_messages
+    - key: gen_ai.memory.search.query
+    - key: gen_ai.vectordb.search.query
+    - key: gen_ai.extraction.instruction
+    - key: mcp.tool.arguments
+    - key: mcp.tool.result
+    - key: mcp.result
+    - key: mcp.params
+    - key: mcp.sampling.messages
+    - key: mcp.fastmcp.prompt.arguments
+    - key: mcp.completion.argument.value
+    - key: mcp.completion.context.arguments
+    - key: mcp.completion.values
+    - key: mcp.error.message
+    - key: lmnr.span.input
+      note: |
+        lmnr 0.7.64, lmnr/opentelemetry_lib/tracing/attributes.py: the
+        observed function's arguments and return value, the caller's metadata
+        (one key per member, see the prefixes), and the provider's whole reply
+        its Anthropic and LiteLLM instrumentations write.
+    - key: lmnr.span.output
+    - key: lmnr.association.properties.metadata
+    - key: lmnr.sdk.raw.response
 
 content_prefixes:
   const: CONTENT_ATTRIBUTE_PREFIXES
@@ -234,6 +335,23 @@ content_prefixes:
     - llm.prompt_template.
     - llm.tools.
     - ai.prompt.
+    - langfuse.observation.metadata.
+    - langfuse.trace.metadata.
+    - traceloop.prompt.template_variables.
+    - lmnr.association.properties.metadata.
+
+content_prefix_identity:
+  const: CONTENT_PREFIX_IDENTITY_ATTRIBUTES
+  go: ContentPrefixIdentityAttributes
+  doc: |
+    Members of a content prefix that carry identity, not content. Laminar's
+    metadata is the caller's arbitrary payload, but the sink reads these three
+    as the tool call id and the agent name; masking them would cost a trace
+    with content capture off its tool linkage and its agent.
+  attributes:
+    - key: lmnr.association.properties.metadata.tool_call_id
+    - key: lmnr.association.properties.metadata.agent.name
+    - key: lmnr.association.properties.metadata.service.name
 
 content_suffixes:
   const: CONTENT_ATTRIBUTE_SUFFIXES
@@ -244,3 +362,18 @@ content_suffixes:
   values:
     - .document.content
     - .embedding.text
+
+content_prefixed_suffixes:
+  const: CONTENT_ATTRIBUTE_PREFIXED_SUFFIXES
+  go: ContentAttributePrefixedSuffixes
+  doc: |
+    The same, for a leaf too generic to match on its own across every
+    namespace (gen_ai.agent.description is identity): a prefix and its content
+    leaves. Traceloop writes each tool definition as
+    llm.request.functions.{i}.{name,description,parameters} (Ollama
+    instrumentation 0.62.3; OpenAI, Anthropic and LangChain up to 0.40.x).
+    .name stays: identity. .arguments has no emitter in the versions read, but
+    is content by name wherever it appears.
+  values:
+    - prefix: llm.request.functions.
+      suffixes: [.description, .parameters, .arguments]

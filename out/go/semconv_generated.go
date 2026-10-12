@@ -147,7 +147,14 @@ const (
 	GenAIRequestStopSequences    = "gen_ai.request.stop_sequences"
 
 	// "The target number of candidate completions to return" — OpenAI's `n`.
-	GenAIRequestChoiceCount        = "gen_ai.request.choice.count"
+	GenAIRequestChoiceCount = "gen_ai.request.choice.count"
+
+	// Reached only through model parameters (and so through the request
+	// parameter table), named because the normalizer's per-key type guard is
+	// keyed by it.
+	GenAIRequestEncodingFormats    = "gen_ai.request.encoding_formats"
+	GenAIRequestPreviousResponseID = "gen_ai.request.previous_response.id"
+	GenAIRequestStreamCursor       = "gen_ai.request.stream_cursor"
 	GenAIUsageInputTokens          = "gen_ai.usage.input_tokens"
 	GenAIUsageOutputTokens         = "gen_ai.usage.output_tokens"
 	GenAIUsageCacheReadInputTokens = "gen_ai.usage.cache_read.input_tokens"
@@ -243,6 +250,14 @@ const (
 	// alone.
 	RiusRequestPrefix = "rius.request."
 
+	// How the request constrained tool use: a mode string ("auto", "required")
+	// or, for a forced call, the provider's object as compact JSON. The GenAI
+	// conventions define no tool_choice, so it lives in our namespace. Context
+	// attribution reads it to price the tool-use preamble, which is why the
+	// normalizer lifts it out of the OpenInference request bag (content) into
+	// here (not content).
+	RiusRequestToolChoice = "rius.request.tool_choice"
+
 	// Per-part byte sizes of a generation's context, as compact JSON with
 	// readable keys: tool_definitions (name, bytes), input_messages and
 	// output_messages (literal role, parts typed text / tool_call /
@@ -278,6 +293,17 @@ const (
 	// before the vendor keys moved under rius.*; the backend reads both spellings
 	// for as long as pre-rename SDK versions are in the field.
 	RiusSpanPending = "rius.span.pending"
+
+	// --- Another SDK's tracer provider in the process ---
+	// On a span: its parent is local to this process, yet rius never received
+	// it, so the trace arrives without that parent. Remote parents are never
+	// flagged.
+	RiusParentForeign = "rius.parent.foreign"
+
+	// On the resource: foreign:<module.Class> when another provider already
+	// held the OpenTelemetry global at init(). Absent when rius registered the
+	// global.
+	RiusSDKGlobalProvider = "rius.sdk.global_provider"
 
 	// The request-parameters bag OpenInference instrumentors emit.
 	LLMInvocationParameters = "llm.invocation_parameters"
@@ -352,10 +378,10 @@ var GenAIRequestParameters = map[string]string{
 	// encoding_formats — plural in the registry; OpenAI's embeddings endpoint
 	// sends the singular `encoding_format`, and the registry's note says some
 	// systems call these "embedding types" (Cohere `embedding_types`).
-	"encoding_formats": "gen_ai.request.encoding_formats",
-	"encoding_format":  "gen_ai.request.encoding_formats",
-	"encodingFormat":   "gen_ai.request.encoding_formats",
-	"embedding_types":  "gen_ai.request.encoding_formats",
+	"encoding_formats": GenAIRequestEncodingFormats,
+	"encoding_format":  GenAIRequestEncodingFormats,
+	"encodingFormat":   GenAIRequestEncodingFormats,
+	"embedding_types":  GenAIRequestEncodingFormats,
 	"seed":             GenAIRequestSeed,
 	"stream":           GenAIRequestStream,
 	// reasoning.level — "the exact string value sent to the provider";
@@ -366,15 +392,15 @@ var GenAIRequestParameters = map[string]string{
 	"reasoningEffort":  GenAIRequestReasoningLevel,
 	// previous_response.id — the registry names OpenAI's
 	// `previous_response_id` and Google's `previous_interaction_id`.
-	"previous_response.id":    "gen_ai.request.previous_response.id",
-	"previous_response_id":    "gen_ai.request.previous_response.id",
-	"previousResponseId":      "gen_ai.request.previous_response.id",
-	"previous_interaction_id": "gen_ai.request.previous_response.id",
+	"previous_response.id":    GenAIRequestPreviousResponseID,
+	"previous_response_id":    GenAIRequestPreviousResponseID,
+	"previousResponseId":      GenAIRequestPreviousResponseID,
+	"previous_interaction_id": GenAIRequestPreviousResponseID,
 	// stream_cursor — the registry names OpenAI's `starting_after` and
 	// Google's `last_event_id`.
-	"stream_cursor":  "gen_ai.request.stream_cursor",
-	"starting_after": "gen_ai.request.stream_cursor",
-	"last_event_id":  "gen_ai.request.stream_cursor",
+	"stream_cursor":  GenAIRequestStreamCursor,
+	"starting_after": GenAIRequestStreamCursor,
+	"last_event_id":  GenAIRequestStreamCursor,
 }
 
 // Attributes allowed to ride a pending snapshot: identity/taxonomy known at
@@ -449,6 +475,109 @@ var PendingIdentityPrefixes = []string{GenAIRequestPrefix, RiusRequestPrefix}
 // decides whether they are protected.
 var InvocationParametersContentMembers = []string{"tools", "functions"}
 
+// Content keys of other OTel-based SDKs a customer runs next to rius. Their
+// spans reach rius's exporter through the foreign-provider bridge, or
+// directly when rius holds the global provider they write to, and an e2e
+// run found Langfuse's input and output stored with content capture off.
+// Each group is read off the SDK's own source at the version named; a key is
+// here only if that source writes it onto a span or span event. Names,
+// types, levels, usage and prompt keys/versions stay: identity, not content.
+//
+// A denylist cannot cover Logfire whole. It writes every keyword argument of
+// logfire.span()/info()/@instrument as a top-level attribute under the
+// caller's own name, so its content has no fixed key. logfire.msg is listed
+// (the message with those values interpolated); logfire.msg_template stays,
+// because it is the literal from the caller's code and Logfire already uses
+// it as the span name.
+var ThirdPartyContentAttributes = map[string]struct{}{
+	// langfuse 3.15.0, langfuse/_client/attributes.py. Metadata is the
+	// caller's arbitrary payload (one key per member, see the prefixes), and
+	// the OpenAI wrapper writes the exception's message into status_message.
+	"langfuse.observation.input":               {},
+	"langfuse.observation.output":              {},
+	"langfuse.trace.input":                     {},
+	"langfuse.trace.output":                    {},
+	"langfuse.observation.metadata":            {},
+	"langfuse.trace.metadata":                  {},
+	"langfuse.observation.status_message":      {},
+	"langfuse.experiment.metadata":             {},
+	"langfuse.experiment.item.metadata":        {},
+	"langfuse.experiment.item.expected_output": {},
+	// traceloop-sdk 0.62.3 (opentelemetry-semantic-conventions-ai 0.5.1):
+	// workflow/task I/O and the managed prompt's template and variables; the
+	// LangChain instrumentation mirrors entity I/O into gen_ai.task.*, and
+	// the MCP one writes each tool result to mcp.response.value.
+	"traceloop.entity.input":              {},
+	"traceloop.entity.output":             {},
+	"traceloop.prompt.template":           {},
+	"traceloop.prompt.template_variables": {},
+	"gen_ai.task.input":                   {},
+	"gen_ai.task.output":                  {},
+	"mcp.response.value":                  {},
+	// logfire 5.1.1: the OpenAI/Anthropic integrations put the request and
+	// the reply in request_data/response_data and the messages in events;
+	// the OpenAI Agents one adds raw_input, the Response object, and a
+	// function span's arguments and result under bare input/output.
+	"request_data":             {},
+	"response_data":            {},
+	"events":                   {},
+	"all_messages_events":      {},
+	"pydantic_ai.all_messages": {},
+	"raw_input":                {},
+	"response":                 {},
+	"input":                    {},
+	"output":                   {},
+	"logfire.msg":              {},
+	// mlflow-tracing 3.16.1, mlflow/tracing/constant.py. chunk.value is a
+	// streamed chunk, written on span events.
+	"mlflow.spanInputs":                 {},
+	"mlflow.spanOutputs":                {},
+	"mlflow.chat.tools":                 {},
+	"mlflow.trace.intermediate_outputs": {},
+	"mlflow.chunk.value":                {},
+	// openlit 1.45.0, openlit/semcov/__init__.py, each one written by at
+	// least one of its instrumentations. gen_ai.retrieval.query.text is also
+	// a GenAI convention key: the user's query, verbatim.
+	"gen_ai.retrieval.query.text":           {},
+	"gen_ai.content.reasoning":              {},
+	"gen_ai.content.revised_prompt":         {},
+	"gen_ai.tool.args":                      {},
+	"gen_ai.response.tool_calls":            {},
+	"gen_ai.workflow.input":                 {},
+	"gen_ai.workflow.output":                {},
+	"gen_ai.framework.pipeline.input_data":  {},
+	"gen_ai.framework.pipeline.output_data": {},
+	"gen_ai.framework.error.message":        {},
+	"gen_ai.agent.context":                  {},
+	"gen_ai.agent.instructions":             {},
+	"gen_ai.agent.goal":                     {},
+	"gen_ai.agent.action.tool_input":        {},
+	"gen_ai.agent.final_result":             {},
+	"gen_ai.agent.next_goal":                {},
+	"gen_ai.agent.step_messages":            {},
+	"gen_ai.memory.search.query":            {},
+	"gen_ai.vectordb.search.query":          {},
+	"gen_ai.extraction.instruction":         {},
+	"mcp.tool.arguments":                    {},
+	"mcp.tool.result":                       {},
+	"mcp.result":                            {},
+	"mcp.params":                            {},
+	"mcp.sampling.messages":                 {},
+	"mcp.fastmcp.prompt.arguments":          {},
+	"mcp.completion.argument.value":         {},
+	"mcp.completion.context.arguments":      {},
+	"mcp.completion.values":                 {},
+	"mcp.error.message":                     {},
+	// lmnr 0.7.64, lmnr/opentelemetry_lib/tracing/attributes.py: the
+	// observed function's arguments and return value, the caller's metadata
+	// (one key per member, see the prefixes), and the provider's whole reply
+	// its Anthropic and LiteLLM instrumentations write.
+	"lmnr.span.input":                      {},
+	"lmnr.span.output":                     {},
+	"lmnr.association.properties.metadata": {},
+	"lmnr.sdk.raw.response":                {},
+}
+
 // Attribute keys carrying user content, masked/stripped at export.
 var ContentAttributes = map[string]struct{}{
 	InputValue:          {},
@@ -482,11 +611,6 @@ var ContentAttributes = map[string]struct{}{
 	// keys, and a prefix match never covers its own bare key
 	"llm.prompts":         {},
 	"llm.prompt_template": {},
-	"mlflow.spanInputs":   {},
-	"mlflow.spanOutputs":  {},
-	// OpenLLMetry workflow/task spans carry full I/O here
-	"traceloop.entity.input":  {},
-	"traceloop.entity.output": {},
 	// Every bundled OpenInference instrumentor emits tool definitions as
 	// llm.tools.{i}.tool.json_schema (pinned empirically 2026-09-14);
 	// covered by prefix, bare key listed per the bare-key rule.
@@ -532,6 +656,73 @@ var ContentAttributes = map[string]struct{}{
 	GenAIRequestPrefix + "functions": {},
 	RiusRequestPrefix + "tools":      {},
 	RiusRequestPrefix + "functions":  {},
+	// Every member of ThirdPartyContentAttributes.
+	"langfuse.observation.input":               {},
+	"langfuse.observation.output":              {},
+	"langfuse.trace.input":                     {},
+	"langfuse.trace.output":                    {},
+	"langfuse.observation.metadata":            {},
+	"langfuse.trace.metadata":                  {},
+	"langfuse.observation.status_message":      {},
+	"langfuse.experiment.metadata":             {},
+	"langfuse.experiment.item.metadata":        {},
+	"langfuse.experiment.item.expected_output": {},
+	"traceloop.entity.input":                   {},
+	"traceloop.entity.output":                  {},
+	"traceloop.prompt.template":                {},
+	"traceloop.prompt.template_variables":      {},
+	"gen_ai.task.input":                        {},
+	"gen_ai.task.output":                       {},
+	"mcp.response.value":                       {},
+	"request_data":                             {},
+	"response_data":                            {},
+	"events":                                   {},
+	"all_messages_events":                      {},
+	"pydantic_ai.all_messages":                 {},
+	"raw_input":                                {},
+	"response":                                 {},
+	"input":                                    {},
+	"output":                                   {},
+	"logfire.msg":                              {},
+	"mlflow.spanInputs":                        {},
+	"mlflow.spanOutputs":                       {},
+	"mlflow.chat.tools":                        {},
+	"mlflow.trace.intermediate_outputs":        {},
+	"mlflow.chunk.value":                       {},
+	"gen_ai.retrieval.query.text":              {},
+	"gen_ai.content.reasoning":                 {},
+	"gen_ai.content.revised_prompt":            {},
+	"gen_ai.tool.args":                         {},
+	"gen_ai.response.tool_calls":               {},
+	"gen_ai.workflow.input":                    {},
+	"gen_ai.workflow.output":                   {},
+	"gen_ai.framework.pipeline.input_data":     {},
+	"gen_ai.framework.pipeline.output_data":    {},
+	"gen_ai.framework.error.message":           {},
+	"gen_ai.agent.context":                     {},
+	"gen_ai.agent.instructions":                {},
+	"gen_ai.agent.goal":                        {},
+	"gen_ai.agent.action.tool_input":           {},
+	"gen_ai.agent.final_result":                {},
+	"gen_ai.agent.next_goal":                   {},
+	"gen_ai.agent.step_messages":               {},
+	"gen_ai.memory.search.query":               {},
+	"gen_ai.vectordb.search.query":             {},
+	"gen_ai.extraction.instruction":            {},
+	"mcp.tool.arguments":                       {},
+	"mcp.tool.result":                          {},
+	"mcp.result":                               {},
+	"mcp.params":                               {},
+	"mcp.sampling.messages":                    {},
+	"mcp.fastmcp.prompt.arguments":             {},
+	"mcp.completion.argument.value":            {},
+	"mcp.completion.context.arguments":         {},
+	"mcp.completion.values":                    {},
+	"mcp.error.message":                        {},
+	"lmnr.span.input":                          {},
+	"lmnr.span.output":                         {},
+	"lmnr.association.properties.metadata":     {},
+	"lmnr.sdk.raw.response":                    {},
 }
 
 // OpenInference/OpenLLMetry instrumentors flatten message content into indexed
@@ -545,6 +736,20 @@ var ContentAttributePrefixes = []string{
 	"llm.prompt_template.",
 	"llm.tools.",
 	"ai.prompt.",
+	"langfuse.observation.metadata.",
+	"langfuse.trace.metadata.",
+	"traceloop.prompt.template_variables.",
+	"lmnr.association.properties.metadata.",
+}
+
+// Members of a content prefix that carry identity, not content. Laminar's
+// metadata is the caller's arbitrary payload, but the sink reads these three
+// as the tool call id and the agent name; masking them would cost a trace
+// with content capture off its tool linkage and its agent.
+var ContentPrefixIdentityAttributes = map[string]struct{}{
+	"lmnr.association.properties.metadata.tool_call_id": {},
+	"lmnr.association.properties.metadata.agent.name":   {},
+	"lmnr.association.properties.metadata.service.name": {},
 }
 
 // Indexed families where only the content leaf is sensitive (siblings like
@@ -552,6 +757,20 @@ var ContentAttributePrefixes = []string{
 var ContentAttributeSuffixes = []string{
 	".document.content",
 	".embedding.text",
+}
+
+// The same, for a leaf too generic to match on its own across every
+// namespace (gen_ai.agent.description is identity): a prefix and its content
+// leaves. Traceloop writes each tool definition as
+// llm.request.functions.{i}.{name,description,parameters} (Ollama
+// instrumentation 0.62.3; OpenAI, Anthropic and LangChain up to 0.40.x).
+// .name stays: identity. .arguments has no emitter in the versions read, but
+// is content by name wherever it appears.
+var ContentAttributePrefixedSuffixes = []struct {
+	Prefix   string
+	Suffixes []string
+}{
+	{"llm.request.functions.", []string{".description", ".parameters", ".arguments"}},
 }
 
 // SpanKind -> OTel GenAI gen_ai.operation.name, where a canonical operation exists.

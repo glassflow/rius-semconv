@@ -133,15 +133,39 @@ def render(reg: Registry) -> str:
         for prefix in derived["prefixes"]:
             for member in al["invocation_parameters_content_members"]["values"]:
                 extra.append(f"\t{name_of(prefix)} + {_literal(member)}: {{}},")
+    # A map literal cannot fold another map in either, so each included
+    # allowlist is emitted on its own and its members are expanded here too.
+    for section in reg.included("content"):
+        member_set(section)
+        extra.append(f"\t// Every member of {al[section]['go']}.")
+        for m in reg.members(section, LANG):
+            lit = name_of(m["ref"]) if "ref" in m else _literal(m["key"])
+            extra.append(f"\t{lit}: {{}},")
     member_set("content", extra)
 
-    for section in ("content_prefixes", "content_suffixes"):
+    def string_slice(section: str) -> None:
         block = al[section]
         out.append("")
         out.extend(comment(block["doc"], "//"))
         out.append(f"var {block['go']} = []string{{")
         out.extend(f"\t{_literal(v)}," for v in block["values"])
         out.append("}")
+
+    string_slice("content_prefixes")
+    member_set("content_prefix_identity")
+    string_slice("content_suffixes")
+
+    block = al["content_prefixed_suffixes"]
+    out.append("")
+    out.extend(comment(block["doc"], "//"))
+    out.append(f"var {block['go']} = []struct {{")
+    out.append("\tPrefix   string")
+    out.append("\tSuffixes []string")
+    out.append("}{")
+    for entry in block["values"]:
+        suffixes = ", ".join(_literal(s) for s in entry["suffixes"])
+        out.append(f"\t{{{_literal(entry['prefix'])}, []string{{{suffixes}}}}},")
+    out.append("}")
 
     for name, key_fmt, value_fmt in (
         ("operation_by_kind", "kind", "literal"),
