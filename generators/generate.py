@@ -1,6 +1,6 @@
 """CLI: lint the registry, then regenerate one or all languages into out/.
 
-    python -m generators.generate                  # all languages -> out/
+    python -m generators.generate                  # all languages and docs -> out/
     python -m generators.generate python go        # a subset
     python -m generators.generate --check          # exit 1 if out/ is stale
     python -m generators.generate --include-planned --out /tmp/preview
@@ -16,24 +16,34 @@ import sys
 from collections.abc import Callable
 from typing import NamedTuple
 
-from . import go, python, typescript
+from . import go, python, typescript, usage_keys
 from .registry import ROOT, Registry, load_data
 
 
 class Target(NamedTuple):
     render: Callable[[Registry], str]
     directory: str
+    #: The output file's name, when the preamble does not give one.
+    filename: str | None = None
+
+
+def render_usage_keys(reg: Registry) -> str:
+    """The usage-key table, with where each key was recorded."""
+    result = usage_keys.scan(reg.usage_keys, ROOT / "fixtures")
+    return usage_keys.render_table(reg.usage_keys, result)
 
 
 TARGETS = {
     "python": Target(python.render, "python"),
     "typescript": Target(typescript.render, "typescript"),
     "go": Target(go.render, "go"),
+    "docs": Target(render_usage_keys, "docs", "usage-keys.md"),
 }
 
 
 def output_path(out_dir: pathlib.Path, reg: Registry, lang: str) -> pathlib.Path:
-    return out_dir / TARGETS[lang].directory / reg.preamble[lang]["filename"]
+    target = TARGETS[lang]
+    return out_dir / target.directory / (target.filename or reg.preamble[lang]["filename"])
 
 
 def main(argv: list[str] | None = None) -> int:

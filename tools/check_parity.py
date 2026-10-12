@@ -22,7 +22,8 @@ What is compared, per consumer:
   Go          out/go/semconv_generated.go against argus-core's semconv.go,
               constants only. Every shared name must agree; an argus-core name
               the registry does not generate must be explained in
-              tools/go_reference_only.yaml (normalizer input, legacy spellings).
+              tools/go_reference_only.yaml (normalizer input, legacy spellings)
+              or decided in registry/usage_keys.yaml (usage keys).
 
 Once a consumer vendors the generated file (it exists at the ref), the check
 switches to comparing that file byte for byte. A difference there means the
@@ -44,6 +45,7 @@ import yaml
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from generators.registry import Registry  # noqa: E402
 from tools.parity import (  # noqa: E402
     ToolMissing,
     compare,
@@ -134,15 +136,28 @@ def describe_change(sdk: object, generated: object) -> str:
     return f"SDK {sdk!r}, generated {generated!r}"
 
 
+def go_gaps() -> dict[str, dict]:
+    """Every argus-core-only constant with an explanation: go_reference_only.yaml,
+    plus the usage keys registry/usage_keys.yaml decides (its `go` field)."""
+    gaps = dict(yaml.safe_load(GO_GAPS.read_text())["names"])
+    for entry in Registry.load().usage_keys["keys"]:
+        if "go" in entry:
+            gaps[entry["go"]] = {"class": f"usage_key ({entry['decision']})"}
+    return gaps
+
+
 def check_go(reference: str, generated: str) -> bool:
-    gaps = yaml.safe_load(GO_GAPS.read_text())["names"]
+    gaps = go_gaps()
     ref, gen = go_constants(reference), go_constants(generated)
     report = compare_go(ref, gen, gaps)
     shared = len(set(ref) & set(gen)) - len(report.changed)
     print(f"argus-core constants: {len(ref)}   generated: {len(gen)}   shared and equal: {shared}")
     listing("CHANGED (same name, different value)", report.changed)
     listing("RENAMED (generated name, argus-core name)", report.renamed)
-    listing("UNCLASSIFIED (argus-core only, not in go_reference_only.yaml)", report.unclassified)
+    listing(
+        "UNCLASSIFIED (argus-core only, not in go_reference_only.yaml or usage_keys.yaml)",
+        report.unclassified,
+    )
     by_class: dict[str, list[str]] = {}
     for name in report.classified:
         by_class.setdefault(gaps[name]["class"], []).append(name)

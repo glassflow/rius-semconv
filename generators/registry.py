@@ -16,6 +16,8 @@ from typing import Any
 
 import yaml
 
+from . import usage_keys
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 REGISTRY = ROOT / "registry"
 
@@ -26,6 +28,7 @@ FILES = {
     "taxonomy": "taxonomy.yaml",
     "model_parameters": "model_parameters.yaml",
     "preamble": "preamble.yaml",
+    "usage_keys": "usage_keys.yaml",
 }
 
 SYMBOLS = {"attribute", "prefix", "event", "value", "scope", "name", "fragment"}
@@ -56,6 +59,7 @@ class Registry:
         self.taxonomy: dict = data["taxonomy"]
         self.model_parameters: dict = data["model_parameters"]
         self.preamble: dict = data["preamble"]
+        self.usage_keys: dict = data["usage_keys"]
         self._by_const = {a["const"]: a for a in self.attributes if "const" in a}
 
     @classmethod
@@ -149,6 +153,7 @@ class Registry:
             + self._lint_allowlists()
             + self._lint_taxonomy()
             + self._lint_model_parameters()
+            + self._lint_usage_keys()
         )
 
     def _lint_prose(self) -> list[str]:
@@ -403,6 +408,12 @@ class Registry:
         if fallback not in self._by_const:
             errors.append(f"model_parameters: unknown fallback_prefix {fallback}")
         return errors
+
+    def _lint_usage_keys(self) -> list[str]:
+        # .get: a row missing its key is reported by _lint_rows, not raised here.
+        keys = {a.get("key") for a in self.attributes if a.get("symbol") == "attribute"}
+        prefixes = {a.get("key") for a in self.attributes if a.get("symbol") == "prefix"}
+        return usage_keys.lint(self.usage_keys, keys, prefixes)
 
 
 def _enum(entry: dict, field: str, allowed: set[str], label: str, *, required=False) -> list[str]:
