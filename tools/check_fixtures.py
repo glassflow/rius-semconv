@@ -12,7 +12,9 @@ start with "_"):
   describes, and none is empty unless listed under `empty_scenarios`;
 - its expected result exists, names the normalizer that produced it, covers
   the same scenarios, and keeps the recording's span ids and times, so a
-  consumer can match each expected span to its raw span.
+  consumer can match each expected span to its raw span;
+- no JSON file in it holds a traceback or a local path from the machine that
+  recorded it.
 
 Exit 0 when everything is consistent, 1 otherwise, with one line per problem.
 Needs only the standard library.
@@ -29,6 +31,20 @@ ROOT = Path(__file__).resolve().parent.parent
 RECORD_SCRIPTS = ("record.py", "record.mjs")
 EXPECTED_SUFFIX = ".expected.json"
 SOURCES = {"python-sdk", "sink"}
+#: Text that only appears when a recording kept something from the recording
+#: machine: a traceback, or a local path.
+MACHINE_MARKERS = (
+    "Traceback (most recent call last)",
+    "site-packages",
+    "/Users/",
+    "/home/",
+    "/private/tmp/",
+)
+
+
+def _machine_leaks(path: Path) -> list[str]:
+    text = path.read_text()
+    return [marker for marker in MACHINE_MARKERS if marker in text]
 
 
 def _spans_by_id(scenario: dict[str, Any]) -> dict[str, dict[str, Any]]:
@@ -74,6 +90,9 @@ def check_family(family: Path) -> list[str]:
     }
     for name in sorted(on_disk - set(listed)):
         errors.append(f"{label}: {name} is not listed in manifest.json")
+    for path in sorted(family.glob("*.json")):
+        for marker in _machine_leaks(path):
+            errors.append(f"{label}/{path.name}: contains {marker!r} from the recording machine")
 
     for name, entry in listed.items():
         where = f"{label}/{name}"

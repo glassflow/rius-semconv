@@ -50,6 +50,9 @@ make a re-recording byte-identical in the pinned environment:
   chunk is still derivable (it reads as 1 ms per step).
 - an `exception` event's `exception.stacktrace` is replaced by
   `<stacktrace elided>`.
+- a span's status message is cut where a Python traceback starts
+  (`Traceback (most recent call last):`). LangChain appends the formatted
+  traceback there, with machine paths in it.
 - every UUID in a string value becomes `00000000-0000-0000-0000-<n>`, numbered
   by first appearance in the scenario (frameworks such as LangChain write
   per-run ids into JSON payloads).

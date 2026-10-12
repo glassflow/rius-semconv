@@ -14,7 +14,9 @@ byte-identical:
   is replaced by its rank in the scenario's timeline, one millisecond apart
   from a fixed base, so ordering and nesting survive and the first-token
   event still lands after its span's start;
-- an exception event's stack trace, which names machine paths, is elided.
+- an exception event's stack trace, which names machine paths, is elided;
+- a status message is cut where a Python traceback starts, for the same
+  reason (LangChain appends the formatted traceback to it);
 - every UUID in a string value (frameworks write per-run ids into JSON
   payloads) becomes a placeholder numbered by first appearance.
 
@@ -44,6 +46,9 @@ TICK_NS = 1_000_000
 
 STACKTRACE = "exception.stacktrace"
 ELIDED = "<stacktrace elided>"
+#: Python's traceback header. Some instrumentors (LangChain) append the whole
+#: formatted traceback to the status message.
+TRACEBACK = "Traceback (most recent call last):"
 
 
 class ScriptedProvider:
@@ -186,6 +191,9 @@ def scenario_json(
         d["startTimeUnixNano"] = rank[span.start_time]
         d["endTimeUnixNano"] = rank[span.end_time]
         d["attributes"] = sorted(d.get("attributes", []), key=lambda a: a["key"])
+        status = d.get("status", {})
+        if TRACEBACK in status.get("message", ""):
+            status["message"] = status["message"].split(TRACEBACK, 1)[0].rstrip()
         for event, source in zip(d.get("events", []), span.events, strict=True):
             event["timeUnixNano"] = rank[source.timestamp]
             for attr in event.get("attributes", []):

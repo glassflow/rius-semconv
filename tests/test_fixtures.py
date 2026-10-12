@@ -116,3 +116,17 @@ def test_expected_source_is_named(family):
         lambda m: m["recordings"][RECORDING]["expected"].__setitem__("source", "guess"),
     )
     assert any("expected.source must be one of" in e for e in check_family(family))
+
+
+def test_a_traceback_with_local_paths_is_a_leak(family):
+    def leak(data):
+        status = data["recordings"][0]["spans"][0]["span"].setdefault("status", {})
+        status["message"] = (
+            'Error("boom")Traceback (most recent call last):\n'
+            '  File "/Users/someone/venv/lib/python3.13/site-packages/x.py", line 1'
+        )
+
+    edit(family / RECORDING, leak)
+    problems = [e for e in check_family(family) if "from the recording machine" in e]
+    assert len(problems) == 3
+    assert all(e.startswith(f"{FAMILY}/{RECORDING}: ") for e in problems)
