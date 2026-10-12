@@ -33,9 +33,13 @@ registry/                  the data (this is what you edit)
   preamble.yaml            per-language headers and output file names
 generators/                one small module per language, plus the loader and linter
 out/                       generated files, committed so every change is a reviewable diff
+fixtures/                  real instrumentor spans and the result every normalizer must
+                           produce from them (see fixtures/README.md)
 tools/
   check_registry.py        lint the registry
   check_parity.py          compare out/ with what each consumer ships
+  check_fixtures.py        every recording has a manifest entry and an expected result
+  expect_python.py         write a recording's expected result with the Python SDK
   go_reference_only.yaml   argus-core constants the registry does not generate, and why
 tests/                     pytest suites for the loader, linter, generators and parity tools
 ```
@@ -50,6 +54,7 @@ pip install -r requirements-dev.txt
 python tools/check_registry.py            # lint
 python -m generators.generate             # regenerate out/
 python -m generators.generate --check     # exit 1 if out/ is stale
+python tools/check_fixtures.py            # every recording is complete
 python -m pytest
 python tools/check_parity.py --fetch      # compare with the consumers' main branches
 ```
