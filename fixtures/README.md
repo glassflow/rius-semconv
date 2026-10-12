@@ -66,7 +66,23 @@ pinning the clock it reads, never by editing the recording afterwards. The
 manifest says so when a recorder does this.
 
 The rius SDK is never involved in a recording: these are the instrumentor's
-raw spans.
+raw spans. The control families below are the one exception.
+
+## Controls
+
+`rius-python` and `rius-typescript` record what each SDK itself exports: its
+native spans (`observe`, spans, generations, sessions, users) and its MCP
+client wrapper, captured at the exporter the SDK was given
+(`init(span_exporter=...)`, `init({ spanExporter })`). Those spans are already
+normalized, so normalizing them again must change nothing. Their manifests
+say `"control": true`, and `check_fixtures` then requires the expected result
+to equal the recording exactly. A normalizer change that alters an SDK's own
+output fails there, and every consumer's conformance test checks the same
+property for its own normalizer.
+
+Both families have the same scenarios, so the two SDKs' output can also be
+compared directly. They pin a released SDK version, like every other family
+pins its instrumentor.
 
 ## The expected result
 
