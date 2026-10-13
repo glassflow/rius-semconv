@@ -24,6 +24,8 @@ span_kind:
       doc: a retrieval / search step
     - name: EMBEDDING
       doc: an embedding computation
+    - name: RERANKER
+      doc: a reranking step, e.g. reordering retrieved documents by relevance
     - name: CHAIN
       doc: a generic processing step (the default)
 
@@ -34,6 +36,8 @@ operation_by_kind:
     CHAIN is deliberately absent: the conventions define no operation for a
     generic workflow step, and inventing one would put a non-spec value in a
     spec-defined enum. Revisit only if the upstream invoke_node proposal lands.
+    RERANKER is absent for the same reason: the conventions define no rerank
+    operation.
   map:
     LLM: chat
     TOOL: execute_tool
@@ -44,6 +48,9 @@ operation_by_kind:
   # an omission. The linter requires every kind to be in `map` or here.
   unmapped:
     CHAIN: the conventions define no operation for a generic workflow step
+    RERANKER: >-
+      the conventions define no rerank operation; "rerank" is the AI SDK's own
+      value, so it maps only in the reverse direction
 
 kind_by_operation:
   names: {python: _KIND_BY_OPERATION, typescript: KIND_BY_OPERATION, go: KindByOperation}
@@ -63,6 +70,10 @@ kind_by_operation:
         invoke_workflow and plan are real GenAI operations with no taxonomy
         value of their own; CHAIN is the honest home for both, and the reverse
         direction is the only one that can say so.
+      - rerank is not a conventions operation but the AI SDK's own value
+        (@ai-sdk/otel writes it on a rerank call). RERANKER is its kind, and
+        since the conventions define no operation for RERANKER, only this
+        direction maps it.
   map:
     chat: LLM
     text_completion: LLM
@@ -72,6 +83,7 @@ kind_by_operation:
     invoke_agent: AGENT
     create_agent: AGENT
     retrieval: RETRIEVER
+    rerank: RERANKER
     invoke_workflow: CHAIN
     plan: CHAIN
 
@@ -87,7 +99,8 @@ otel_kind_by_kind:
     operation: inference, embeddings and retrieval call out of the process
     (CLIENT); execute_tool is INTERNAL; invoke_agent is CLIENT only for a hosted
     agent. Hence:
-    - LLM / EMBEDDING / RETRIEVER -> CLIENT: a remote model or index is called.
+    - LLM / EMBEDDING / RETRIEVER / RERANKER -> CLIENT: a remote model or
+      index is called.
     - TOOL -> INTERNAL: a bare TOOL span is an in-process function, and the
       execute-tool convention says INTERNAL. The MCP wrapper overrides this to
       CLIENT at its own call site because a tools/call crosses a process
@@ -101,6 +114,7 @@ otel_kind_by_kind:
     LLM: CLIENT
     EMBEDDING: CLIENT
     RETRIEVER: CLIENT
+    RERANKER: CLIENT
     TOOL: INTERNAL
     AGENT: INTERNAL
     CHAIN: INTERNAL
@@ -113,6 +127,8 @@ name_target_by_kind:
     and the composed name stays a reliable filter value. CHAIN is absent: it has
     no operation and so no composed name. LLM reads the REQUEST model on
     purpose: a pending snapshot must carry the same name as the final span.
+    RERANKER reads the model too, as EMBEDDING does: a rerank call's target is
+    the reranking model.
   # Values are constants from attributes.yaml.
   map:
     LLM: GEN_AI_REQUEST_MODEL
@@ -120,5 +136,6 @@ name_target_by_kind:
     TOOL: GEN_AI_TOOL_NAME
     AGENT: GEN_AI_AGENT_NAME
     RETRIEVER: GEN_AI_DATA_SOURCE_ID
+    RERANKER: GEN_AI_REQUEST_MODEL
   unmapped:
     CHAIN: no operation, so nothing to compose a name from

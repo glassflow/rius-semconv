@@ -98,13 +98,17 @@ def test_python_tables(py_module):
     assert py_module["_OPERATION_BY_KIND"]["LLM"] == "chat"
     assert "CHAIN" not in py_module["_OPERATION_BY_KIND"]
     assert py_module["_KIND_BY_OPERATION"]["plan"] == "CHAIN"
+    assert "RERANKER" not in py_module["_OPERATION_BY_KIND"]
+    assert py_module["_KIND_BY_OPERATION"]["rerank"] == "RERANKER"
     assert py_module["_OTEL_KIND_BY_KIND"]["TOOL"] == "OtelSpanKind.INTERNAL"
     assert py_module["_NAME_TARGET_BY_KIND"]["RETRIEVER"] == "gen_ai.data_source.id"
     params = py_module["GEN_AI_REQUEST_PARAMETERS"]
     assert params["maxOutputTokens"] == "gen_ai.request.max_tokens"
     assert "top_logprobs" not in params
     assert py_module["SpanKind"] == {
-        "__enum__": {k: k for k in ["AGENT", "LLM", "TOOL", "RETRIEVER", "EMBEDDING", "CHAIN"]}
+        "__enum__": {
+            k: k for k in ["AGENT", "LLM", "TOOL", "RETRIEVER", "EMBEDDING", "RERANKER", "CHAIN"]
+        }
     }
 
 

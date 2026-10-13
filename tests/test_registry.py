@@ -182,8 +182,8 @@ def test_every_kind_is_mapped_or_explicitly_unmapped(data):
 
 
 def test_taxonomy_maps_reject_unknown_kinds(data):
-    data["taxonomy"]["kind_by_operation"]["map"]["rerank"] = "RERANKER"
-    assert_flags(data, "kind_by_operation: unknown kind RERANKER")
+    data["taxonomy"]["kind_by_operation"]["map"]["guard"] = "GUARDRAIL"
+    assert_flags(data, "kind_by_operation: unknown kind GUARDRAIL")
 
 
 def test_name_targets_must_be_constants(data):

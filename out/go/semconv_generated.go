@@ -320,6 +320,7 @@ const (
 	SpanKindTool      = "TOOL"      // a tool execution
 	SpanKindRetriever = "RETRIEVER" // a retrieval / search step
 	SpanKindEmbedding = "EMBEDDING" // an embedding computation
+	SpanKindReranker  = "RERANKER"  // a reranking step, e.g. reordering retrieved documents by relevance
 	SpanKindChain     = "CHAIN"     // a generic processing step (the default)
 )
 
@@ -777,6 +778,8 @@ var ContentAttributePrefixedSuffixes = []struct {
 // CHAIN is deliberately absent: the conventions define no operation for a
 // generic workflow step, and inventing one would put a non-spec value in a
 // spec-defined enum. Revisit only if the upstream invoke_node proposal lands.
+// RERANKER is absent for the same reason: the conventions define no rerank
+// operation.
 var OperationByKind = map[string]string{
 	SpanKindLLM:       "chat",
 	SpanKindTool:      "execute_tool",
@@ -800,6 +803,10 @@ var OperationByKind = map[string]string{
 //     invoke_workflow and plan are real GenAI operations with no taxonomy
 //     value of their own; CHAIN is the honest home for both, and the reverse
 //     direction is the only one that can say so.
+//   - rerank is not a conventions operation but the AI SDK's own value
+//     (@ai-sdk/otel writes it on a rerank call). RERANKER is its kind, and
+//     since the conventions define no operation for RERANKER, only this
+//     direction maps it.
 var KindByOperation = map[string]string{
 	"chat":             SpanKindLLM,
 	"text_completion":  SpanKindLLM,
@@ -809,6 +816,7 @@ var KindByOperation = map[string]string{
 	"invoke_agent":     SpanKindAgent,
 	"create_agent":     SpanKindAgent,
 	"retrieval":        SpanKindRetriever,
+	"rerank":           SpanKindReranker,
 	"invoke_workflow":  SpanKindChain,
 	"plan":             SpanKindChain,
 }
@@ -818,10 +826,13 @@ var KindByOperation = map[string]string{
 // and the composed name stays a reliable filter value. CHAIN is absent: it has
 // no operation and so no composed name. LLM reads the REQUEST model on
 // purpose: a pending snapshot must carry the same name as the final span.
+// RERANKER reads the model too, as EMBEDDING does: a rerank call's target is
+// the reranking model.
 var NameTargetByKind = map[string]string{
 	SpanKindLLM:       GenAIRequestModel,
 	SpanKindEmbedding: GenAIRequestModel,
 	SpanKindTool:      GenAIToolName,
 	SpanKindAgent:     GenAIAgentName,
 	SpanKindRetriever: GenAIDataSourceID,
+	SpanKindReranker:  GenAIRequestModel,
 }

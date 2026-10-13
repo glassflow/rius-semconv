@@ -762,6 +762,7 @@ export enum SpanKind {
   TOOL = "TOOL", // a tool execution
   RETRIEVER = "RETRIEVER", // a retrieval / search step
   EMBEDDING = "EMBEDDING", // an embedding computation
+  RERANKER = "RERANKER", // a reranking step, e.g. reordering retrieved documents by relevance
   CHAIN = "CHAIN", // a generic processing step (the default)
 }
 
@@ -769,6 +770,8 @@ export enum SpanKind {
 // CHAIN is deliberately absent: the conventions define no operation for a
 // generic workflow step, and inventing one would put a non-spec value in a
 // spec-defined enum. Revisit only if the upstream invoke_node proposal lands.
+// RERANKER is absent for the same reason: the conventions define no rerank
+// operation.
 export const OPERATION_BY_KIND: Partial<Record<SpanKind, string>> = {
   [SpanKind.LLM]: "chat",
   [SpanKind.TOOL]: "execute_tool",
@@ -792,6 +795,10 @@ export const OPERATION_BY_KIND: Partial<Record<SpanKind, string>> = {
 //     invoke_workflow and plan are real GenAI operations with no taxonomy
 //     value of their own; CHAIN is the honest home for both, and the reverse
 //     direction is the only one that can say so.
+//   - rerank is not a conventions operation but the AI SDK's own value
+//     (@ai-sdk/otel writes it on a rerank call). RERANKER is its kind, and
+//     since the conventions define no operation for RERANKER, only this
+//     direction maps it.
 export const KIND_BY_OPERATION: Record<string, SpanKind> = {
   chat: SpanKind.LLM,
   text_completion: SpanKind.LLM,
@@ -801,6 +808,7 @@ export const KIND_BY_OPERATION: Record<string, SpanKind> = {
   invoke_agent: SpanKind.AGENT,
   create_agent: SpanKind.AGENT,
   retrieval: SpanKind.RETRIEVER,
+  rerank: SpanKind.RERANKER,
   invoke_workflow: SpanKind.CHAIN,
   plan: SpanKind.CHAIN,
 };
@@ -810,7 +818,8 @@ export const KIND_BY_OPERATION: Record<string, SpanKind> = {
 // operation: inference, embeddings and retrieval call out of the process
 // (CLIENT); execute_tool is INTERNAL; invoke_agent is CLIENT only for a hosted
 // agent. Hence:
-// - LLM / EMBEDDING / RETRIEVER -> CLIENT: a remote model or index is called.
+// - LLM / EMBEDDING / RETRIEVER / RERANKER -> CLIENT: a remote model or
+//   index is called.
 // - TOOL -> INTERNAL: a bare TOOL span is an in-process function, and the
 //   execute-tool convention says INTERNAL. The MCP wrapper overrides this to
 //   CLIENT at its own call site because a tools/call crosses a process
@@ -824,6 +833,7 @@ export const OTEL_KIND_BY_KIND: Record<SpanKind, OtelSpanKind> = {
   [SpanKind.LLM]: OtelSpanKind.CLIENT,
   [SpanKind.EMBEDDING]: OtelSpanKind.CLIENT,
   [SpanKind.RETRIEVER]: OtelSpanKind.CLIENT,
+  [SpanKind.RERANKER]: OtelSpanKind.CLIENT,
   [SpanKind.TOOL]: OtelSpanKind.INTERNAL,
   [SpanKind.AGENT]: OtelSpanKind.INTERNAL,
   [SpanKind.CHAIN]: OtelSpanKind.INTERNAL,
@@ -834,10 +844,13 @@ export const OTEL_KIND_BY_KIND: Record<SpanKind, OtelSpanKind> = {
 // and the composed name stays a reliable filter value. CHAIN is absent: it has
 // no operation and so no composed name. LLM reads the REQUEST model on
 // purpose: a pending snapshot must carry the same name as the final span.
+// RERANKER reads the model too, as EMBEDDING does: a rerank call's target is
+// the reranking model.
 export const NAME_TARGET_BY_KIND: Partial<Record<SpanKind, string>> = {
   [SpanKind.LLM]: GEN_AI_REQUEST_MODEL,
   [SpanKind.EMBEDDING]: GEN_AI_REQUEST_MODEL,
   [SpanKind.TOOL]: GEN_AI_TOOL_NAME,
   [SpanKind.AGENT]: GEN_AI_AGENT_NAME,
   [SpanKind.RETRIEVER]: GEN_AI_DATA_SOURCE_ID,
+  [SpanKind.RERANKER]: GEN_AI_REQUEST_MODEL,
 };
