@@ -799,9 +799,6 @@ export const OPERATION_BY_KIND: Partial<Record<SpanKind, string>> = {
 //     invoke_workflow and plan are real GenAI operations with no taxonomy
 //     value of their own; CHAIN is the honest home for both, and the reverse
 //     direction is the only one that can say so.
-//   - rerank is not a conventions operation but the AI SDK's own value
-//     (@ai-sdk/otel writes it on a rerank call). It round-trips with
-//     RERANKER, as chat does with LLM.
 export const KIND_BY_OPERATION: Record<string, SpanKind> = {
   chat: SpanKind.LLM,
   text_completion: SpanKind.LLM,

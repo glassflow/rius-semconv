@@ -807,9 +807,6 @@ var OperationByKind = map[string]string{
 //     invoke_workflow and plan are real GenAI operations with no taxonomy
 //     value of their own; CHAIN is the honest home for both, and the reverse
 //     direction is the only one that can say so.
-//   - rerank is not a conventions operation but the AI SDK's own value
-//     (@ai-sdk/otel writes it on a rerank call). It round-trips with
-//     RERANKER, as chat does with LLM.
 var KindByOperation = map[string]string{
 	"chat":             SpanKindLLM,
 	"text_completion":  SpanKindLLM,
