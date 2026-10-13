@@ -17,7 +17,44 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+    outputs:
+      released: ${{ steps.rp.outputs.release_created }}
+      tag: ${{ steps.rp.outputs.tag_name }}
     steps:
       - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        id: rp
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+
+  # Announce the release on Slack, as the SDK release jobs do. A separate
+  # `on: release` workflow would never fire: release-please creates the GitHub
+  # Release with GITHUB_TOKEN, whose events don't trigger other workflows.
+  notify:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.released == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post release summary to Slack
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_RELEASES }}
+          TAG: ${{ needs.release-please.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SLACK_WEBHOOK:-}" ]; then
+            echo "::warning::SLACK_WEBHOOK_RELEASES not configured; no release announcement for ${TAG}"
+            exit 0
+          fi
+          release_json=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json body,url)
+          url=$(jq -r .url <<<"$release_json")
+          # release-please changelog markdown -> Slack mrkdwn, as the SDKs do:
+          # headings to bold, **bold** to *bold*, [text](url) to <url|text>.
+          # Truncated in jq, not with head: under pipefail, head closing the
+          # pipe early would fail the step on a long changelog.
+          body=$(jq -r '.body[:3500]' <<<"$release_json" | sed -E \
+            -e 's/^#{1,6} +(.*)$/*\1*/' \
+            -e 's/\*\*([^*]+)\*\*/*\1*/g' \
+            -e 's/\[([^]]+)\]\(([^)]+)\)/<\2|\1>/g')
+          jq -n --arg tag "$TAG" --arg url "$url" --arg body "$body" \
+            '{text: (":books: *rius-semconv \($tag)* is tagged (<\($url)|release notes>)\n\n\($body)")}' \
+            | curl -sS --fail-with-body -X POST -H 'Content-Type: application/json' -d @- "$SLACK_WEBHOOK"
