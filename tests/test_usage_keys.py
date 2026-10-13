@@ -204,6 +204,18 @@ def test_a_listed_normalizer_that_keeps_the_key_fails(data, recorded):
     )
 
 
+def test_a_key_that_is_not_usage_may_be_removed(data, recorded):
+    # The TypeScript SDK maps ai.settings.maxOutputTokens (a request
+    # parameter) to gen_ai.request.max_tokens; that is no usage mapping.
+    assert entry(data, "ai.settings.maxOutputTokens")["decision"] == "not_usage"
+    assert not usage_keys.check(data["usage_keys"], recorded)
+    entry(data, "ai.settings.maxOutputTokens").update(decision="ignored")
+    assert_flags(
+        usage_keys.check(data["usage_keys"], recorded),
+        "ai.settings.maxOutputTokens: typescript removed it, but mapped_by does not list",
+    )
+
+
 def test_a_mapping_must_leave_its_target(data, recorded):
     entry(data, "llm.token_count.prompt")["target"] = "gen_ai.usage.cache_write.input_tokens"
     assert_flags(
