@@ -33,7 +33,7 @@ families it produced them for.
 | `ai.usage.inputTokenDetails.cacheReadTokens` | keeps | → `gen_ai.usage.cache_read.input_tokens` | → `gen_ai.usage.cache_read.input_tokens` | vercel-ai-v6 |  |
 | `ai.usage.inputTokenDetails.cacheWriteTokens` | keeps | → `gen_ai.usage.cache_write.input_tokens` | → `gen_ai.usage.cache_write.input_tokens` | not in any recording |  |
 | `ai.usage.inputTokens` | keeps | → `gen_ai.usage.input_tokens` | → `gen_ai.usage.input_tokens` | vercel-ai-v5, vercel-ai-v6 | Inclusive of the cached tokens, as the canonical key is. |
-| `ai.usage.outputTokenDetails.reasoningTokens` | keeps | → `gen_ai.usage.reasoning.output_tokens` | → `gen_ai.usage.reasoning.output_tokens` | vercel-ai-v6 |  |
+| `ai.usage.outputTokenDetails.reasoningTokens` | keeps | → `gen_ai.usage.reasoning.output_tokens` | → `gen_ai.usage.reasoning.output_tokens` | vercel-ai-otel, vercel-ai-v6 |  |
 | `ai.usage.outputTokens` | keeps | → `gen_ai.usage.output_tokens` | → `gen_ai.usage.output_tokens` | vercel-ai-v5, vercel-ai-v6 |  |
 | `ai.usage.reasoningTokens` | keeps | → `gen_ai.usage.reasoning.output_tokens` | → `gen_ai.usage.reasoning.output_tokens` | vercel-ai-v5, vercel-ai-v6 | v5's reasoning count, still written beside the detailed spelling by v6. |
 | `ai.usage.tokens` | keeps | → `gen_ai.usage.input_tokens` | → `gen_ai.usage.input_tokens` | vercel-ai-v5, vercel-ai-v6 | An embedding call's input count (ai.embed, ai.embedMany and their doEmbed). |
@@ -60,8 +60,8 @@ families it produced them for.
 | Key | python | typescript | sink | Recorded in | Why |
 | -- | -- | -- | -- | -- | -- |
 | `ai.usage.completionTokens` | keeps | keeps | keeps | vercel-ai-v5 | v5's output count on generateText and generateObject; as ai.usage.promptTokens. |
-| `ai.usage.inputTokenDetails.noCacheTokens` | keeps | keeps | keeps | vercel-ai-v6 | The uncached remainder of ai.usage.inputTokens. The conventions record the inclusive input count and the cached part; this is their difference. |
-| `ai.usage.outputTokenDetails.textTokens` | keeps | keeps | keeps | vercel-ai-v6 | The non-reasoning remainder of ai.usage.outputTokens; the conventions record the inclusive output count and the reasoning part. |
+| `ai.usage.inputTokenDetails.noCacheTokens` | keeps | keeps | keeps | vercel-ai-otel, vercel-ai-v6 | The uncached remainder of ai.usage.inputTokens. The conventions record the inclusive input count and the cached part; this is their difference. |
+| `ai.usage.outputTokenDetails.textTokens` | keeps | keeps | keeps | vercel-ai-otel, vercel-ai-v6 | The non-reasoning remainder of ai.usage.outputTokens; the conventions record the inclusive output count and the reasoning part. |
 | `ai.usage.promptTokens` | keeps | keeps | keeps | vercel-ai-v5 | v5's input count on generateText and generateObject, left unread on purpose. On a model call the AI SDK writes the same value to gen_ai.usage.input_tokens itself. On the generateText wrapper v5 takes it from the LAST step's response, not the run's total (v5's streams and v6 report the total under ai.usage.inputTokens), so mapping it to rius.aggregated_usage.* would put a short total under a key that promises the whole run. |
 | `ai.usage.totalTokens` | keeps | keeps | keeps | vercel-ai-v5, vercel-ai-v6 | A total; the conventions define none. |
 | `gen_ai.aggregated_usage.*` | keeps | keeps | keeps | pydantic-ai | pydantic-ai's whole-run total on its agent span, next to each call's usage on the call's own span. Reading it as usage would count the run twice; it stays under its own name, which nothing reads. |

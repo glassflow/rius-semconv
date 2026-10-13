@@ -6,7 +6,10 @@
 // ai v7 creates spans only through a registered telemetry integration; this is
 // the one the rius SDK registers. Here it is registered by hand with a tracer
 // from the recording provider, named as the integration names its own default
-// tracer ("gen_ai"). No network, no API keys, no rius SDK.
+// tracer ("gen_ai"), with the options the rius SDK passes: `usage`, so the
+// reasoning split the conventions name reaches the spans (it is written only
+// under ai.usage.*, and only with that option). No network, no API keys, no
+// rius SDK.
 
 import { createOpenAI } from "@ai-sdk/openai";
 import { OpenTelemetry } from "@ai-sdk/otel";
@@ -20,7 +23,7 @@ import {
 } from "@opentelemetry/sdk-trace-base";
 import * as ai from "ai";
 import { RECORDER_RESOURCE, ScriptedProvider, deterministicClock, recordAll } from "../_recording.mjs";
-import { vercelScenarios } from "../_vercel.mjs";
+import { vercelObjectScenarios, vercelScenarios } from "../_vercel.mjs";
 
 deterministicClock();
 // What every Node app's provider registers: without an active-context manager
@@ -34,9 +37,12 @@ const provider = new BasicTracerProvider({
   resource: resourceFromAttributes(RECORDER_RESOURCE),
   spanProcessors: [new SimpleSpanProcessor(exporter)],
 });
-ai.registerTelemetry(new OpenTelemetry({ tracer: provider.getTracer("gen_ai") }));
+ai.registerTelemetry(new OpenTelemetry({ tracer: provider.getTracer("gen_ai"), usage: true }));
 
 const script = new ScriptedProvider();
-const scenarios = vercelScenarios({ ai, createOpenAI, script, telemetry: {} });
+const scenarios = {
+  ...vercelScenarios({ ai, createOpenAI, script, telemetry: {} }),
+  ...vercelObjectScenarios({ ai, createOpenAI, script, telemetry: {} }),
+};
 
 await recordAll(scenarios, exporter, script, PACKAGES, import.meta.url, process.argv.slice(2));
