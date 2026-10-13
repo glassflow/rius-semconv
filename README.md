@@ -47,6 +47,8 @@ tools/
   review_expected.py       what a normalizer did to each span, for the hand review
   go_reference_only.yaml   argus-core constants the registry does not generate, and why
 tests/                     pytest suites for the loader, linter, generators and parity tools
+version.txt                the registry's released version (written by release-please)
+release-please-config.json what counts toward a release (see Versioning)
 ```
 
 ## Quick start
@@ -237,6 +239,12 @@ you pass `--include-planned`.
    migration. This repository's parity job reports a vendored file that
    differs from `out/` as *lagging*, a warning rather than a failure.
 
+The **recordings** under `fixtures/` are pinned differently: by exact commit,
+not by version. Each consumer copies them with its sync script and records the
+commit in the copy's `SOURCE` file. They change with every normalizer fix and
+only exact equality matters to a conformance test, so a release per change
+would add work without telling anyone anything.
+
 ## Parity checks
 
 `tools/check_parity.py` compares `out/` with each consumer's `main` branch
@@ -265,6 +273,8 @@ you pass `--include-planned`.
   checks the fixtures and the usage-key decisions, and runs the tests.
 - **`parity.yml`**: runs `check_parity.py` against each consumer's `main`
   on every pull request, on pushes to `main`, daily, and on demand.
+- **`release.yml`**: keeps the registry's release pull request up to date
+  on pushes to `main` (see Versioning).
 
 The consumer repositories are private, so `parity.yml` needs a secret named
 **`SDK_READ_TOKEN`**: a fine-grained personal access token or GitHub App
@@ -329,18 +339,39 @@ The generated table, [`out/docs/usage-keys.md`](out/docs/usage-keys.md),
 lists each key with its decision, what each normalizer does with it, and the
 families it was recorded in.
 
-## Versioning (proposed)
+## Versioning
 
-Nothing is tagged yet. The proposal: semantic-version tags on this
-repository, where
+The **registry** is versioned: it is the wire contract the SDKs and the sink
+implement, and customers' traffic depends on it for as long as they run an
+SDK. release-please (`.github/workflows/release.yml`) keeps a release pull
+request open; merging it tags `vX.Y.Z` and writes `CHANGELOG.md`, which lists
+contract changes only. Nothing is published.
+
+A version step says what changed on the wire:
 
 - **major**: a wire value changes or a row is removed. Consumers must act.
 - **minor**: rows, members or tables are added, or `planned` becomes
   `shipped`.
-- **patch**: prose only; generated values are unchanged.
+- **patch**: the meaning of an existing row is corrected; generated values are
+  unchanged.
 
-Consumers pin a tag, as described above. Choosing and publishing the first
-tag is an open decision.
+The step comes from the commit type, so label registry changes accordingly:
+
+| Change | Commit type |
+| -- | -- |
+| A wire value renamed or a row removed | `feat!:` (or a `BREAKING CHANGE:` footer) |
+| A row, member or table added, or `planned` becomes `shipped` | `feat:` |
+| A row's meaning or disposition corrected, generated values unchanged | `fix:` |
+| Recordings, expected results, tests, tooling | `test:` or `chore:` |
+
+While the version is below 1.0, release-please bumps the minor version for a
+breaking change instead of the major; the changelog still marks it as
+breaking. The 1.0 release is a deliberate decision, once the contract settles.
+
+Only changes under the registry, the generators and `out/` count. Commits that
+touch nothing but `fixtures/`, `tests/`, `tools/` or `.github/` never cause a
+release, whatever their type: the recordings are pinned by commit, not by
+version (see below).
 
 ## Status
 
