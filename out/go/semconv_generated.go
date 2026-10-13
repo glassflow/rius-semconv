@@ -796,10 +796,14 @@ var OperationByKind = map[string]string{
 //     are LLM calls the same way chat is, and create_agent is an AGENT span
 //     just as invoke_agent is, so the mapping is many-to-one and only the
 //     chat/invoke_agent entries round-trip.
-//   - CHAIN has no operation of its own, but two operations land on it.
+//   - CHAIN has no operation of its own, but three operations land on it.
 //     invoke_workflow and plan are real GenAI operations with no taxonomy
 //     value of their own; CHAIN is the honest home for both, and the reverse
-//     direction is the only one that can say so.
+//     direction is the only one that can say so. agent_step is not a
+//     conventions operation: the Vercel AI SDK's @ai-sdk/otel writes it on
+//     each step of an agent run (one model call and the tools it asked
+//     for), a step within the run rather than an agent invocation, so
+//     CHAIN as well.
 var KindByOperation = map[string]string{
 	"chat":             SpanKindLLM,
 	"text_completion":  SpanKindLLM,
@@ -811,6 +815,7 @@ var KindByOperation = map[string]string{
 	"retrieval":        SpanKindRetriever,
 	"invoke_workflow":  SpanKindChain,
 	"plan":             SpanKindChain,
+	"agent_step":       SpanKindChain,
 }
 
 // Which attribute names the target of a span's `{operation} {target}` name,
