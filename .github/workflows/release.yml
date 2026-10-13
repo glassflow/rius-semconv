@@ -1,0 +1,23 @@
+# Opens and maintains the release PR for the registry contract, and tags a
+# release when that PR merges. Only registry and generated-output changes count
+# (release-please-config.json excludes fixtures, tests and tools): the
+# recordings are pinned by commit, not by version. Publishes nothing.
+name: release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
