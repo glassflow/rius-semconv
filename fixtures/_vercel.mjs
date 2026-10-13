@@ -174,3 +174,32 @@ export function vercelScenarios({ ai, createOpenAI, script, telemetry }) {
     },
   };
 }
+
+// generateObject, recorded by ./vercel-ai-otel only: the v5 and v6 recordings
+// were made without it, and adding a scenario to them would re-record both.
+// Deprecated in v7 in favour of generateText with an `output` setting, but
+// still exported and still traced as its own operation (ai.generateObject).
+export function vercelObjectScenarios({ ai, createOpenAI, script, telemetry }) {
+  const openai = createOpenAI({ apiKey: "sk-test", fetch: script.fetch });
+
+  return {
+    async generate_object() {
+      script.answer(
+        CHAT,
+        json(completion({ role: "assistant", content: '{"city":"Paris","country":"France"}' })),
+      );
+      await ai.generateObject({
+        model: openai.chat("gpt-4o-mini"),
+        prompt: "Capital of France, as JSON.",
+        schema: ai.jsonSchema({
+          type: "object",
+          properties: { city: { type: "string" }, country: { type: "string" } },
+          required: ["city", "country"],
+          additionalProperties: false,
+        }),
+        maxRetries: 0,
+        ...telemetry,
+      });
+    },
+  };
+}
