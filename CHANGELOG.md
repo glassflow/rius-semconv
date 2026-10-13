@@ -5,7 +5,6 @@
 
 ### Features
 
-* record Vercel AI SDK v6 and map the ai.* usage keys natively ([710c016](https://github.com/glassflow/rius-semconv/commit/710c016ec14cc268a7db6c68b32251ec918db9df))
 * record Vercel AI SDK v6 and map the ai.* usage keys natively ([2a79809](https://github.com/glassflow/rius-semconv/commit/2a798096edfb07a2c93a033378a85b6f5b3da751))
 
 
