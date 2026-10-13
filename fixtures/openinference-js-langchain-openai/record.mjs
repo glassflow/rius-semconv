@@ -49,6 +49,7 @@ const PACKAGES = [
   "@langchain/openai",
   "openai",
   "@opentelemetry/api",
+  "@opentelemetry/context-async-hooks",
   "@opentelemetry/sdk-trace-base",
 ];
 
