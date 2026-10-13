@@ -243,3 +243,12 @@ def test_fixtures_dir_is_scanned_not_hardcoded(tmp_path, base_data):
     empty.mkdir()
     result = usage_keys.scan(base_data["usage_keys"], Path(empty))
     assert not result.recorded and not result.observations
+
+
+def test_a_mapped_target_may_have_moved_aside():
+    # A wrapper span that repeats a call's usage keeps it under
+    # rius.aggregated_usage.*: the key was mapped, then the family moved.
+    after = {"rius.aggregated_usage.input_tokens": 42}
+    assert usage_keys._target_set("gen_ai.usage.input_tokens", after)
+    assert not usage_keys._target_set("gen_ai.usage.output_tokens", after)
+    assert not usage_keys._target_set("gen_ai.usage.input_tokens", {})

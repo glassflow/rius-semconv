@@ -25,6 +25,7 @@ import json
 import sys
 from importlib.metadata import version
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "fixtures"))
@@ -42,17 +43,40 @@ def expected_path(recording: Path) -> Path:
     return recording.with_name(recording.stem + ".expected.json")
 
 
-def expect(recording: Path, sdk_commit: str) -> Path:
+def normalized_spans(spans: list[Any]) -> Any:
+    """``spans`` through the SDK's exporter, after the processors that decide
+    from end order have seen them.
+
+    A live provider calls those processors at every span start and end, and
+    the exporter reads what they learned (whether a LiteLLM span's child
+    already recorded the call's usage). A replay drives them the same way:
+    every start, then every end in the order the spans finished, so a parent
+    is still open when its child ends. SDK versions without such processors
+    are replayed through the exporter alone.
+    """
     from rius.normalization import NormalizingSpanExporter
 
+    sink = InMemorySpanExporter()
+    try:
+        from rius.aggregated_usage import WrappedCallTracker
+    except ImportError:
+        NormalizingSpanExporter(sink).export(spans)
+        return sink.get_finished_spans()
+    wrapped_calls = WrappedCallTracker()
+    for span in sorted(spans, key=lambda s: s.start_time or 0):
+        wrapped_calls.on_start(span)
+    for span in sorted(spans, key=lambda s: s.end_time or 0):
+        wrapped_calls.on_end(span)
+    NormalizingSpanExporter(sink, wrapped_calls=wrapped_calls).export(spans)
+    return sink.get_finished_spans()
+
+
+def expect(recording: Path, sdk_commit: str) -> Path:
     data = json.loads(recording.read_text())
     out = []
     for scenario in data["recordings"]:
-        sink = InMemorySpanExporter()
-        NormalizingSpanExporter(sink).export(scenario_spans(scenario))
-        out.append(
-            scenario_json(scenario["scenario"], sink.get_finished_spans(), canonicalize=False)
-        )
+        finished = normalized_spans(scenario_spans(scenario))
+        out.append(scenario_json(scenario["scenario"], finished, canonicalize=False))
     path = expected_path(recording)
     document = {
         "normalizer": {"package": PACKAGE, "version": version(PACKAGE), "commit": sdk_commit},

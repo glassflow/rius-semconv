@@ -268,6 +268,32 @@ RIUS_REQUEST_PREFIX = "rius.request."
 # normalizer lifts it out of the OpenInference request bag (content) into
 # here (not content).
 RIUS_REQUEST_TOOL_CHOICE = "rius.request.tool_choice"
+GEN_AI_USAGE_PREFIX = "gen_ai.usage."
+
+# Where a whole agent run's token usage goes when the same producer also
+# reports each model call's usage on that call's own span:
+# gen_ai.usage.<suffix> becomes rius.aggregated_usage.<suffix>, on the
+# in-process (INTERNAL) invoke_agent span only. Left under gen_ai.usage.*,
+# the run's tokens are counted once per call span and once more on the
+# agent span by any backend that sums usage across spans.
+#
+# Applied only to producers KNOWN to repeat the usage on per-call spans,
+# because a span on its own cannot say whether its usage is an aggregate
+# or the only record. CLIENT invoke_agent spans keep their usage: a remote
+# agent's model calls are not in the trace.
+#
+# The same move covers a wrapper span that repeats ONE call's usage: a
+# LiteLLM completion span whose child, the openai instrumentor's
+# ChatCompletion span, records the call. The child keeps gen_ai.usage.*,
+# since it is the call itself. Decided from end order (a child ends
+# before its parent), so a LiteLLM span with no such child keeps its usage.
+#
+# Our namespace, not pydantic-ai's gen_ai.aggregated_usage.*: the GenAI
+# conventions define no aggregate yet (semantic-conventions-genai#19), and
+# one could be defined later with different semantics (sub-agents included
+# or not). A backend reads both spellings, for display only; totals read
+# gen_ai.usage.* alone.
+RIUS_AGGREGATED_USAGE_PREFIX = "rius.aggregated_usage."
 
 # Per-part byte sizes of a generation's context, as compact JSON with
 # readable keys: tool_definitions (name, bytes), input_messages and
@@ -863,6 +889,7 @@ __all__ = [
     "GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS",
     "GEN_AI_USAGE_INPUT_TOKENS",
     "GEN_AI_USAGE_OUTPUT_TOKENS",
+    "GEN_AI_USAGE_PREFIX",
     "GEN_AI_USAGE_REASONING_OUTPUT_TOKENS",
     "INPUT_VALUE",
     "INVOCATION_PARAMETERS_CONTENT_MEMBERS",
@@ -875,6 +902,7 @@ __all__ = [
     "OUTPUT_VALUE",
     "PENDING_IDENTITY_ATTRIBUTES",
     "PENDING_IDENTITY_PREFIXES",
+    "RIUS_AGGREGATED_USAGE_PREFIX",
     "RIUS_CONTEXT_SIZES",
     "RIUS_MAIN_AGENT_DESCRIPTION",
     "RIUS_MAIN_AGENT_ID",

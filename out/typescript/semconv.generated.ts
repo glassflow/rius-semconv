@@ -273,6 +273,12 @@ export const GEN_AI_USAGE_PREFIX = "gen_ai.usage.";
 // or the only record. CLIENT invoke_agent spans keep their usage: a remote
 // agent's model calls are not in the trace.
 //
+// The same move covers a wrapper span that repeats ONE call's usage: a
+// LiteLLM completion span whose child, the openai instrumentor's
+// ChatCompletion span, records the call. The child keeps gen_ai.usage.*,
+// since it is the call itself. Decided from end order (a child ends
+// before its parent), so a LiteLLM span with no such child keeps its usage.
+//
 // Our namespace, not pydantic-ai's gen_ai.aggregated_usage.*: the GenAI
 // conventions define no aggregate yet (semantic-conventions-genai#19), and
 // one could be defined later with different semantics (sub-agents included

@@ -21,6 +21,7 @@ import pathlib
 import re
 from collections import defaultdict
 from dataclasses import dataclass, field
+from typing import Any
 
 DECISIONS = {"canonical", "mapped", "ignored", "not_usage", "gap"}
 #: Decisions that leave a usage key unread: each must say why.
@@ -198,6 +199,22 @@ def _after(expected: dict, rows: bool) -> dict[tuple[str, str], set[str]]:
     return out
 
 
+_USAGE = "gen_ai.usage."
+_AGGREGATED = "rius.aggregated_usage."
+
+
+def _target_set(target: str, after: Any) -> bool:
+    """The target is on the span, or moved aside with the rest of its usage.
+
+    A wrapper span that repeats a call's usage keeps it as
+    rius.aggregated_usage.<suffix> (see RIUS_AGGREGATED_USAGE_PREFIX): the
+    mapping happened, then the whole family moved.
+    """
+    if target in after:
+        return True
+    return target.startswith(_USAGE) and _AGGREGATED + target[len(_USAGE) :] in after
+
+
 def check(data: dict, result: Scan) -> list[str]:
     """Undecided keys, and decisions a normalizer's output contradicts."""
     errors: list[str] = []
@@ -219,7 +236,7 @@ def check(data: dict, result: Scan) -> list[str]:
         problem = None
         if maps and obs.kept:
             problem = f"{obs.normalizer} should map it to {entry['target']}, but kept it"
-        elif maps and entry["target"] not in obs.after:
+        elif maps and not _target_set(entry["target"], obs.after):
             problem = f"{obs.normalizer} removed it without setting {entry['target']}"
         elif not maps and not obs.kept:
             problem = f"{obs.normalizer} removed it, but mapped_by does not list {obs.normalizer}"
