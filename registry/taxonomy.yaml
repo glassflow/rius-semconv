@@ -24,6 +24,8 @@ span_kind:
       doc: a retrieval / search step
     - name: EMBEDDING
       doc: an embedding computation
+    - name: RERANKER
+      doc: a reranking step, e.g. reordering retrieved documents by relevance
     - name: CHAIN
       doc: a generic processing step (the default)
 
@@ -34,12 +36,18 @@ operation_by_kind:
     CHAIN is deliberately absent: the conventions define no operation for a
     generic workflow step, and inventing one would put a non-spec value in a
     spec-defined enum. Revisit only if the upstream invoke_node proposal lands.
+    RERANKER maps to rerank, which the conventions do not define either. It is
+    the value the Vercel AI SDK's @ai-sdk/otel writes on a rerank call, and the
+    SDKs write it on AI SDK v6 reranks too, so it is already on the wire. Mapping
+    the kind to it gives every rerank span (AI SDK, OpenInference RERANKER,
+    user-created) the same operation, so a filter on either key finds them all.
   map:
     LLM: chat
     TOOL: execute_tool
     EMBEDDING: embeddings
     AGENT: invoke_agent
     RETRIEVER: retrieval
+    RERANKER: rerank
   # Partiality is explicit, so a missing kind reads as a decision rather than
   # an omission. The linter requires every kind to be in `map` or here.
   unmapped:
@@ -49,10 +57,10 @@ kind_by_operation:
   names: {python: _KIND_BY_OPERATION, typescript: KIND_BY_OPERATION, go: KindByOperation}
   doc: |
     The inverse, for spans that speak the conventions (and the GenAI-native
-    vendor operations listed below, such as agent_step). A GenAI-native
-    instrumentation sets gen_ai.operation.name and never heard of
-    openinference.span.kind, and both keys must be present on every span, so the
-    derivation has to run in both directions.
+    vendor operations listed below, such as agent_step and rerank). A
+    GenAI-native instrumentation sets gen_ai.operation.name and never heard of
+    openinference.span.kind, and both keys must be present on every span, so
+    the derivation has to run in both directions.
 
     Not a mechanical inversion of the map above, and it cannot be generated from
     it, for two reasons:
@@ -77,6 +85,7 @@ kind_by_operation:
     invoke_agent: AGENT
     create_agent: AGENT
     retrieval: RETRIEVER
+    rerank: RERANKER
     invoke_workflow: CHAIN
     plan: CHAIN
     agent_step: CHAIN
@@ -93,7 +102,8 @@ otel_kind_by_kind:
     operation: inference, embeddings and retrieval call out of the process
     (CLIENT); execute_tool is INTERNAL; invoke_agent is CLIENT only for a hosted
     agent. Hence:
-    - LLM / EMBEDDING / RETRIEVER -> CLIENT: a remote model or index is called.
+    - LLM / EMBEDDING / RETRIEVER / RERANKER -> CLIENT: a remote model or
+      index is called.
     - TOOL -> INTERNAL: a bare TOOL span is an in-process function, and the
       execute-tool convention says INTERNAL. The MCP wrapper overrides this to
       CLIENT at its own call site because a tools/call crosses a process
@@ -107,6 +117,7 @@ otel_kind_by_kind:
     LLM: CLIENT
     EMBEDDING: CLIENT
     RETRIEVER: CLIENT
+    RERANKER: CLIENT
     TOOL: INTERNAL
     AGENT: INTERNAL
     CHAIN: INTERNAL
@@ -119,6 +130,8 @@ name_target_by_kind:
     and the composed name stays a reliable filter value. CHAIN is absent: it has
     no operation and so no composed name. LLM reads the REQUEST model on
     purpose: a pending snapshot must carry the same name as the final span.
+    RERANKER reads the request model too, as EMBEDDING does, so a rerank span
+    is named `rerank <model>`.
   # Values are constants from attributes.yaml.
   map:
     LLM: GEN_AI_REQUEST_MODEL
@@ -126,5 +139,6 @@ name_target_by_kind:
     TOOL: GEN_AI_TOOL_NAME
     AGENT: GEN_AI_AGENT_NAME
     RETRIEVER: GEN_AI_DATA_SOURCE_ID
+    RERANKER: GEN_AI_REQUEST_MODEL
   unmapped:
     CHAIN: no operation, so nothing to compose a name from

@@ -762,6 +762,7 @@ export enum SpanKind {
   TOOL = "TOOL", // a tool execution
   RETRIEVER = "RETRIEVER", // a retrieval / search step
   EMBEDDING = "EMBEDDING", // an embedding computation
+  RERANKER = "RERANKER", // a reranking step, e.g. reordering retrieved documents by relevance
   CHAIN = "CHAIN", // a generic processing step (the default)
 }
 
@@ -769,19 +770,25 @@ export enum SpanKind {
 // CHAIN is deliberately absent: the conventions define no operation for a
 // generic workflow step, and inventing one would put a non-spec value in a
 // spec-defined enum. Revisit only if the upstream invoke_node proposal lands.
+// RERANKER maps to rerank, which the conventions do not define either. It is
+// the value the Vercel AI SDK's @ai-sdk/otel writes on a rerank call, and the
+// SDKs write it on AI SDK v6 reranks too, so it is already on the wire. Mapping
+// the kind to it gives every rerank span (AI SDK, OpenInference RERANKER,
+// user-created) the same operation, so a filter on either key finds them all.
 export const OPERATION_BY_KIND: Partial<Record<SpanKind, string>> = {
   [SpanKind.LLM]: "chat",
   [SpanKind.TOOL]: "execute_tool",
   [SpanKind.EMBEDDING]: "embeddings",
   [SpanKind.AGENT]: "invoke_agent",
   [SpanKind.RETRIEVER]: "retrieval",
+  [SpanKind.RERANKER]: "rerank",
 };
 
 // The inverse, for spans that speak the conventions (and the GenAI-native
-// vendor operations listed below, such as agent_step). A GenAI-native
-// instrumentation sets gen_ai.operation.name and never heard of
-// openinference.span.kind, and both keys must be present on every span, so the
-// derivation has to run in both directions.
+// vendor operations listed below, such as agent_step and rerank). A
+// GenAI-native instrumentation sets gen_ai.operation.name and never heard of
+// openinference.span.kind, and both keys must be present on every span, so
+// the derivation has to run in both directions.
 //
 // Not a mechanical inversion of the map above, and it cannot be generated from
 // it, for two reasons:
@@ -806,6 +813,7 @@ export const KIND_BY_OPERATION: Record<string, SpanKind> = {
   invoke_agent: SpanKind.AGENT,
   create_agent: SpanKind.AGENT,
   retrieval: SpanKind.RETRIEVER,
+  rerank: SpanKind.RERANKER,
   invoke_workflow: SpanKind.CHAIN,
   plan: SpanKind.CHAIN,
   agent_step: SpanKind.CHAIN,
@@ -816,7 +824,8 @@ export const KIND_BY_OPERATION: Record<string, SpanKind> = {
 // operation: inference, embeddings and retrieval call out of the process
 // (CLIENT); execute_tool is INTERNAL; invoke_agent is CLIENT only for a hosted
 // agent. Hence:
-// - LLM / EMBEDDING / RETRIEVER -> CLIENT: a remote model or index is called.
+// - LLM / EMBEDDING / RETRIEVER / RERANKER -> CLIENT: a remote model or
+//   index is called.
 // - TOOL -> INTERNAL: a bare TOOL span is an in-process function, and the
 //   execute-tool convention says INTERNAL. The MCP wrapper overrides this to
 //   CLIENT at its own call site because a tools/call crosses a process
@@ -830,6 +839,7 @@ export const OTEL_KIND_BY_KIND: Record<SpanKind, OtelSpanKind> = {
   [SpanKind.LLM]: OtelSpanKind.CLIENT,
   [SpanKind.EMBEDDING]: OtelSpanKind.CLIENT,
   [SpanKind.RETRIEVER]: OtelSpanKind.CLIENT,
+  [SpanKind.RERANKER]: OtelSpanKind.CLIENT,
   [SpanKind.TOOL]: OtelSpanKind.INTERNAL,
   [SpanKind.AGENT]: OtelSpanKind.INTERNAL,
   [SpanKind.CHAIN]: OtelSpanKind.INTERNAL,
@@ -840,10 +850,13 @@ export const OTEL_KIND_BY_KIND: Record<SpanKind, OtelSpanKind> = {
 // and the composed name stays a reliable filter value. CHAIN is absent: it has
 // no operation and so no composed name. LLM reads the REQUEST model on
 // purpose: a pending snapshot must carry the same name as the final span.
+// RERANKER reads the request model too, as EMBEDDING does, so a rerank span
+// is named `rerank <model>`.
 export const NAME_TARGET_BY_KIND: Partial<Record<SpanKind, string>> = {
   [SpanKind.LLM]: GEN_AI_REQUEST_MODEL,
   [SpanKind.EMBEDDING]: GEN_AI_REQUEST_MODEL,
   [SpanKind.TOOL]: GEN_AI_TOOL_NAME,
   [SpanKind.AGENT]: GEN_AI_AGENT_NAME,
   [SpanKind.RETRIEVER]: GEN_AI_DATA_SOURCE_ID,
+  [SpanKind.RERANKER]: GEN_AI_REQUEST_MODEL,
 };

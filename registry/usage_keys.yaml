@@ -305,10 +305,10 @@ keys:
     decision: not_usage
     reason: |
       @arizeai/openinference-vercel's metadata.* mirror of
-      ai.response.avgOutputTokensPerSecond. No recording carries it any more:
-      the TypeScript SDK maps the ai.* operations the fixtures cover itself
-      and runs the transform only on the rest (rerank, image, speech), whose
-      spans can still carry it, so the entry stays.
+      ai.response.avgOutputTokensPerSecond. No recording carries it: the
+      TypeScript SDK no longer runs that transform. An app can still run the
+      package's span processor itself on a provider the SDK bridges onto, and
+      its spans then carry the mirror, so the entry stays.
 
   # --- Request parameters ---------------------------------------------------
 

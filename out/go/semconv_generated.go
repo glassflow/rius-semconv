@@ -320,6 +320,7 @@ const (
 	SpanKindTool      = "TOOL"      // a tool execution
 	SpanKindRetriever = "RETRIEVER" // a retrieval / search step
 	SpanKindEmbedding = "EMBEDDING" // an embedding computation
+	SpanKindReranker  = "RERANKER"  // a reranking step, e.g. reordering retrieved documents by relevance
 	SpanKindChain     = "CHAIN"     // a generic processing step (the default)
 )
 
@@ -777,19 +778,25 @@ var ContentAttributePrefixedSuffixes = []struct {
 // CHAIN is deliberately absent: the conventions define no operation for a
 // generic workflow step, and inventing one would put a non-spec value in a
 // spec-defined enum. Revisit only if the upstream invoke_node proposal lands.
+// RERANKER maps to rerank, which the conventions do not define either. It is
+// the value the Vercel AI SDK's @ai-sdk/otel writes on a rerank call, and the
+// SDKs write it on AI SDK v6 reranks too, so it is already on the wire. Mapping
+// the kind to it gives every rerank span (AI SDK, OpenInference RERANKER,
+// user-created) the same operation, so a filter on either key finds them all.
 var OperationByKind = map[string]string{
 	SpanKindLLM:       "chat",
 	SpanKindTool:      "execute_tool",
 	SpanKindEmbedding: "embeddings",
 	SpanKindAgent:     "invoke_agent",
 	SpanKindRetriever: "retrieval",
+	SpanKindReranker:  "rerank",
 }
 
 // The inverse, for spans that speak the conventions (and the GenAI-native
-// vendor operations listed below, such as agent_step). A GenAI-native
-// instrumentation sets gen_ai.operation.name and never heard of
-// openinference.span.kind, and both keys must be present on every span, so the
-// derivation has to run in both directions.
+// vendor operations listed below, such as agent_step and rerank). A
+// GenAI-native instrumentation sets gen_ai.operation.name and never heard of
+// openinference.span.kind, and both keys must be present on every span, so
+// the derivation has to run in both directions.
 //
 // Not a mechanical inversion of the map above, and it cannot be generated from
 // it, for two reasons:
@@ -814,6 +821,7 @@ var KindByOperation = map[string]string{
 	"invoke_agent":     SpanKindAgent,
 	"create_agent":     SpanKindAgent,
 	"retrieval":        SpanKindRetriever,
+	"rerank":           SpanKindReranker,
 	"invoke_workflow":  SpanKindChain,
 	"plan":             SpanKindChain,
 	"agent_step":       SpanKindChain,
@@ -824,10 +832,13 @@ var KindByOperation = map[string]string{
 // and the composed name stays a reliable filter value. CHAIN is absent: it has
 // no operation and so no composed name. LLM reads the REQUEST model on
 // purpose: a pending snapshot must carry the same name as the final span.
+// RERANKER reads the request model too, as EMBEDDING does, so a rerank span
+// is named `rerank <model>`.
 var NameTargetByKind = map[string]string{
 	SpanKindLLM:       GenAIRequestModel,
 	SpanKindEmbedding: GenAIRequestModel,
 	SpanKindTool:      GenAIToolName,
 	SpanKindAgent:     GenAIAgentName,
 	SpanKindRetriever: GenAIDataSourceID,
+	SpanKindReranker:  GenAIRequestModel,
 }
