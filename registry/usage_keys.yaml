@@ -137,20 +137,15 @@ keys:
   - key: gen_ai.usage.details.thinking_tokens
     decision: mapped
     target: gen_ai.usage.reasoning.output_tokens
-    mapped_by: [sink]
+    mapped_by: [python, typescript, sink]
     go: GenAIUsageDetailsThinkingTokens
-    reason: |
-      pydantic-ai's Anthropic reasoning split. Only the sink maps it: the
-      SDKs leave it on the span, so an Anthropic reasoning count through an
-      SDK reaches no canonical key.
+    reason: pydantic-ai's Anthropic reasoning split.
   - key: gen_ai.usage.details.thoughts_tokens
     decision: mapped
     target: gen_ai.usage.reasoning.output_tokens
-    mapped_by: [sink]
+    mapped_by: [python, typescript, sink]
     go: GenAIUsageDetailsThoughtsTokens
-    reason: |
-      pydantic-ai's Google reasoning split. Only the sink maps it, as with
-      thinking_tokens.
+    reason: pydantic-ai's Google reasoning split.
   - key: gen_ai.usage.details.cache_read_tokens
     decision: mapped
     target: gen_ai.usage.cache_read.input_tokens
