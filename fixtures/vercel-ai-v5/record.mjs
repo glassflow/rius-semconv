@@ -4,9 +4,8 @@
 // Usage: node record.mjs <recording.json> [<environment.json>]   (after npm ci)
 //
 // ai v5 traces a call when it is given experimental_telemetry with a tracer.
-// These are the raw ai.* spans: the rius SDK translates them through
-// @arizeai/openinference-vercel's transform before normalizing, so that
-// transform is part of what produces the expected result, not of the
+// These are the raw ai.* spans: the rius SDK's normalizer maps them, so its
+// processor chain is part of what produces the expected result, not of the
 // recording. No network, no API keys, no rius SDK.
 
 import { createOpenAI } from "@ai-sdk/openai";

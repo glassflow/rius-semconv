@@ -14,9 +14,10 @@
  *
  * - an id generator hands out the recorded trace and span ids, so parent links
  *   and numbering survive;
- * - the processor chain mirrors the SDK's: the Vercel ai.* transform first
- *   (the `vercel-ai` registry entry, which acts only on ai.* dialect spans),
- *   then the NormalizingSpanProcessor;
+ * - the processor chain mirrors the SDK's: the `vercel-ai` registry entry
+ *   first (the @arizeai/openinference-vercel transform, which the SDK runs
+ *   only on ai.* operations its normalizer does not map), then the
+ *   NormalizingSpanProcessor;
  * - when the manifest marks the family `replay.aggregating_producer`, spans are
  *   started through the SDK's `aggregatingTracer`, as the SDK starts
  *   @ai-sdk/otel's spans live, so the aggregate-usage move applies.

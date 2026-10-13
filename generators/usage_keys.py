@@ -228,9 +228,12 @@ def check(data: dict, result: Scan) -> list[str]:
     reported: set[tuple[str, str, str]] = set()
     for obs in result.observations:
         entry = decision_for(data, obs.key)
-        if entry is None or entry["decision"] == "canonical":
+        if entry is None or entry["decision"] in ("canonical", "not_usage"):
             # A canonical key may legitimately move (a run total to
             # rius.aggregated_usage.*); what happens to it is not a mapping.
+            # A key that is not usage (a request parameter such as
+            # ai.settings.maxOutputTokens, mapped to gen_ai.request.max_tokens)
+            # is no usage key's business either.
             continue
         maps = entry["decision"] == "mapped" and obs.normalizer in entry.get("mapped_by", [])
         problem = None

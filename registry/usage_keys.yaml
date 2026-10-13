@@ -223,48 +223,81 @@ keys:
     reason: OpenLLMetry's and Laminar's total, as gen_ai.usage.total_tokens.
 
   # --- Vercel AI SDK v5/v6 (ai.*) ---------------------------------------------
+  #
+  # A model call (doGenerate, doStream, doEmbed) maps its counts to
+  # gen_ai.usage.*; a wrapper (generateText, streamText, embed ...) maps the
+  # run's total, which repeats its calls', to rius.aggregated_usage.*. Where
+  # v6 writes both spellings of a count, the detailed one wins.
 
+  - key: ai.usage.inputTokens
+    decision: mapped
+    target: gen_ai.usage.input_tokens
+    mapped_by: [typescript, sink]
+    reason: Inclusive of the cached tokens, as the canonical key is.
   - key: ai.usage.promptTokens
     decision: ignored
     reason: |
-      v5's input count. On a doGenerate/doStream span the AI SDK writes the
-      same value to gen_ai.usage.input_tokens; on the outer generateText /
-      streamText span it is the call's total again, which must not be counted
-      a second time.
+      v5's input count on generateText and generateObject, left unread on
+      purpose. On a model call the AI SDK writes the same value to
+      gen_ai.usage.input_tokens itself. On the generateText wrapper v5 takes
+      it from the LAST step's response, not the run's total (v5's streams and
+      v6 report the total under ai.usage.inputTokens), so mapping it to
+      rius.aggregated_usage.* would put a short total under a key that
+      promises the whole run.
+  - key: ai.usage.tokens
+    decision: mapped
+    target: gen_ai.usage.input_tokens
+    mapped_by: [typescript, sink]
+    reason: An embedding call's input count (ai.embed, ai.embedMany and their doEmbed).
+  - key: ai.usage.outputTokens
+    decision: mapped
+    target: gen_ai.usage.output_tokens
+    mapped_by: [typescript, sink]
   - key: ai.usage.completionTokens
     decision: ignored
-    reason: v5's output count; as ai.usage.promptTokens.
-  - key: ai.usage.inputTokens
+    reason: v5's output count on generateText and generateObject; as ai.usage.promptTokens.
+  - key: ai.usage.inputTokenDetails.cacheReadTokens
+    decision: mapped
+    target: gen_ai.usage.cache_read.input_tokens
+    mapped_by: [typescript, sink]
+  - key: ai.usage.cachedInputTokens
+    decision: mapped
+    target: gen_ai.usage.cache_read.input_tokens
+    mapped_by: [typescript, sink]
+    reason: |
+      v5's cache-read count, still written beside the detailed spelling by
+      v6. Without it cached input was priced as uncached.
+  - key: ai.usage.inputTokenDetails.cacheWriteTokens
+    decision: mapped
+    target: gen_ai.usage.cache_write.input_tokens
+    mapped_by: [typescript, sink]
+  - key: ai.usage.outputTokenDetails.reasoningTokens
+    decision: mapped
+    target: gen_ai.usage.reasoning.output_tokens
+    mapped_by: [typescript, sink]
+  - key: ai.usage.reasoningTokens
+    decision: mapped
+    target: gen_ai.usage.reasoning.output_tokens
+    mapped_by: [typescript, sink]
+    reason: v5's reasoning count, still written beside the detailed spelling by v6.
+  - key: ai.usage.inputTokenDetails.noCacheTokens
     decision: ignored
-    reason: The v5 streaming spelling of ai.usage.promptTokens; as that key.
-  - key: ai.usage.outputTokens
+    reason: |
+      The uncached remainder of ai.usage.inputTokens. The conventions record
+      the inclusive input count and the cached part; this is their difference.
+  - key: ai.usage.outputTokenDetails.textTokens
     decision: ignored
-    reason: The v5 streaming spelling of ai.usage.completionTokens; as that key.
+    reason: |
+      The non-reasoning remainder of ai.usage.outputTokens; the conventions
+      record the inclusive output count and the reasoning part.
   - key: ai.usage.totalTokens
     decision: ignored
     reason: A total; the conventions define none.
-  - key: ai.usage.cachedInputTokens
-    decision: gap
-    reason: |
-      The cache-read count of a v5 stream. The AI SDK writes no
-      gen_ai.usage.* counterpart and no normalizer maps it, so cached input
-      is priced as uncached input.
-  - key: ai.usage.reasoningTokens
-    decision: gap
-    reason: |
-      The reasoning count of a v5 stream. No gen_ai.usage.* counterpart and
-      no normalizer maps it, so it reaches no canonical key.
-  - key: ai.usage.tokens
-    decision: gap
-    reason: |
-      An embedding call's token count (ai.embed, ai.embed.doEmbed). No
-      gen_ai.usage.* counterpart and no normalizer maps it, so embedding
-      calls carry no usage at all.
   - key: ai.settings.maxOutputTokens
     decision: not_usage
     reason: |
-      A request parameter. The AI SDK also writes it as
-      gen_ai.request.max_tokens.
+      A request parameter, mapped to gen_ai.request.max_tokens (which the AI
+      SDK also writes itself on a model call).
   - key: ai.response.avgOutputTokensPerSecond
     decision: not_usage
     reason: A throughput figure, not a count.
@@ -272,7 +305,10 @@ keys:
     decision: not_usage
     reason: |
       @arizeai/openinference-vercel's metadata.* mirror of
-      ai.response.avgOutputTokensPerSecond.
+      ai.response.avgOutputTokensPerSecond. No recording carries it any more:
+      the TypeScript SDK maps the ai.* operations the fixtures cover itself
+      and runs the transform only on the rest (rerank, image, speech), whose
+      spans can still carry it, so the entry stays.
 
   # --- Request parameters ---------------------------------------------------
 
