@@ -174,3 +174,38 @@ export function vercelScenarios({ ai, createOpenAI, script, telemetry }) {
     },
   };
 }
+
+const RERANK = "https://api.cohere.com/v2/rerank";
+
+/**
+ * The rerank call, which only v6 traces: v5 has no rerank, and v7's goes
+ * through @ai-sdk/otel like every other v7 call. No OpenAI model reranks, so
+ * it runs against Cohere's, whose answer is the same scripted JSON shape.
+ */
+export function vercelRerankScenarios({ ai, createCohere, script, telemetry }) {
+  const cohere = createCohere({ apiKey: "co-test", fetch: script.fetch });
+
+  return {
+    async rerank() {
+      script.answer(
+        RERANK,
+        json({
+          id: "rerank-rec1",
+          results: [
+            { index: 2, relevance_score: 0.875 },
+            { index: 0, relevance_score: 0.25 },
+          ],
+          meta: { api_version: { version: "2" }, billed_units: { search_units: 1 } },
+        }),
+      );
+      await ai.rerank({
+        model: cohere.reranking("rerank-v3.5"),
+        query: "Capital of France?",
+        documents: ["Berlin is the capital of Germany.", "Madrid is in Spain.", "Paris is the capital of France."],
+        topN: 2,
+        maxRetries: 0,
+        ...telemetry,
+      });
+    },
+  };
+}

@@ -1,5 +1,5 @@
 // Record the Vercel AI SDK v6's own telemetry (the ai.* dialect) against a
-// scripted OpenAI.
+// scripted OpenAI, and a scripted Cohere for the rerank call.
 //
 // Usage: node record.mjs <recording.json> [<environment.json>]   (after npm ci)
 //
@@ -8,6 +8,7 @@
 // processor chain is part of what produces the expected result, not of the
 // recording. No network, no API keys, no rius SDK.
 
+import { createCohere } from "@ai-sdk/cohere";
 import { createOpenAI } from "@ai-sdk/openai";
 import { context } from "@opentelemetry/api";
 import { AsyncLocalStorageContextManager } from "@opentelemetry/context-async-hooks";
@@ -19,14 +20,14 @@ import {
 } from "@opentelemetry/sdk-trace-base";
 import * as ai from "ai";
 import { RECORDER_RESOURCE, ScriptedProvider, deterministicClock, recordAll } from "../_recording.mjs";
-import { vercelScenarios } from "../_vercel.mjs";
+import { vercelRerankScenarios, vercelScenarios } from "../_vercel.mjs";
 
 deterministicClock();
 // What every Node app's provider registers: without an active-context manager
 // the AI SDK's spans would not nest under each other.
 context.setGlobalContextManager(new AsyncLocalStorageContextManager().enable());
 
-const PACKAGES = ["ai", "@ai-sdk/openai", "@opentelemetry/api", "@opentelemetry/sdk-trace-base"];
+const PACKAGES = ["ai", "@ai-sdk/openai", "@ai-sdk/cohere", "@opentelemetry/api", "@opentelemetry/sdk-trace-base"];
 
 const exporter = new InMemorySpanExporter();
 const provider = new BasicTracerProvider({
@@ -35,11 +36,10 @@ const provider = new BasicTracerProvider({
 });
 
 const script = new ScriptedProvider();
-const scenarios = vercelScenarios({
-  ai,
-  createOpenAI,
-  script,
-  telemetry: { experimental_telemetry: { isEnabled: true, tracer: provider.getTracer("ai") } },
-});
+const telemetry = { experimental_telemetry: { isEnabled: true, tracer: provider.getTracer("ai") } };
+const scenarios = {
+  ...vercelScenarios({ ai, createOpenAI, script, telemetry }),
+  ...vercelRerankScenarios({ ai, createCohere, script, telemetry }),
+};
 
 await recordAll(scenarios, exporter, script, PACKAGES, import.meta.url, process.argv.slice(2));

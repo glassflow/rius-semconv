@@ -301,14 +301,6 @@ keys:
   - key: ai.response.avgOutputTokensPerSecond
     decision: not_usage
     reason: A throughput figure, not a count.
-  - key: metadata.ai.response.avgOutputTokensPerSecond
-    decision: not_usage
-    reason: |
-      @arizeai/openinference-vercel's metadata.* mirror of
-      ai.response.avgOutputTokensPerSecond. No recording carries it any more:
-      the TypeScript SDK maps the ai.* operations the fixtures cover itself
-      and runs the transform only on the rest (rerank, image, speech), whose
-      spans can still carry it, so the entry stays.
 
   # --- Request parameters ---------------------------------------------------
 
