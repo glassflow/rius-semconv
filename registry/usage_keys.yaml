@@ -235,10 +235,15 @@ keys:
     mapped_by: [typescript, sink]
     reason: Inclusive of the cached tokens, as the canonical key is.
   - key: ai.usage.promptTokens
-    decision: mapped
-    target: gen_ai.usage.input_tokens
-    mapped_by: [typescript, sink]
-    reason: v5's spelling of ai.usage.inputTokens on generateText.
+    decision: ignored
+    reason: |
+      v5's input count on generateText and generateObject, left unread on
+      purpose. On a model call the AI SDK writes the same value to
+      gen_ai.usage.input_tokens itself. On the generateText wrapper v5 takes
+      it from the LAST step's response, not the run's total (v5's streams and
+      v6 report the total under ai.usage.inputTokens), so mapping it to
+      rius.aggregated_usage.* would put a short total under a key that
+      promises the whole run.
   - key: ai.usage.tokens
     decision: mapped
     target: gen_ai.usage.input_tokens
@@ -249,10 +254,8 @@ keys:
     target: gen_ai.usage.output_tokens
     mapped_by: [typescript, sink]
   - key: ai.usage.completionTokens
-    decision: mapped
-    target: gen_ai.usage.output_tokens
-    mapped_by: [typescript, sink]
-    reason: v5's spelling of ai.usage.outputTokens on generateText.
+    decision: ignored
+    reason: v5's output count on generateText and generateObject; as ai.usage.promptTokens.
   - key: ai.usage.inputTokenDetails.cacheReadTokens
     decision: mapped
     target: gen_ai.usage.cache_read.input_tokens
@@ -302,7 +305,10 @@ keys:
     decision: not_usage
     reason: |
       @arizeai/openinference-vercel's metadata.* mirror of
-      ai.response.avgOutputTokensPerSecond.
+      ai.response.avgOutputTokensPerSecond. No recording carries it any more:
+      the TypeScript SDK maps the ai.* operations the fixtures cover itself
+      and runs the transform only on the rest (rerank, image, speech), whose
+      spans can still carry it, so the entry stays.
 
   # --- Request parameters ---------------------------------------------------
 
