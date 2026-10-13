@@ -778,14 +778,18 @@ var ContentAttributePrefixedSuffixes = []struct {
 // CHAIN is deliberately absent: the conventions define no operation for a
 // generic workflow step, and inventing one would put a non-spec value in a
 // spec-defined enum. Revisit only if the upstream invoke_node proposal lands.
-// RERANKER is absent for the same reason: the conventions define no rerank
-// operation.
+// RERANKER maps to rerank, which the conventions do not define either. It is
+// the value the Vercel AI SDK's @ai-sdk/otel writes on a rerank call, and the
+// SDKs write it on AI SDK v6 reranks too, so it is already on the wire. Mapping
+// the kind to it gives every rerank span (AI SDK, OpenInference RERANKER,
+// user-created) the same operation, so a filter on either key finds them all.
 var OperationByKind = map[string]string{
 	SpanKindLLM:       "chat",
 	SpanKindTool:      "execute_tool",
 	SpanKindEmbedding: "embeddings",
 	SpanKindAgent:     "invoke_agent",
 	SpanKindRetriever: "retrieval",
+	SpanKindReranker:  "rerank",
 }
 
 // The inverse, for spans that speak only the conventions. A GenAI-native
@@ -804,9 +808,8 @@ var OperationByKind = map[string]string{
 //     value of their own; CHAIN is the honest home for both, and the reverse
 //     direction is the only one that can say so.
 //   - rerank is not a conventions operation but the AI SDK's own value
-//     (@ai-sdk/otel writes it on a rerank call). RERANKER is its kind, and
-//     since the conventions define no operation for RERANKER, only this
-//     direction maps it.
+//     (@ai-sdk/otel writes it on a rerank call). It round-trips with
+//     RERANKER, as chat does with LLM.
 var KindByOperation = map[string]string{
 	"chat":             SpanKindLLM,
 	"text_completion":  SpanKindLLM,
@@ -826,8 +829,8 @@ var KindByOperation = map[string]string{
 // and the composed name stays a reliable filter value. CHAIN is absent: it has
 // no operation and so no composed name. LLM reads the REQUEST model on
 // purpose: a pending snapshot must carry the same name as the final span.
-// RERANKER reads the model too, as EMBEDDING does: a rerank call's target is
-// the reranking model.
+// RERANKER reads the request model too, as EMBEDDING does, so a rerank span
+// is named `rerank <model>`.
 var NameTargetByKind = map[string]string{
 	SpanKindLLM:       GenAIRequestModel,
 	SpanKindEmbedding: GenAIRequestModel,

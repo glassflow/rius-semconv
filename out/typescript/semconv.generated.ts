@@ -770,14 +770,18 @@ export enum SpanKind {
 // CHAIN is deliberately absent: the conventions define no operation for a
 // generic workflow step, and inventing one would put a non-spec value in a
 // spec-defined enum. Revisit only if the upstream invoke_node proposal lands.
-// RERANKER is absent for the same reason: the conventions define no rerank
-// operation.
+// RERANKER maps to rerank, which the conventions do not define either. It is
+// the value the Vercel AI SDK's @ai-sdk/otel writes on a rerank call, and the
+// SDKs write it on AI SDK v6 reranks too, so it is already on the wire. Mapping
+// the kind to it gives every rerank span (AI SDK, OpenInference RERANKER,
+// user-created) the same operation, so a filter on either key finds them all.
 export const OPERATION_BY_KIND: Partial<Record<SpanKind, string>> = {
   [SpanKind.LLM]: "chat",
   [SpanKind.TOOL]: "execute_tool",
   [SpanKind.EMBEDDING]: "embeddings",
   [SpanKind.AGENT]: "invoke_agent",
   [SpanKind.RETRIEVER]: "retrieval",
+  [SpanKind.RERANKER]: "rerank",
 };
 
 // The inverse, for spans that speak only the conventions. A GenAI-native
@@ -796,9 +800,8 @@ export const OPERATION_BY_KIND: Partial<Record<SpanKind, string>> = {
 //     value of their own; CHAIN is the honest home for both, and the reverse
 //     direction is the only one that can say so.
 //   - rerank is not a conventions operation but the AI SDK's own value
-//     (@ai-sdk/otel writes it on a rerank call). RERANKER is its kind, and
-//     since the conventions define no operation for RERANKER, only this
-//     direction maps it.
+//     (@ai-sdk/otel writes it on a rerank call). It round-trips with
+//     RERANKER, as chat does with LLM.
 export const KIND_BY_OPERATION: Record<string, SpanKind> = {
   chat: SpanKind.LLM,
   text_completion: SpanKind.LLM,
@@ -844,8 +847,8 @@ export const OTEL_KIND_BY_KIND: Record<SpanKind, OtelSpanKind> = {
 // and the composed name stays a reliable filter value. CHAIN is absent: it has
 // no operation and so no composed name. LLM reads the REQUEST model on
 // purpose: a pending snapshot must carry the same name as the final span.
-// RERANKER reads the model too, as EMBEDDING does: a rerank call's target is
-// the reranking model.
+// RERANKER reads the request model too, as EMBEDDING does, so a rerank span
+// is named `rerank <model>`.
 export const NAME_TARGET_BY_KIND: Partial<Record<SpanKind, string>> = {
   [SpanKind.LLM]: GEN_AI_REQUEST_MODEL,
   [SpanKind.EMBEDDING]: GEN_AI_REQUEST_MODEL,
