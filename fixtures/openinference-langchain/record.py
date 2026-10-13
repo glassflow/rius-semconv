@@ -7,8 +7,10 @@ instrumentor ONLY, through an in-process mock transport that answers every
 request with realistic OpenAI JSON. No network, no API keys, no rius SDK.
 
 Only the LangChain instrumentor is enabled, so each scenario shows LangChain's
-own spans. With the openai instrumentor enabled as well, every model call would
-also get a sibling ChatCompletion span; that combination is its own family.
+own spans. With the openai instrumentor enabled as well, every model call also
+gets a ChatCompletion span, a root span in a trace of its own (the LangChain
+instrumentor never makes its spans current); that combination is its own
+family, ../openinference-langchain-openai.
 """
 
 from __future__ import annotations
