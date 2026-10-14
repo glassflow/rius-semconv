@@ -63,7 +63,11 @@ and `mcp.result_type` predate the rule and carry one.
   allowlists pin the source version each group was read from.
 
 The registry is moving to the [OTel Weaver](https://github.com/open-telemetry/weaver)
-format. `model/manifest.yaml` is the Weaver manifest: it names the registry's
+format. `tools/to_weaver.py` writes the Weaver registry under `model/` from
+`registry/`, which stays the file you edit; CI fails when the two disagree.
+Each Rius key there carries a one-line brief, examples and a stability
+level (all in development today), and renamed keys stay as deprecated
+entries. `model/manifest.yaml` is the Weaver manifest, maintained by hand: it names the registry's
 `schema_url` (`https://docs.glassflow.ai/rius/schemas/<version>`, the last
 segment being the version in `version.txt`) and depends on the OpenTelemetry
 core and GenAI registries at the versions pinned in `versions.env`. Renovate
@@ -203,9 +207,13 @@ tools/
   review_expected.py       what a normalizer did to each span, for the hand review
   install_weaver.sh        install the Weaver release pinned in versions.env, checksum-verified
   check_weaver_pins.py     model/manifest.yaml pins what versions.env and version.txt say
+  to_weaver.py             write model/ and templates/params.yaml from registry/
   go_reference_only.yaml   backend constants the registry does not generate, and why
 tests/                     pytest suites for the loader, linter, generators and tools
-model/manifest.yaml        the Weaver registry manifest: schema_url and upstream dependencies
+model/                     the Weaver registry, written from registry/ by tools/to_weaver.py
+  manifest.yaml            the Weaver manifest: schema_url and upstream dependencies (by hand)
+  rius/registry.yaml       the Rius keys as Weaver definitions
+templates/params.yaml      the Weaver --params sidecar: emission order and the non-attribute data
 versions.env               pinned Weaver and upstream registry versions (bumped by Renovate)
 version.txt                the registry's released version (written by release-please)
 ```
@@ -234,6 +242,7 @@ the pinned upstream registries from GitHub:
 
 ```
 python tools/check_weaver_pins.py         # manifest pins match versions.env
+python tools/to_weaver.py --check         # model/ matches registry/
 tools/install_weaver.sh                   # installs .weaver/bin/weaver
 .weaver/bin/weaver registry check -r model --v2
 .weaver/bin/weaver registry resolve -r model --v2 -o /tmp/resolved.yaml
@@ -378,13 +387,15 @@ table to those languages, and `divergence:` (required) says why;
 3. **Add the row** to `registry/attributes.yaml` with its category (span
    attributes only), level, kinds and a rationale that says *why*. Write the
    reason itself, never an issue-tracker reference: the linter rejects
-   ticket ids.
+   ticket ids. A Rius key also needs a one-line `brief`, `examples` and a
+   `stability` (`development` for a new key).
 4. **Decide allowlist membership explicitly.** An identity key goes on
    `pending_identity` (or states `not_pending`). A content key goes on
    `content`.
 5. If no consumer ships it yet, mark it `status: planned`.
-6. `python -m generators.generate`, then commit the registry change and
-   `out/` together. CI fails if `out/` lags.
+6. `python -m generators.generate` and `python tools/to_weaver.py`, then
+   commit the registry change, `out/` and `model/` together. CI fails if
+   either lags.
 7. Until every consumer has the constant, parity reports the gap. That is
    the signal working, not a failure to silence.
 

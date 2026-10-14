@@ -214,6 +214,84 @@ def test_required_fields(data, field):
     assert_flags(data, f"missing {field}")
 
 
+# --- Weaver fields ------------------------------------------------------------
+
+
+def retired(data, key):
+    return next(r for r in data["attributes"]["retired"] if r["key"] == key)
+
+
+@pytest.mark.parametrize("field", ["brief", "stability", "examples"])
+def test_own_attributes_need_the_weaver_fields(data, field):
+    del row(data, "RIUS_SPAN_PENDING")[field]
+    assert_flags(data, f"RIUS_SPAN_PENDING: missing {field}")
+
+
+def test_an_event_needs_no_examples(data):
+    assert "examples" not in row(data, "GEN_AI_FIRST_TOKEN_EVENT")
+    row(data, "GEN_AI_FIRST_TOKEN_EVENT")["examples"] = ["x"]
+    assert_flags(data, "an event takes no examples")
+
+
+def test_an_otel_row_takes_no_brief(data):
+    row(data, "GEN_AI_TOOL_NAME")["brief"] = "Name of the tool."
+    assert_flags(data, "GEN_AI_TOOL_NAME: brief on an otel row")
+
+
+def test_a_brief_is_one_line(data):
+    row(data, "RIUS_SPAN_PENDING")["brief"] = "Two\nlines."
+    assert_flags(data, "brief must be one line")
+
+
+def test_a_brief_ends_with_a_full_stop(data):
+    row(data, "RIUS_SPAN_PENDING")["brief"] = "No full stop"
+    assert_flags(data, "brief must end with a full stop")
+
+
+def test_an_unknown_stability_is_flagged(data):
+    row(data, "RIUS_SPAN_PENDING")["stability"] = "experimental"
+    assert_flags(data, "stability experimental is not one of")
+
+
+@pytest.mark.parametrize(
+    "const,example",
+    [("RIUS_SPAN_PENDING", "true"), ("RIUS_AGGREGATED_USAGE_PREFIX", 1.5), ("WORKSPACE_ROUTE", 1)],
+)
+def test_examples_must_have_the_row_type(data, const, example):
+    row(data, const)["examples"] = [example]
+    assert_flags(data, f"{const}: example {example!r} is not a")
+
+
+def test_a_rename_must_point_at_an_attribute_row(data):
+    retired(data, "glassflow.span.pending")["deprecated"]["renamed_to"] = "rius.nope"
+    assert_flags(data, "renamed_to rius.nope is not an attribute row")
+
+
+def test_a_deprecation_needs_a_note(data):
+    del retired(data, "glassflow.span.pending")["deprecated"]["note"]
+    assert_flags(data, "deprecated needs a note")
+
+
+def test_an_unknown_deprecation_reason_is_flagged(data):
+    retired(data, "glassflow.span.pending")["deprecated"]["reason"] = "gone"
+    assert_flags(data, "reason gone is not one of")
+
+
+def test_a_retired_key_is_not_also_a_row(data):
+    retired(data, "glassflow.span.pending")["key"] = "rius.span.pending"
+    assert_flags(data, "still a row in attributes")
+
+
+def test_retired_keys_are_never_generated(registry):
+    for lang in LANGS:
+        assert "glassflow.span.pending" not in [r["key"] for r in registry.rows(lang)]
+
+
+def test_upstream_equivalent_names_an_upstream_key(data):
+    row(data, "RIUS_MAIN_AGENT_ID")["upstream_equivalent"] = "rius.other"
+    assert_flags(data, "upstream_equivalent must name an upstream key")
+
+
 # --- ticket ids outside the registry ------------------------------------------
 
 
