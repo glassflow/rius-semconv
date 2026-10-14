@@ -61,7 +61,8 @@ jobs:
       - name: Tests
         run: python -m pytest -q -rs
 
-  # Checks and resolves the Weaver registry under model/ against the upstream
+  # Checks that model/ is what tools/to_weaver.py writes from registry/, then
+  # checks and resolves the Weaver registry under model/ against the upstream
   # registries pinned in versions.env and model/manifest.yaml. Weaver clones
   # both upstream registries on every run (about 20 seconds); it keeps no
   # reusable cache to restore.
@@ -76,6 +77,13 @@ jobs:
 
       - name: The manifest pins what versions.env says
         run: python tools/check_weaver_pins.py
+
+      - name: model/ is current
+        run: |
+          if ! python tools/to_weaver.py --check; then
+            echo "::error::model/ is stale. Run 'python tools/to_weaver.py' and commit the result."
+            exit 1
+          fi
 
       - name: Install the pinned Weaver
         run: |

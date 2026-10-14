@@ -63,14 +63,20 @@ from it: never edit `out/` by hand.
 5. If no consumer ships the key yet, mark it `status: planned`.
 6. If the languages deliberately differ, say so with `shipped_in:` and a
    `divergence:` that explains why.
-7. Lint, regenerate, and commit the registry change and `out/` together:
+7. A Rius key (`origin: rius`) also needs a one-line `brief`, realistic
+   `examples` and a `stability` (`development` for a new key). These are
+   for the Weaver registry under `model/`; the file's header lists the
+   columns.
+8. Lint, regenerate, and commit the registry change, `out/` and `model/`
+   together:
 
    ```
    python tools/check_registry.py
    python -m generators.generate
+   python tools/to_weaver.py
    ```
 
-   CI fails if `out/` does not match the registry.
+   CI fails if `out/` or `model/` does not match the registry.
 
 The other registry files follow the same rules: `taxonomy.yaml` (span kinds),
 `model_parameters.yaml` (provider parameter spellings) and `usage_keys.yaml`
@@ -117,18 +123,18 @@ consumer can have shipped, that is every row not marked `status: planned`.
    rule 3. The only exception is a row that never shipped (`status: planned`),
    which can change freely.
 
-The registry has no stability column yet, so every Rius-owned key is in
-development today. A key borrowed from OpenTelemetry has the stability of its
+Every Rius-owned key states its stability in the `stability` column, and
+every one is in development today. A key borrowed from OpenTelemetry has the stability of its
 upstream convention, and the GenAI conventions are still in development.
 Adopting an upstream rename follows rules 2 and 3: the old key stays,
 deprecated.
 
 ### Marking a deprecation
 
-Until the registry moves to OpenTelemetry Weaver, `registry/attributes.yaml`
-has no deprecation column, so a deprecation is written in the rows:
+A deprecation is written in the rows of `registry/attributes.yaml`:
 
-1. **Keep the old row** with its `const`, `key` and `type` unchanged.
+1. **Keep the old row** with its `const`, `key` and `type` unchanged, and
+   give it a `deprecated` column (below).
 2. **Start its `rationale`** with one line that says what replaces it, or why
    nothing does:
 
@@ -143,16 +149,23 @@ has no deprecation column, so a deprecation is written in the rows:
 4. **Title the pull request `feat(deprecate): ...`** (see
    [Commits and pull requests](#commits-and-pull-requests)).
 
-In the Weaver registry the same facts become Weaver's `deprecated` field:
+The `deprecated` column is spelled as Weaver's `deprecated` field, and
+`tools/to_weaver.py` carries it into `model/` unchanged:
 
 ```yaml
-- key: rius.old.key
+- const: RIUS_OLD_KEY
+  key: rius.old.key
   deprecated:
     reason: renamed
     renamed_to: rius.new.key
+    note: Renamed so the key says what it measures.
 ```
 
-with `reason: obsoleted` and a `note` when nothing replaces the key. A key
+with `reason: obsoleted` and a `note` when nothing replaces the key. Once a
+deprecated key's constant is dropped (after its window, or because it never
+had one), its row moves to the `retired:` list at the end of the file: it is
+never generated again, but readers, the docs and Weaver still recognise it.
+`glassflow.span.pending` is the first. A key
 that moves into a convention we depend on (for example a `rius.*` key that
 OpenTelemetry later defines under `gen_ai.*`) uses `reason: uncategorized`
 with a `note` naming the new key, not `renamed`: Weaver's compatibility
@@ -242,6 +255,7 @@ python tools/check_fixtures.py
 python tools/check_usage_keys.py
 python -m pytest
 python tools/check_weaver_pins.py
+python tools/to_weaver.py --check
 tools/install_weaver.sh && .weaver/bin/weaver registry check -r model --v2
 ```
 
