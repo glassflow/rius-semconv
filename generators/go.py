@@ -1,9 +1,9 @@
 """Emits the Go constants file (`semconv_generated.go`).
 
-The CANONICAL half of argus-core's semconv package only: every registry row
+The CANONICAL half of the Rius backend's semconv package only: every registry row
 generated for Go, the span-kind values, the allowlists and the tables. The
 normalizer's input spellings (llm.*, enduser.*, ai.prompt.tools, legacy
-spellings) are not registry rows yet and stay in argus-core's hand-written
+spellings) are not registry rows yet and stay in the backend's hand-written
 semconv.go, in the same package. See the README, "Go".
 
 Go names are derived from the constant name unless the row overrides them
