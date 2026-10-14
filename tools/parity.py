@@ -204,7 +204,7 @@ _GO_ENTRY = re.compile(r'^\s*([A-Za-z_]\w*)\s*=\s*"((?:[^"\\]|\\.)*)"', re.M)
 
 def go_constants(source: str) -> dict[str, str]:
     """Untyped string constants, from `const X = "..."` and `const ( ... )`.
-    argus-core's semconv package declares nothing else as a constant."""
+    The backend's semconv package declares nothing else as a constant."""
     out = dict(_GO_SINGLE.findall(source))
     for block in _GO_BLOCK.findall(source):
         out.update(_GO_ENTRY.findall(block))
@@ -266,15 +266,15 @@ class GoReport:
 def compare_go(
     reference: dict[str, str], generated: dict[str, str], gaps: dict[str, dict]
 ) -> GoReport:
-    """Generated canonical constants vs argus-core's semconv.go.
+    """Generated canonical constants vs the backend's semconv.go.
 
     changed        same name, different value
     renamed        (generated, reference): one value under two names; the
-                   registry's `go:` override must adopt argus-core's name
-    unclassified   in argus-core only, and not explained in the gaps file
-    generated_only new to argus-core; harmless, added when it migrates
-    classified     in argus-core only, explained in the gaps file
-    stale_gaps     gaps entries that no longer describe argus-core
+                   registry's `go:` override must adopt the backend's name
+    unclassified   in the backend only, and not explained in the gaps file
+    generated_only new to the backend; harmless, added when it migrates
+    classified     in the backend only, explained in the gaps file
+    stale_gaps     gaps entries that no longer describe the backend
     """
     report = GoReport()
     by_value: dict[str, list[str]] = {}

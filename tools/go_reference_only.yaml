@@ -1,12 +1,12 @@
-# Constants in argus-core's packages/argus-core/semconv/semconv.go that the
+# Constants in the Rius backend's semconv/semconv.go that the
 # registry deliberately does NOT generate, and why. check_parity.py fails on
-# any argus-core-only constant missing from this list, so the list is also
+# any backend-only constant missing from this list, so the list is also
 # the precise inventory of what has to move into the registry before the
 # whole Go file can be generated. The README's "Go" section groups it into
 # the tables that would have to exist.
 #
 # Usage keys are not listed here: registry/usage_keys.yaml decides each one,
-# and its `go` field names the argus-core constant, which check_parity.py
+# and its `go` field names the backend constant, which check_parity.py
 # counts as classified.
 #
 # Classes
@@ -118,10 +118,10 @@ names:
       Not a convention attribute, so a Rius registry must not define it.
   TelemetrySDKName:
     class: otel_sdk_resource
-    reason: Set by the OpenTelemetry SDK itself; unreferenced in argus-core today.
+    reason: Set by the OpenTelemetry SDK itself; unreferenced in the backend today.
   TelemetrySDKVer:
     class: otel_sdk_resource
-    reason: Set by the OpenTelemetry SDK itself; unreferenced in argus-core today.
+    reason: Set by the OpenTelemetry SDK itself; unreferenced in the backend today.
   TelemetrySDKLang:
     class: otel_sdk_resource
-    reason: Set by the OpenTelemetry SDK itself; unreferenced in argus-core today.
+    reason: Set by the OpenTelemetry SDK itself; unreferenced in the backend today.
