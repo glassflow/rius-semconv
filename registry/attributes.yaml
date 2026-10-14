@@ -56,6 +56,28 @@
 #   section      A heading comment emitted above the row.
 #   rationale    Prose, emitted as a comment above the constant in every
 #                language. Line breaks are authored, not reflowed.
+#
+# Columns for the Weaver registry (tools/to_weaver.py writes model/ from this
+# file). The generators do not read them.
+#
+#   brief        One plain line saying what the key means. Required on
+#                `origin: rius` attributes, prefixes and events; not allowed
+#                on `origin: otel` rows, whose brief is upstream's.
+#   examples     Realistic values. Required where brief is, except on events.
+#   stability    development | stable. Required where brief is. Every Rius
+#                key starts in development.
+#   type         On a `prefix` row: the type of every key under the prefix.
+#   deprecated   {reason, renamed_to, note}, as Weaver spells it. reason is
+#                renamed (with renamed_to, a key in this file), obsoleted or
+#                uncategorized; note says why. See CONTRIBUTING.md,
+#                "Deprecation and compatibility".
+#   upstream_equivalent
+#                An upstream key that now names the same fact as this Rius
+#                key. Recorded for the docs; it does not deprecate the row.
+#
+# `retired:`, after the rows, lists deprecated keys that have no generated
+# constant any more (or never had one). They are never generated; they are
+# kept so readers, the docs and Weaver still recognise the key.
 
 attributes:
   - const: TRACER_NAME
@@ -235,6 +257,10 @@ attributes:
       Named so a future rename to gen_ai.main_agent.* is a prefix substitution,
       should the conventions ever grow the concept.
     key: rius.main_agent.name
+    brief: "Name of the agent this process is, stamped once on the resource."
+    stability: development
+    examples: ["weather-agent", "support-triage"]
+    upstream_equivalent: gen_ai.main_agent.name
     symbol: attribute
     origin: rius
     kinds: resource
@@ -244,6 +270,10 @@ attributes:
 
   - const: RIUS_MAIN_AGENT_ID
     key: rius.main_agent.id
+    brief: "Stable identifier of the agent this process is, unchanged across restarts and deployments."
+    stability: development
+    examples: ["support-triage-prod", "8f14e45f-ceea-467a-9575-4c0d6f6c1b9e"]
+    upstream_equivalent: gen_ai.main_agent.id
     symbol: attribute
     origin: rius
     kinds: resource
@@ -259,6 +289,10 @@ attributes:
 
   - const: RIUS_MAIN_AGENT_DESCRIPTION
     key: rius.main_agent.description
+    brief: "What the agent this process is does, in free text."
+    stability: development
+    examples: ["Answers weather questions for a named city."]
+    upstream_equivalent: gen_ai.main_agent.description
     symbol: attribute
     origin: rius
     kinds: resource
@@ -268,6 +302,9 @@ attributes:
 
   - const: RIUS_MAIN_AGENT_VERSION
     key: rius.main_agent.version
+    brief: "Version of the agent definition (prompt, tools and policy) this process runs, independent of service.version."
+    stability: development
+    examples: ["7", "2026-10-01"]
     symbol: attribute
     origin: rius
     kinds: resource
@@ -348,6 +385,9 @@ attributes:
 
   - const: WORKSPACE_ROUTE
     key: rius.workspace
+    brief: "Alias of the workspace a span is exported to when one process sends to several; stripped before the span leaves the process."
+    stability: development
+    examples: ["acme", "customer-eu"]
     symbol: attribute
     origin: rius
     kinds: all
@@ -887,6 +927,9 @@ attributes:
 
   - const: MCP_RESULT_TYPE
     key: mcp.result_type
+    brief: "Result type of an MCP tools/call round that ended with an interim result instead of a final one."
+    stability: development
+    examples: ["input_required"]
     symbol: attribute
     origin: rius
     namespace_exception: |
@@ -918,6 +961,9 @@ attributes:
 
   - const: RIUS_REQUEST_PREFIX
     key: rius.request.
+    brief: "A request parameter the GenAI conventions do not define, keyed by the parameter's name as the caller spelled it."
+    stability: development
+    examples: ["flex", true, '{"type":"json_object"}']
     symbol: prefix
     origin: rius
     covers: rius.request.<parameter>
@@ -937,6 +983,9 @@ attributes:
 
   - const: RIUS_REQUEST_TOOL_CHOICE
     key: rius.request.tool_choice
+    brief: "How the request constrained tool use: a mode string, or the provider's forced-call object as compact JSON."
+    stability: development
+    examples: ["auto", "required", '{"type":"function","function":{"name":"get_weather"}}']
     symbol: attribute
     origin: rius
     kinds: [LLM]
@@ -967,6 +1016,10 @@ attributes:
 
   - const: RIUS_AGGREGATED_USAGE_PREFIX
     key: rius.aggregated_usage.
+    type: int
+    brief: "A whole agent run's token usage, moved off gen_ai.usage.* so per-call usage is not counted twice; the suffix is the gen_ai.usage.* suffix."
+    stability: development
+    examples: [115, 42]
     symbol: prefix
     origin: rius
     covers: rius.aggregated_usage.<usage key suffix>
@@ -1005,6 +1058,9 @@ attributes:
 
   - const: RIUS_CONTEXT_SIZES
     key: rius.context.sizes
+    brief: "Byte sizes of each part of a generation's context (tool definitions, input and output messages), as compact JSON."
+    stability: development
+    examples: ['{"version":1,"input_messages":[{"role":"system","parts":[{"type":"text","bytes":19}]},{"role":"user","parts":[{"type":"text","bytes":18}]}],"output_messages":[{"role":"assistant","parts":[{"type":"text","bytes":6}]}]}']
     symbol: attribute
     origin: rius
     kinds: [LLM]
@@ -1029,6 +1085,8 @@ attributes:
   - const: GEN_AI_FIRST_TOKEN_EVENT
     section: "--- Span event names ---"
     key: gen_ai.first_token
+    brief: "The first streamed token or chunk of a generation arrived."
+    stability: development
     symbol: event
     origin: rius
     namespace_exception: |
@@ -1047,6 +1105,9 @@ attributes:
   - const: RIUS_SPAN_PENDING
     section: "--- Pending (partial) spans ---"
     key: rius.span.pending
+    brief: "Marks the content-free snapshot of a span that is exported when the span starts, before the real span ends."
+    stability: development
+    examples: [true]
     symbol: attribute
     origin: rius
     kinds: all
@@ -1071,6 +1132,9 @@ attributes:
   - const: RIUS_PARENT_FOREIGN
     section: "--- Another SDK's tracer provider in the process ---"
     key: rius.parent.foreign
+    brief: "The span's parent is local to this process but was never received by Rius, so the trace arrives without it."
+    stability: development
+    examples: [true]
     symbol: attribute
     origin: rius
     kinds: all
@@ -1089,6 +1153,9 @@ attributes:
 
   - const: RIUS_SDK_GLOBAL_PROVIDER
     key: rius.sdk.global_provider
+    brief: "The tracer provider that already held the OpenTelemetry global when Rius initialized, as foreign:<class>."
+    stability: development
+    examples: ["foreign:opentelemetry.sdk.trace.TracerProvider", "foreign:NodeTracerProvider"]
     symbol: attribute
     origin: rius
     kinds: resource
@@ -1228,3 +1295,25 @@ attributes:
       from. The conventions define no operation for a generic workflow step, and
       the manual span helpers see nothing but the kind. A literal beats an empty
       name.
+
+retired:
+  - key: glassflow.span.pending
+    brief: "Former spelling of rius.span.pending."
+    stability: development
+    examples: [true]
+    deprecated:
+      reason: renamed
+      renamed_to: rius.span.pending
+      note: |
+        Renamed when the vendor keys moved under rius.*. Both SDKs emit
+        rius.span.pending from 1.0.0; a backend reads both spellings for as
+        long as older SDK versions are in the field.
+    symbol: attribute
+    origin: rius
+    kinds: all
+    category: identity
+    type: boolean
+    rationale: |
+      Marked the content-free snapshot exported at span start, as
+      rius.span.pending does now. Kept so a reader of older spans can tell
+      what the key was.

@@ -40,6 +40,11 @@ TYPES = {"string", "boolean", "int", "double", "string[]", "json"}
 FILLS = {"native", "openinference", "vercel"}
 STATUSES = {"shipped", "planned"}
 PLACEMENT_SCOPES = {"resource", "span"}
+STABILITIES = {"development", "stable"}
+DEPRECATION_REASONS = {"renamed", "obsoleted", "uncategorized"}
+# Rows that need the Weaver fields (brief, examples, stability): our own
+# definitions. An upstream key's brief and stability are upstream's.
+WEAVER_SYMBOLS = {"attribute", "prefix", "event"}
 
 # Internal ticket references. The registry is written for readers outside the
 # team: a decision is recorded as its reason, never as a ticket number.
@@ -55,6 +60,8 @@ class Registry:
         self.data = data
         self.include_planned = include_planned
         self.attributes: list[dict] = data["attributes"]["attributes"]
+        # Deprecated keys with no generated constant. Never generated.
+        self.retired: list[dict] = data["attributes"].get("retired") or []
         self.allowlists: dict = data["allowlists"]
         self.taxonomy: dict = data["taxonomy"]
         self.model_parameters: dict = data["model_parameters"]
@@ -150,6 +157,7 @@ class Registry:
         return (
             self._lint_prose()
             + self._lint_rows()
+            + self._lint_weaver_fields()
             + self._lint_allowlists()
             + self._lint_taxonomy()
             + self._lint_model_parameters()
@@ -222,6 +230,26 @@ class Registry:
                     )
             if symbol == "attribute":
                 errors += self._lint_attribute(r)
+        return errors
+
+    def _lint_weaver_fields(self) -> list[str]:
+        """The columns only the Weaver registry reads: brief, examples,
+        stability, deprecated, upstream_equivalent, and the retired rows."""
+        errors: list[str] = []
+        keys = {r.get("key") for r in self.attributes if r.get("symbol") == "attribute"}
+        for i, r in enumerate(self.attributes):
+            errors += _lint_weaver_row(r, r.get("const", f"attributes[{i}]"), keys)
+        for i, r in enumerate(self.retired):
+            label = r.get("key", f"retired[{i}]")
+            for field in ("key", "type", "origin", "deprecated"):
+                if field not in r:
+                    errors.append(f"retired {label}: missing {field}")
+            if r.get("symbol") != "attribute":
+                errors.append(f"retired {label}: only attributes can be retired")
+            if r.get("key") in keys:
+                errors.append(f"retired {label}: still a row in attributes; keep it in one place")
+            errors += _enum(r, "origin", ORIGINS, f"retired {label}")
+            errors += _lint_weaver_row(r, f"retired {label}", keys)
         return errors
 
     def _lint_attribute(self, r: dict) -> list[str]:
@@ -414,6 +442,79 @@ class Registry:
         keys = {a.get("key") for a in self.attributes if a.get("symbol") == "attribute"}
         prefixes = {a.get("key") for a in self.attributes if a.get("symbol") == "prefix"}
         return usage_keys.lint(self.usage_keys, keys, prefixes)
+
+
+def _lint_weaver_row(r: dict, label: str, keys: set) -> list[str]:
+    errors: list[str] = []
+    symbol, origin = r.get("symbol"), r.get("origin")
+    own = origin == "rius" and symbol in WEAVER_SYMBOLS
+    if origin == "otel":
+        for field in ("brief", "examples", "stability"):
+            if field in r:
+                errors.append(f"{label}: {field} on an otel row; upstream defines it")
+    if own:
+        for field in ("brief", "stability"):
+            if field not in r:
+                errors.append(f"{label}: missing {field}")
+        if symbol != "event" and "examples" not in r:
+            errors.append(f"{label}: missing examples")
+    if "brief" in r:
+        brief = r["brief"]
+        if not isinstance(brief, str) or not brief.strip() or "\n" in brief.strip():
+            errors.append(f"{label}: brief must be one line of text")
+        elif not brief.strip().endswith("."):
+            errors.append(f"{label}: brief must end with a full stop")
+    errors += _enum(r, "stability", STABILITIES, label)
+    if symbol == "prefix":
+        errors += _enum(r, "type", TYPES, label)
+    if "examples" in r:
+        examples = r["examples"]
+        if not isinstance(examples, list) or not examples:
+            errors.append(f"{label}: examples must be a non-empty list")
+        elif symbol == "event":
+            errors.append(f"{label}: an event takes no examples")
+        else:
+            for example in examples:
+                if not _example_fits(example, r.get("type")):
+                    errors.append(f"{label}: example {example!r} is not a {r.get('type')}")
+    if "deprecated" in r:
+        d = r["deprecated"]
+        if not isinstance(d, dict):
+            errors.append(f"{label}: deprecated must be a mapping")
+        else:
+            errors += _enum(d, "reason", DEPRECATION_REASONS, label, required=True)
+            if not str(d.get("note", "")).strip():
+                errors.append(f"{label}: deprecated needs a note saying why")
+            if d.get("reason") == "renamed":
+                if d.get("renamed_to") not in keys:
+                    errors.append(
+                        f"{label}: renamed_to {d.get('renamed_to')} is not an attribute row"
+                    )
+            elif "renamed_to" in d:
+                errors.append(f"{label}: renamed_to only goes with reason renamed")
+    if "upstream_equivalent" in r:
+        upstream = r["upstream_equivalent"]
+        if not isinstance(upstream, str) or upstream.startswith("rius."):
+            errors.append(f"{label}: upstream_equivalent must name an upstream key")
+    return errors
+
+
+def _example_fits(example: Any, type_: str | None) -> bool:
+    """Whether an example value has the row's type. A prefix with no type
+    takes any value; json is carried on the wire as a string."""
+    if type_ is None:
+        return isinstance(example, (str, int, float, bool))
+    if type_ in {"string", "json"}:
+        return isinstance(example, str)
+    if type_ == "boolean":
+        return isinstance(example, bool)
+    if type_ == "int":
+        return isinstance(example, int) and not isinstance(example, bool)
+    if type_ == "double":
+        return isinstance(example, (int, float)) and not isinstance(example, bool)
+    if type_ == "string[]":
+        return isinstance(example, list) and all(isinstance(x, str) for x in example)
+    return False
 
 
 def _enum(entry: dict, field: str, allowed: set[str], label: str, *, required=False) -> list[str]:
