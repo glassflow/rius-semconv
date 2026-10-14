@@ -156,11 +156,23 @@ def check_python_or_ts(lang: str, reference: str, generated: str) -> bool:
     listing("CHANGED (same name, different value)", report.changed)
     listing("NOT IN SDK (registry emits it, SDK lacks it)", report.not_in_sdk)
     listing("UNCOVERED (SDK data the registry lacks)", report.uncovered_public)
+    listing("REORDERED (same entries, different order; the first listed wins)", report.reordered)
+    for name in report.reordered:
+        print(f"  {name}: {describe_order(ref[name], gen[name])}")
     if report.uncovered_private:
         listing("uncovered private tables (warning only)", report.uncovered_private)
     for name in report.changed:
         print(f"  {name}: {describe_change(ref[name], gen[name])}")
     return report.ok
+
+
+def describe_order(sdk: object, generated: object) -> str:
+    """Where two equal tables' orders first part, for a reordered name."""
+    keys = [list(v.get("__enum__", v)) if isinstance(v, dict) else [] for v in (sdk, generated)]
+    for i, (s, g) in enumerate(zip(*keys, strict=False)):
+        if s != g:
+            return f"entry {i + 1} is {s!r} in the SDK, {g!r} in the generated module"
+    return "a nested table is ordered differently"
 
 
 def describe_change(sdk: object, generated: object) -> str:

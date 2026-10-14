@@ -41,6 +41,34 @@ def test_semantic_mode_fails_on_a_changed_value(tmp_path, capsys):
     assert "CHAIN_SPAN_NAME: SDK 'workflow', generated 'chain'" in capsys.readouterr().out
 
 
+# The order released in v1.2.0, stop listed after the other two spellings.
+V1_2_0_STOP_ORDER = (
+    '    "stop_sequences": GEN_AI_REQUEST_STOP_SEQUENCES,\n'
+    '    "stopSequences": GEN_AI_REQUEST_STOP_SEQUENCES,\n'
+    '    "stop": GEN_AI_REQUEST_STOP_SEQUENCES,\n'
+)
+MAIN_STOP_ORDER = (
+    '    "stop": GEN_AI_REQUEST_STOP_SEQUENCES,\n'
+    '    "stop_sequences": GEN_AI_REQUEST_STOP_SEQUENCES,\n'
+    '    "stopSequences": GEN_AI_REQUEST_STOP_SEQUENCES,\n'
+)
+
+
+def test_semantic_mode_passes_on_the_request_parameters_in_the_registry_order(tmp_path):
+    assert MAIN_STOP_ORDER in GENERATED
+    assert run(make_repo(tmp_path / "sdk", {"src/rius/semconv.py": GENERATED})) == 0
+
+
+def test_semantic_mode_fails_on_the_v1_2_0_request_parameter_order(tmp_path, capsys):
+    """v1.2.0 listed stop last; both SDKs list it first, and the first
+    spelling listed is the one that wins. Equal as values, not as a table."""
+    sdk = GENERATED.replace(MAIN_STOP_ORDER, V1_2_0_STOP_ORDER)
+    assert sdk != GENERATED
+    assert run(make_repo(tmp_path / "sdk", {"src/rius/semconv.py": sdk})) == 1
+    out = capsys.readouterr().out
+    assert "REORDERED" in out and "GEN_AI_REQUEST_PARAMETERS" in out
+
+
 def test_semantic_mode_fails_on_an_uncovered_constant(tmp_path, capsys):
     sdk = GENERATED + '\nNEW_KEY = "new.key"\n'
     assert run(make_repo(tmp_path / "sdk", {"src/rius/semconv.py": sdk})) == 1
