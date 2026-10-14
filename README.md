@@ -348,18 +348,28 @@ table to those languages, and `divergence:` (required) says why;
 
 ## Parity checks
 
-`tools/check_parity.py` reads each consumer at a git ref (default
-`origin/main`) from a local checkout: `--python-repo`, `--typescript-repo`
-and `--go-repo` say where, `--ref` picks the ref, `--fetch` fetches first, and
-`--cross` also diffs the two SDKs' hand-written files directly, for review.
-The SDK repositories are public; the backend's is not, so the Go comparison
-runs only where it can be read.
+`tools/check_parity.py` compares `out/` with each consumer's `main` branch.
+The SDKs are read from sibling checkouts (`../rius-sdk-python`,
+`../rius-sdk-typescript`; override with `--python-repo` and
+`--typescript-repo`). The Rius backend has no default location: check it with
+`python tools/check_parity.py go --go-repo <checkout>`. Pick a ref with
+`--ref`, fetch first with `--fetch`, and add `--cross` to also diff the two
+SDKs' hand-written files directly, for review.
 
-`.github/workflows/parity.yml` runs the check against each consumer's `main`
-on pull requests, on pushes to `main`, daily and on demand. When it cannot
-read the consumers (a fork's pull request, for example) it skips the
-comparison and says so in a **"Parity NOT checked"** warning and the run
-summary. A green run without that warning is the only proof of parity.
+- **`ci.yml`** (no secrets): lints this repository's code and the registry,
+  generates twice and diffs to prove determinism, fails if `out/` is stale,
+  checks the fixtures and the usage-key decisions, and runs the tests.
+- **`parity.yml`** (no secrets): runs `check_parity.py` against each SDK's
+  `main` on every pull request, on pushes to `main`, daily, and on demand.
+- **`release.yml`**: keeps the registry's release pull request up to date
+  on pushes to `main` (see [Versioning](#versioning-and-stability)).
+
+Both SDK repositories are public, so `parity.yml` reads them without a
+token. The Rius backend runs the Go check in its own CI, against a pinned
+release of this registry, and fails when its constants drift from it.
+
+Every action is pinned to a full commit SHA, with its version in a trailing
+comment.
 
 ## Go
 
