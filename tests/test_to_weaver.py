@@ -162,10 +162,10 @@ def test_a_ref_carries_its_level_values_and_rationale(files):
     assert "rationale" in upstream["gen_ai.tool.call.id"]["annotations"]["rius"]
 
 
-def test_the_top_k_divergence_rides_the_ref(files):
+def test_a_ref_carries_its_wire_type(files):
     rius = refs(files, "rius.upstream")["gen_ai.request.top_k"]["annotations"]["rius"]
-    assert rius["type"] == "double"
-    assert rius["upstream_divergence"]["type"] == "int"
+    assert rius["type"] == "int"
+    assert "upstream_divergence" not in rius
 
 
 def test_passthrough_keys_are_refs(files):

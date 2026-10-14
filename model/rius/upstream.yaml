@@ -430,20 +430,13 @@ attribute_groups:
     annotations:
       rius:
         const: GEN_AI_REQUEST_TOP_K
-        upstream_divergence:
-          type: int
-          note: |
-            This row says double; the GenAI conventions type the key int (core
-            v1.36.0 had double). Both SDKs already write an int: their request
-            parameter guards coerce top_k to an integer. Only this row disagrees,
-            and the generators do not read `type`.
         symbol: attribute
         origin: otel
         kinds:
         - LLM
         category: identity
         level: recommended
-        type: double
+        type: int
         fill:
         - native
         - openinference

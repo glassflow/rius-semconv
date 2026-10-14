@@ -50,7 +50,11 @@ from it: never edit `out/` by hand.
    such as `gen_ai.*`: the convention is free to define that key later and
    mean something else. Never use `glassflow.*`. The linter rejects
    `glassflow.*` keys, and an `origin: rius` key outside `rius.*` needs a
-   written `namespace_exception`.
+   written `namespace_exception`. Only two keys have one, and they are the
+   only keys this registry defines in a convention's namespace: the
+   `mcp.result_type` attribute and the `gen_ai.first_token` event name. Every
+   other key in those namespaces is referenced from the upstream registry,
+   never defined here.
 3. **Add or change the row** in `registry/attributes.yaml`. The file's header
    lists every column; the README's "What a row says" explains the ones that
    matter most. Give a span attribute its category, level and kinds, and write

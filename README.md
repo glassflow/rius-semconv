@@ -35,19 +35,19 @@ agree on: attribute keys, event names, the span-kind taxonomy, the allowlists
 that decide what may leave a process, and the table that maps provider
 parameter spellings to convention keys.
 
-**It owns one namespace, `rius.*`.** It never defines an attribute under
-`gen_ai.*`, `otel.*` or any other OpenTelemetry namespace (`error.*`,
-`service.*`, `mcp.*`, `session.*`, `user.*`, ...): those keys are
-*referenced*. Each row records the upstream key, type and requirement level as
+**It owns one namespace, `rius.*`.** It defines no key in `gen_ai.*`,
+`otel.*` or any other OpenTelemetry namespace (`error.*`, `service.*`,
+`mcp.*`, `session.*`, `user.*`, ...), with two documented exceptions: the
+`mcp.result_type` attribute and the `gen_ai.first_token` event name, which
+predate the rule, carry a `namespace_exception` saying why, and are defined
+as Rius keys. Every other key in those namespaces is *referenced*. Each row records the upstream key, type and requirement level as
 published (`origin: otel`, or `upstream:` on a row whose key OpenTelemetry
 defines although OpenInference uses it too, such as `session.id`), and in the
 Weaver registry the key is a `ref` to the pinned upstream definition, so its
 brief, type and stability are upstream's. The generated constants for them
 are a convenience, not a fork. A fact no convention names gets a key under
 `rius.*` (`origin: rius`). The linter rejects `glassflow.*`, and an
-`origin: rius` key outside `rius.*` needs a written `namespace_exception`; the
-`mcp.result_type` attribute and the `gen_ai.first_token` event name predate
-the rule and carry one.
+`origin: rius` key outside `rius.*` needs a written `namespace_exception`.
 
 Keys the Rius normalizers only *read* from other producers are not ours
 either. OpenInference's keys (which the SDKs also emit, and no upstream
@@ -83,8 +83,7 @@ the same pins as Weaver dependencies:
 
 Where a row deliberately differs from the upstream definition it references,
 it says so in `upstream_divergence`, and CI fails on any difference a row does
-not record (`tools/check_weaver_types.py`). Today that is
-`gen_ai.request.top_k`: the row says `double`, upstream says `int`.
+not record (`tools/check_weaver_types.py`). No row differs today.
 
 The registry is moving to the [OTel Weaver](https://github.com/open-telemetry/weaver)
 format. `tools/to_weaver.py` writes the Weaver registry under `model/` from

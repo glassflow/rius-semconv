@@ -254,12 +254,12 @@ def test_an_unknown_upstream_is_flagged(data):
 
 
 def test_an_upstream_divergence_needs_another_type(data):
-    row(data, "GEN_AI_REQUEST_TOP_K")["upstream_divergence"]["type"] = "double"
+    row(data, "GEN_AI_REQUEST_TOP_K")["upstream_divergence"] = {"type": "int", "note": "x"}
     assert_flags(data, "upstream_divergence type must be a type other than the row's")
 
 
 def test_an_upstream_divergence_needs_a_note(data):
-    del row(data, "GEN_AI_REQUEST_TOP_K")["upstream_divergence"]["note"]
+    row(data, "GEN_AI_REQUEST_TOP_K")["upstream_divergence"] = {"type": "double"}
     assert_flags(data, "upstream_divergence needs a note")
 
 
