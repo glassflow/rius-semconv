@@ -6,8 +6,8 @@ Drives the openai and anthropic clients, instrumented by traceloop-sdk, through
 an httpx.MockTransport. Each scenario's finished spans go through
 ../_recording.py, which writes them in OTLP/JSON form with deterministic ids and
 times (see fixtures/README.md).
-Moved here from argus-core's sink testdata, where the first recordings were
-made; the scenarios and responses are unchanged.
+Moved here from the Rius backend's sink testdata, where the first recordings
+were made; the scenarios and responses are unchanged.
 """
 
 import contextlib

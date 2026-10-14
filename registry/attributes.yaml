@@ -12,7 +12,7 @@
 #
 #   const        Constant name in Python and TypeScript. Required, unique.
 #   go           Go identifier, when the derived PascalCase name is not the one
-#                argus-core already uses.
+#                the Rius backend already uses.
 #   key          The wire string. Required.
 #   symbol       What the string is:
 #                  attribute  an attribute key (span or resource)
@@ -66,7 +66,7 @@ attributes:
       A scope name, not an attribute key, so there is no namespace to be in.
     shipped_in: [python, typescript]
     divergence: |
-      argus-core deliberately names no instrumentation scope: the sink stores
+      The sink deliberately names no instrumentation scope: it stores
       whatever scope name arrives and no reader keys on it.
     rationale: |
       Instrumentation scope name (stamped on every span as otel.scope.name).
@@ -962,7 +962,7 @@ attributes:
     shipped_in: [python, typescript]
     divergence: |
       The SDKs match the usage family by prefix, to move it to
-      rius.aggregated_usage.* (see RIUS_AGGREGATED_USAGE_PREFIX). argus-core
+      rius.aggregated_usage.* (see RIUS_AGGREGATED_USAGE_PREFIX). The sink
       names each usage key on its own.
 
   - const: RIUS_AGGREGATED_USAGE_PREFIX
@@ -974,7 +974,7 @@ attributes:
     divergence: |
       Each SDK writes it for the producers it instruments: TypeScript for the
       Vercel AI SDK v7 (@ai-sdk/otel), Python for LiteLLM spans whose OpenAI
-      child recorded the same call. argus-core adds the key when the trace
+      child recorded the same call. The sink adds the key when the trace
       view displays the aggregate.
     rationale: |
       Where a whole agent run's token usage goes when the same producer also

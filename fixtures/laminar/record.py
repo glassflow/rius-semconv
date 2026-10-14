@@ -11,8 +11,8 @@ process, and its OTLP/HTTP exporter posts to a capture server in this process.
 The captured protobuf spans go through ../_recording.py (spans_from_otlp, then
 scenario_json), which writes them in OTLP/JSON form with deterministic ids and
 times (see fixtures/README.md); they are then scrubbed of machine-specific
-values and truncated (see manifest.json). Moved here from argus-core's sink
-testdata, where the first recordings were made; the scenarios are unchanged.
+values and truncated (see manifest.json). Moved here from the Rius
+backend's sink testdata, where the first recordings were made; the scenarios are unchanged.
 """
 
 import gzip

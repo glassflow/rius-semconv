@@ -36,7 +36,7 @@
 #   target     For mapped: the canonical key it becomes.
 #   mapped_by  For mapped: the normalizers that map it (python, typescript,
 #              sink). The others leave it on the span.
-#   go         The argus-core constant for the key, when the sink names it.
+#   go         The sink's Go constant for the key, when it names one.
 #              check_parity.py counts these constants as classified.
 #   reason     Why. Required for ignored, not_usage and gap, where nothing
 #              reads the key as usage.

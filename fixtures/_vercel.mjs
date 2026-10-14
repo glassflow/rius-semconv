@@ -81,8 +81,9 @@ export function vercelScenarios({ ai, createOpenAI, script, telemetry }) {
     },
 
     // Two model calls in one run, with the tool executed between them: the
-    // shape whose run-level usage double counted (RIUS-1035). The calls report
-    // 24/51 and 91/15 tokens.
+    // shape where the run's usage, reported on each call and again on the
+    // run's own span, is counted twice by a backend that sums usage across
+    // spans. The calls report 24/51 and 91/15 tokens.
     async tool_loop() {
       script.answer(
         CHAT,
