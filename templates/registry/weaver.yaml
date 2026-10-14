@@ -16,6 +16,8 @@
 #   members        allowlist -> its members generated for `lang`
 #   included       the member allowlists folded into the content allowlist
 #   tables         taxonomy table -> the table, for the ones generated for `lang`
+#   ts_imports     the upstream constants generated rows re-export
+#                  (`ts_alias`), as [{from, names}] sorted by module and name
 whitespace_control:
   trim_blocks: true
   lstrip_blocks: true
@@ -56,4 +58,6 @@ templates:
             | .value = [.value.attributes[] | select(wanted)])),
           included: [ ($al.content.includes // [])[]
             | select(. as $n | $al[$n] | type == "object" and has("attributes")) ],
-          tables: ($params.taxonomy | with_entries(select(.value | wanted))) }
+          tables: ($params.taxonomy | with_entries(select(.value | wanted))),
+          ts_imports: ([ $rows[] | .ts_alias // empty ] | group_by(.from)
+            | map({from: .[0].from, names: (map(.name) | sort)})) }

@@ -1,0 +1,3 @@
+# out/typescript: the TypeScript constants module. Shared settings: ../weaver.yaml.
+params:
+  lang: typescript

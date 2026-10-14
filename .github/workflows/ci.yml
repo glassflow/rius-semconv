@@ -115,7 +115,7 @@ jobs:
       # Golden test for the Weaver templates under templates/registry/: what
       # they generate must be byte-identical to the committed out/.
       - name: Weaver templates reproduce out/
-        run: python -m generators.weaver --check python
+        run: python -m generators.weaver --check python typescript
 
   # Checks every fixtures/*/*.expected.json against the registry under model/
   # with weaver registry live-check: a key the registry does not define, or one
