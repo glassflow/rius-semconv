@@ -224,7 +224,7 @@ registry/                  the data (this is what you edit)
   model_parameters.yaml    provider parameter spellings -> gen_ai.request.* keys
   usage_keys.yaml          a decision for every token, usage and cost key instrumentors send
   preamble.yaml            per-language headers and output file names
-generators/                one small module per language, plus the loader and linter
+generators/                the loader and linter, the generate CLI, and the Weaver runner
 out/                       generated files, committed so every change is a reviewable diff
   docs/usage-keys.md       the usage-key table: each key, its decision, what each normalizer does
 fixtures/                  recorded spans and the result every normalizer must
@@ -255,18 +255,20 @@ model/                     the Weaver registry, written from registry/ by tools/
   inputs/<producer>.yaml   other producers' keys the normalizers read, with each decision
 .weaver.toml               live-check matchers and the naming exception for camelCase third-party keys
 templates/params.yaml      the Weaver --params sidecar: emission order and the non-attribute data
-templates/registry/        Weaver templates, one directory per language; CI checks they reproduce out/
+templates/registry/        the Weaver templates that render out/, one directory per language
 versions.env               pinned Weaver and upstream registry versions (bumped by Renovate)
 version.txt                the registry's released version (written by release-please)
 ```
 
 ## Quick start
 
-Python 3.11+, plus Go (for `gofmt`) and Node 22.7+ (to evaluate TypeScript in
-the tests and the parity check).
+Python 3.11+, the pinned Weaver (`tools/install_weaver.sh`; generating
+fetches the pinned upstream registries from GitHub), Go (for `gofmt`) and
+Node 22.7+ (to evaluate TypeScript in the tests and the parity check).
 
 ```
 pip install -r requirements-dev.txt
+tools/install_weaver.sh                   # installs .weaver/bin/weaver
 python tools/check_registry.py            # lint
 python -m generators.generate             # regenerate out/
 python -m generators.generate --check     # exit 1 if out/ is stale
@@ -277,9 +279,10 @@ python -m pytest
 
 `.github/workflows/ci.yml` runs these, plus `ruff check .`,
 `ruff format --check .` and a determinism check that generates twice and
-diffs. None of them reads any other repository.
+diffs. Without Weaver, pytest skips the generator tests that render.
 
-Its `weaver` job also checks and resolves the Weaver registry, runs the
+Its `weaver` job runs everything that needs Weaver (generating, and the
+generator tests). It also checks and resolves the Weaver registry, runs the
 policies (see [policies/README.md](policies/README.md)) and compares the
 registry with the last release. It fetches the pinned upstream registries and
 policy packs from GitHub:
@@ -287,8 +290,6 @@ policy packs from GitHub:
 ```
 python tools/check_weaver_pins.py         # manifest pins match versions.env
 python tools/to_weaver.py --check         # model/ matches registry/
-python -m generators.weaver --check       # the Weaver templates reproduce out/
-tools/install_weaver.sh                   # installs .weaver/bin/weaver
 export PATH="$PWD/.weaver/bin:$PATH"
 python tools/weaver_check.py              # policies, and the breaking-change gate
 python -m pytest tests/test_policies.py   # the policies' own tests
@@ -372,9 +373,14 @@ than copying it from the span.
 
 `python -m generators.generate` loads the YAML, **lints it** (and refuses to
 write anything if the lint fails), and renders one file per language into
-`out/`. Each generator is a short, readable template: no templating engine,
-no code-generation DSL. If a generator needs a fact the registry does not
-state, the fix is a column in the YAML, not a special case in the generator.
+`out/` with `weaver registry generate`. It writes what `tools/to_weaver.py`
+would write from the registry into a temporary directory and renders the
+template under `templates/registry/<lang>/` against it, so the output follows
+`registry/` even before `model/` is rewritten. The context the three templates
+share (rows in emission order, allowlist members, Go names) is built by the
+jq filter in `templates/registry/weaver.yaml`. If a template needs a fact the
+registry does not state, the fix is a column in the YAML, not a special case
+in the template. `out/docs/usage-keys.md` is rendered in Python.
 
 Output is deterministic: the same registry always renders byte-identical
 files, which CI proves by generating twice and diffing. The Go file is
@@ -383,7 +389,7 @@ TypeScript SDK checkout is available.
 
 ### The generation boundary: constants, not whole files
 
-The generators emit a **constants-and-tables module**, not a replacement for
+The templates emit a **constants-and-tables module**, not a replacement for
 each SDK's hand-written `semconv.py` / `semconv.ts`. Once vendored, the
 hand-written file re-exports the generated module and keeps the helper
 functions (`kind_attributes`, `compose_span_name`, `request_attribute_key`
@@ -459,11 +465,13 @@ once it vendors it) inside a git checkout. Pick a ref with
 SDKs' hand-written files directly, for review.
 
 - **`ci.yml`** (no secrets): lints this repository's code and the registry,
-  generates twice and diffs to prove determinism, fails if `out/` is stale,
   checks the fixtures and the usage-key decisions, and runs the tests. Its
-  `weaver` job installs the pinned Weaver, checksum-verified, and runs
-  `weaver registry check` and `resolve` against the pinned upstream
-  registries.
+  `weaver` job installs the pinned Weaver, checksum-verified, generates twice
+  and diffs to prove determinism, fails if `out/` is stale, runs the
+  generator tests, and runs `weaver registry check` (with the policies and
+  the breaking-change gate) and `resolve` against the pinned upstream
+  registries. Its `live-check` job checks every fixture's expected result
+  against the registry.
 - **`parity.yml`** (no secrets): runs `check_parity.py` against each SDK's
   `main` on every pull request, on pushes to `main`, daily, and on demand.
 - **`release.yml`**: keeps the registry's release pull request up to date

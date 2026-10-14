@@ -1,4 +1,5 @@
 import copy
+import os
 import pathlib
 import shutil
 import subprocess
@@ -9,6 +10,7 @@ import pytest
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from generators import weaver  # noqa: E402
 from generators.registry import Registry, load_data  # noqa: E402
 
 
@@ -44,3 +46,19 @@ requires_node = pytest.mark.skipif(
     reason="needs Node >= 22.7 for --experimental-transform-types",
 )
 requires_go = pytest.mark.skipif(shutil.which("go") is None, reason="needs the Go toolchain")
+
+
+def weaver_available() -> bool:
+    try:
+        weaver.weaver_binary()
+    except weaver.WeaverMissing:
+        return False
+    return shutil.which("gofmt") is not None
+
+
+# Skips without Weaver, unless RIUS_REQUIRE_WEAVER is set (as in CI's weaver
+# job), where the test runs and a missing Weaver fails it.
+requires_weaver = pytest.mark.skipif(
+    not weaver_available() and not os.environ.get("RIUS_REQUIRE_WEAVER"),
+    reason="needs Weaver (tools/install_weaver.sh) and gofmt",
+)

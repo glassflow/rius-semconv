@@ -1,5 +1,5 @@
 # The Weaver registry manifest. Weaver reads the registry from this directory
-# (model/); registry/ is still what the generators read.
+# (model/); registry/ stays the source that tools/to_weaver.py writes it from.
 file_format: definition_manifest/2.0
 name: rius
 description: >
