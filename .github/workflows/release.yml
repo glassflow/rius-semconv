@@ -1,7 +1,8 @@
 # Opens and maintains the release PR for the registry contract, and tags a
 # release when that PR merges. Only registry and generated-output changes count
 # (release-please-config.json excludes fixtures, tests and tools): the
-# recordings are pinned by commit, not by version. Publishes nothing.
+# recordings are pinned by commit, not by version. Publishes no package: a
+# release only asks glassflow-docs to serve its schema files (dispatch-docs).
 name: release
 
 on:
@@ -25,6 +26,33 @@ jobs:
         id: rp
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+
+  # Tell glassflow-docs a release was tagged: its publish-rius-schema workflow
+  # opens the PR that serves this version's schema files at the schema_url in
+  # model/manifest.yaml. Needs DOCS_DISPATCH_TOKEN, a token with contents:write
+  # on glassflow/glassflow-docs (GITHUB_TOKEN cannot dispatch to another
+  # repository), as the SDK release workflows use. Skips with a warning while
+  # it is unset; the docs workflow can then be run by hand with the version.
+  dispatch-docs:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.released == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch the docs schema-file PR
+        env:
+          TOKEN: ${{ secrets.DOCS_DISPATCH_TOKEN }}
+          TAG: ${{ needs.release-please.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if [ -z "${TOKEN:-}" ]; then
+            echo "::warning::DOCS_DISPATCH_TOKEN not configured; no schema-file PR for ${TAG}. Run glassflow-docs' publish-rius-schema workflow by hand."
+            exit 0
+          fi
+          jq -n --arg version "${TAG#v}" '{event_type: "semconv-release", client_payload: {version: $version}}' \
+            | curl -sS --fail-with-body -X POST \
+              -H "Authorization: Bearer $TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              -d @- https://api.github.com/repos/glassflow/glassflow-docs/dispatches
 
   # Announce the release on Slack, as the SDK release jobs do. A separate
   # `on: release` workflow would never fire: release-please creates the GitHub
