@@ -1,0 +1,67 @@
+name: New attribute proposal
+description: Propose a new attribute, event, span kind or allowlist member, or a change to an existing one.
+title: "proposal: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Most of the review is about whether a key should exist and what it is called, so it is worth settling here before writing the row. See "Changing the registry" in [CONTRIBUTING.md](https://github.com/glassflow/rius-semconv/blob/main/CONTRIBUTING.md#changing-the-registry).
+  - type: input
+    id: key
+    attributes:
+      label: Proposed key
+      description: The wire string. A Rius key goes under `rius.*`; never inside a convention's namespace such as `gen_ai.*`, and never under `glassflow.*`.
+      placeholder: rius.example.key
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: What fact it records, and why it is needed
+      description: What the key means, who sets it and who reads it.
+    validations:
+      required: true
+  - type: textarea
+    id: prior-art
+    attributes:
+      label: Existing conventions checked
+      description: Does the OpenTelemetry GenAI or general attribute registry, or OpenInference, already name this fact? Link what you checked, and say why it does not fit if you propose a new key.
+    validations:
+      required: true
+  - type: dropdown
+    id: symbol
+    attributes:
+      label: Kind of symbol
+      options:
+        - Attribute key
+        - Key prefix
+        - Event name
+        - Enumerated value of another attribute
+        - Span name or span kind
+        - Allowlist member
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: shape
+    attributes:
+      label: Type, placement and category
+      description: |
+        The value type, which span kinds (or the resource) it belongs on, its requirement level, and for a span attribute its category:
+        `identity` (known at span start), `content` (user content, masked or stripped when capture is off), `metadata` (known after the work) or `process_local` (never exported).
+    validations:
+      required: true
+  - type: textarea
+    id: example
+    attributes:
+      label: Example
+      description: An example value, or a span from an instrumentor that carries the fact today.
+  - type: dropdown
+    id: contribute
+    attributes:
+      label: Will you open the pull request?
+      options:
+        - "Yes"
+        - "No"
+        - Not sure yet

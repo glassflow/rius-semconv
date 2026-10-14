@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/glassflow/rius-semconv/blob/main/SECURITY.md
+    about: Please report security problems privately, as SECURITY.md describes, not in a public issue.
+  - name: Rius SDK for Python
+    url: https://github.com/glassflow/rius-sdk-python/issues
+    about: Problems with the Python SDK itself, rather than the conventions it follows.
+  - name: Rius SDK for TypeScript
+    url: https://github.com/glassflow/rius-sdk-typescript/issues
+    about: Problems with the TypeScript SDK itself, rather than the conventions it follows.
