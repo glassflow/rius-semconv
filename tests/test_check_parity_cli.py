@@ -68,3 +68,18 @@ def test_vendored_lag_is_a_warning_unless_strict(tmp_path, strict, expected):
 def test_unresolvable_ref_fails(tmp_path):
     repo = make_repo(tmp_path / "sdk", {"README": "x"})
     assert check_parity.main(["python", "--ref", "no-such-ref", "--python-repo", str(repo)]) == 1
+
+
+def test_go_needs_an_explicit_repo(capsys):
+    with pytest.raises(SystemExit) as exc:
+        check_parity.main(["go", "--ref", "HEAD"])
+    assert exc.value.code == 2
+    assert "go needs --go-repo" in capsys.readouterr().err
+
+
+def test_no_consumer_named_skips_go_without_a_repo(tmp_path, capsys):
+    sdk = make_repo(tmp_path / "sdk", {"src/rius/semconv.py": GENERATED})
+    check_parity.main(["--ref", "HEAD", "--python-repo", str(sdk), "--typescript-repo", str(sdk)])
+    out = capsys.readouterr().out
+    assert "=== python:" in out and "=== typescript:" in out
+    assert "=== go:" not in out

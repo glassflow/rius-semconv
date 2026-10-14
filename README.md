@@ -247,10 +247,12 @@ would add work without telling anyone anything.
 
 ## Parity checks
 
-`tools/check_parity.py` compares `out/` with each consumer's `main` branch
-(from sibling checkouts: `../rius-sdk-python`, `../rius-sdk-typescript`,
-`../argus-core`; override with `--python-repo` and friends, pick a ref with
-`--ref`).
+`tools/check_parity.py` compares `out/` with each consumer's `main` branch.
+The SDKs are read from sibling checkouts (`../rius-sdk-python`,
+`../rius-sdk-typescript`; override with `--python-repo` and
+`--typescript-repo`). The Rius backend has no default location: check it with
+`python tools/check_parity.py go --go-repo <checkout>`. Pick a ref with
+`--ref`.
 
 - **Before a consumer vendors the generated file**, parity is checked by
   *value*: both files are evaluated (Python by executing it, TypeScript
@@ -271,19 +273,17 @@ would add work without telling anyone anything.
 - **`ci.yml`** (no secrets): lints this repository's code and the registry,
   generates twice and diffs to prove determinism, fails if `out/` is stale,
   checks the fixtures and the usage-key decisions, and runs the tests.
-- **`parity.yml`**: runs `check_parity.py` against each consumer's `main`
-  on every pull request, on pushes to `main`, daily, and on demand.
+- **`parity.yml`** (no secrets): runs `check_parity.py` against each SDK's
+  `main` on every pull request, on pushes to `main`, daily, and on demand.
 - **`release.yml`**: keeps the registry's release pull request up to date
   on pushes to `main` (see Versioning).
 
-The consumer repositories are private, so `parity.yml` needs a secret named
-**`SDK_READ_TOKEN`**: a fine-grained personal access token or GitHub App
-token with **read-only Contents** permission on `glassflow/rius-sdk-python`,
-`glassflow/rius-sdk-typescript` and `glassflow/argus-core`, and nothing else.
-When the secret is absent (a fork's pull request, or before it is created),
-the job skips the comparison, raises a **"Parity NOT checked"** warning and
-writes the same message to the run summary. A green run without that warning
-is the only proof of parity.
+Both SDK repositories are public, so `parity.yml` reads them without a
+token. The Rius backend runs the Go check in its own CI, against a pinned
+release of this registry, and fails when its constants drift from it.
+
+Every action is pinned to a full commit SHA, with its version in a trailing
+comment.
 
 ## Go
 
