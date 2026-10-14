@@ -2,10 +2,16 @@
 
 Parity is checked on EVALUATED values, not on source text: the Python file is
 executed, the TypeScript file is run through Node, and Go constants are read
-from their literal declarations. Comments, ordering, formatting and whether a
-value is spelled as a literal or as a reference to another constant are
-therefore invisible, which is the point: those are the parts the generated
-file is free to differ in.
+from their literal declarations. Comments, formatting and whether a value is
+spelled as a literal or as a reference to another constant are therefore
+invisible, which is the point: those are the parts the generated file is free
+to differ in.
+
+Order is not invisible. Lists and tuples compare in order, and a mapping or an
+enum whose entries are equal but listed in another order is REORDERED, which
+fails: in the request-parameter map the first spelling listed wins, so two
+tables with the same entries can still behave differently. Sets, and Go maps,
+have no order to compare.
 
 Normalized values are JSON-shaped so they compare with `==` and print well:
   set / frozenset / Set    -> {"__set__": [sorted members]}
@@ -220,10 +226,21 @@ class Report:
     not_in_sdk: list[str] = field(default_factory=list)
     uncovered_public: list[str] = field(default_factory=list)
     uncovered_private: list[str] = field(default_factory=list)
+    reordered: list[str] = field(default_factory=list)
 
     @property
     def ok(self) -> bool:
-        return not (self.changed or self.not_in_sdk or self.uncovered_public)
+        return not (self.changed or self.not_in_sdk or self.uncovered_public or self.reordered)
+
+
+def _ordered(value: Any) -> Any:
+    """`value` with every mapping turned into its (key, value) pairs in order,
+    so that `==` sees the order too."""
+    if isinstance(value, dict):
+        return [[k, _ordered(v)] for k, v in value.items()]
+    if isinstance(value, list):
+        return [_ordered(v) for v in value]
+    return value
 
 
 def compare(
@@ -237,6 +254,7 @@ def compare(
     uncovered_private the SDK has a private data name the registry does not
                       cover; reported, not failed, since a private table can
                       legitimately be logic's own business
+    reordered         same entries, listed in a different order
     """
     report = Report()
     for name in sorted(generated):
@@ -244,6 +262,8 @@ def compare(
             report.not_in_sdk.append(name)
         elif reference[name] != generated[name]:
             report.changed.append(name)
+        elif _ordered(reference[name]) != _ordered(generated[name]):
+            report.reordered.append(name)
     for name in sorted(set(reference) - set(generated)):
         (report.uncovered_private if private(name) else report.uncovered_public).append(name)
     return report

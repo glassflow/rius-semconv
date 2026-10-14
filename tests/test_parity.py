@@ -71,6 +71,23 @@ def test_compare_flags_changed_missing_and_uncovered():
     assert report.uncovered_public == ["B"]
 
 
+def test_compare_flags_a_reordered_table():
+    """Same entries, different order: where the first listed entry wins (the
+    request-parameter map), the order is part of the value."""
+    gen = {
+        "PARAMS": {"stop": "s", "stop_sequences": "s"},
+        "KIND": {"__enum__": {"A": "A", "B": "B"}},
+    }
+    ref = {
+        "PARAMS": {"stop_sequences": "s", "stop": "s"},
+        "KIND": {"__enum__": {"B": "B", "A": "A"}},
+    }
+    report = compare(ref, gen, private=lambda n: n.startswith("_"))
+    assert report.reordered == ["KIND", "PARAMS"]
+    assert report.changed == []
+    assert not report.ok
+
+
 def test_compare_distinguishes_tuple_from_list():
     ref = python_surface(PY_REF)
     gen = dict(ref, PREFIXES=["a"])

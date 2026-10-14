@@ -127,8 +127,10 @@ executing it, TypeScript through Node) and fails when a value differs, when
 the registry generates a name the SDK lacks, or when the SDK exports data the
 registry does not cover. For the backend it compares Go constants: every
 shared name must agree, and every backend-only constant must be explained
-(see [Go](#go)). Comments, ordering, and literal versus constant-reference
-spellings are invisible to it, by design. The registry is the source of
+(see [Go](#go)). Comments and literal versus constant-reference spellings
+are invisible to it, by design. Order is not: a table whose entries are equal
+but listed in another order fails, because in the request-parameter map the
+first spelling listed wins. The registry is the source of
 truth; parity is what proves the consumers still follow it.
 
 **Planned: generated files, then packages.** The next step is for each
