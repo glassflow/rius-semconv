@@ -63,13 +63,17 @@ jobs:
 
   # Checks that model/ is what tools/to_weaver.py writes from registry/, then
   # checks and resolves the Weaver registry under model/ against the upstream
-  # registries pinned in versions.env and model/manifest.yaml. Weaver clones
-  # both upstream registries on every run (about 20 seconds); it keeps no
-  # reusable cache to restore.
+  # registries pinned in versions.env and model/manifest.yaml, runs the policies
+  # in policies/ and the shared OTel packs, and compares the registry with the
+  # last release. Weaver clones both upstream registries and the policy packs on
+  # every run (about 20 seconds each time); it keeps no reusable cache to restore.
   weaver:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          # The release tags: the breaking-change gate compares with the last one.
+          fetch-depth: 0
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.12"
@@ -90,8 +94,17 @@ jobs:
           tools/install_weaver.sh "$RUNNER_TEMP/weaver"
           echo "$RUNNER_TEMP/weaver" >> "$GITHUB_PATH"
 
-      - name: weaver registry check
-        run: weaver registry check -r model --v2
+      # weaver registry check with policies/check and the shared stability and
+      # backwards-compatibility packs. Against the newest release whose tree has
+      # model/, it fails a removed or retyped key; before such a release exists
+      # it says so in a notice and skips only that comparison.
+      - name: Policies and the breaking-change gate
+        run: python tools/weaver_check.py
+
+      - name: Policy tests
+        env:
+          RIUS_REQUIRE_WEAVER: "1"
+        run: python -m pytest -q -rs tests/test_policies.py
 
       - name: weaver registry resolve
         run: weaver registry resolve -r model --v2 -o "$RUNNER_TEMP/resolved.yaml"

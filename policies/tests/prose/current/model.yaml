@@ -1,0 +1,23 @@
+file_format: definition/2
+attribute_groups:
+- id: rius.things
+  visibility: public
+  stability: development
+  brief: Settled in GLA2-0.
+  attributes:
+  - ref: rius.thing.id
+    annotations: {rius: {origin: rius, rationale: See GLA-0.}}
+attributes:
+# Passes: a word that only looks like an id.
+- key: rius.thing.id
+  type: string
+  brief: Carries the RIUS-SDK name, which is not a ticket.
+  stability: development
+  annotations: {rius: {origin: rius}}
+# Fails.
+- key: rius.thing.name
+  type: string
+  brief: The thing's name.
+  note: Decided in RIUS-0.
+  stability: development
+  annotations: {rius: {origin: rius}}

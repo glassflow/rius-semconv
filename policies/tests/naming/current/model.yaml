@@ -1,0 +1,50 @@
+file_format: definition/2
+attributes:
+# Passes: a template next to an attribute under it, and another producer's
+# camelCase key, which is not ours to rename.
+- key: rius.request
+  type: template[any]
+  brief: A template.
+  stability: development
+  annotations: {rius: {origin: rius}}
+- key: rius.request.tool_choice
+  type: string
+  brief: An attribute under the template's prefix.
+  stability: development
+  annotations: {rius: {origin: rius}}
+- key: rius.usage.cache_read2
+  type: int
+  brief: Digits inside a segment.
+  stability: development
+  annotations: {rius: {origin: rius}}
+- key: ai.usage.promptTokens
+  type: int
+  brief: Another producer's key.
+  stability: development
+  annotations: {rius: {producer: vercel, normalizer_input: {decision: ignored}}}
+# Fails.
+- key: rius.toolChoice
+  type: string
+  brief: camelCase.
+  stability: development
+  annotations: {rius: {origin: rius}}
+- key: rius.tool__choice
+  type: string
+  brief: Two underscores in a row.
+  stability: development
+  annotations: {rius: {origin: rius}}
+- key: rius.tool_
+  type: string
+  brief: Trailing underscore.
+  stability: development
+  annotations: {rius: {origin: rius}}
+- key: rius.2nd
+  type: string
+  brief: A segment starting with a digit.
+  stability: development
+  annotations: {rius: {origin: rius}}
+- key: mcp.resultType
+  type: string
+  brief: An own key outside the namespace still follows the naming rules.
+  stability: development
+  annotations: {rius: {origin: rius, namespace_exception: Predates the rule.}}

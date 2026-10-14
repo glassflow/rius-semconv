@@ -14,7 +14,7 @@
       ]
     },
     {
-      "description": "The GenAI semantic conventions commit in versions.env",
+      "description": "The commits pinned in versions.env: the GenAI semantic conventions and the shared Weaver policy packs",
       "customType": "regex",
       "managerFilePatterns": ["/^versions\\.env$/"],
       "matchStrings": [

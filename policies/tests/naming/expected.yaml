@@ -1,0 +1,5 @@
+- {id: rius_attribute_name_invalid, attribute_key: rius.toolChoice}
+- {id: rius_attribute_name_invalid, attribute_key: rius.tool__choice}
+- {id: rius_attribute_name_invalid, attribute_key: rius.tool_}
+- {id: rius_attribute_name_invalid, attribute_key: rius.2nd}
+- {id: rius_attribute_name_invalid, attribute_key: mcp.resultType}
