@@ -35,44 +35,68 @@ agree on: attribute keys, event names, the span-kind taxonomy, the allowlists
 that decide what may leave a process, and the table that maps provider
 parameter spellings to convention keys.
 
-**It owns one namespace, `rius.*`.** Keys under `gen_ai.*`, `error.*`,
-`service.*`, `mcp.*` and the other OpenTelemetry namespaces, and
-OpenInference's keys, are *referenced*, not redefined: each row records the
-upstream key, type and requirement level as published (`origin: otel` or
-`origin: openinference`), so the generated constants for them are a
-convenience, not a fork. A fact no convention names gets a key under `rius.*`
-(`origin: rius`). The linter rejects `glassflow.*`, and an `origin: rius` key
-outside `rius.*` needs a written `namespace_exception`; `gen_ai.first_token`
-and `mcp.result_type` predate the rule and carry one.
+**It owns one namespace, `rius.*`.** It never defines an attribute under
+`gen_ai.*`, `otel.*` or any other OpenTelemetry namespace (`error.*`,
+`service.*`, `mcp.*`, `session.*`, `user.*`, ...): those keys are
+*referenced*. Each row records the upstream key, type and requirement level as
+published (`origin: otel`, or `upstream:` on a row whose key OpenTelemetry
+defines although OpenInference uses it too, such as `session.id`), and in the
+Weaver registry the key is a `ref` to the pinned upstream definition, so its
+brief, type and stability are upstream's. The generated constants for them
+are a convenience, not a fork. A fact no convention names gets a key under
+`rius.*` (`origin: rius`). The linter rejects `glassflow.*`, and an
+`origin: rius` key outside `rius.*` needs a written `namespace_exception`; the
+`mcp.result_type` attribute and the `gen_ai.first_token` event name predate
+the rule and carry one.
+
+Keys the Rius normalizers only *read* from other producers are not ours
+either. OpenInference's keys (which the SDKs also emit, and no upstream
+registry defines) and the
+usage keys of OpenInference, OpenLLMetry, the Vercel AI SDK and pydantic-ai
+are described under `model/inputs/`, each with the decision
+`registry/usage_keys.yaml` records for it and, when it is mapped, the
+canonical key it becomes. Their spellings under `gen_ai.*` are not defined
+there, because only OpenTelemetry may define that namespace; their decisions
+stay in `registry/usage_keys.yaml`.
 
 ## Which upstream versions it tracks
 
-- **OpenTelemetry GenAI conventions.** They are in Development status, and
+`versions.env` pins every upstream registry, and `model/manifest.yaml` names
+the same pins as Weaver dependencies:
+
+- **OpenTelemetry semantic conventions (core)** `v1.44.0`: the general
+  attributes (`service.*`, `error.type`, the `exception` event,
+  `telemetry.*`, `session.id`, `user.id`).
+- **OpenTelemetry GenAI conventions** at commit `4e8a281`
+  (`SEMCONV_GENAI_REF`): `gen_ai.*` and `mcp.*`. They are in Development
+  status and
   [semantic-conventions-genai](https://github.com/open-telemetry/semantic-conventions-genai)
-  cuts no releases, so the registry follows its `main` branch and cites a
-  commit where a table depends on it: the request-parameter table in
-  `registry/model_parameters.yaml` was verified against commit `8ffdf56`
-  (2026-09-22).
-- **General OpenTelemetry attributes** (`service.*`, `error.type`, the
-  `exception` event, `telemetry.*`) follow the
-  [attribute registry](https://opentelemetry.io/docs/specs/semconv/registry/attributes/)
-  as published.
+  cuts no releases, so the pin is a commit on `main`. The request-parameter
+  table in `registry/model_parameters.yaml` was verified against commit
+  `8ffdf56` (2026-09-22).
+- **OTel Weaver** `v0.27.0`, which checks and resolves the registry.
 - **OpenInference.** The span kinds and the flattened `llm.*` keys its
-  instrumentors emit. The recordings pin every instrumentor to an exact
-  version (each family's `manifest.json`), and the third-party content
-  allowlists pin the source version each group was read from.
+  instrumentors emit. It publishes no Weaver registry, so nothing is pinned;
+  the recordings pin every instrumentor to an exact version (each family's
+  `manifest.json`), and the third-party content allowlists pin the source
+  version each group was read from.
+
+Where a row deliberately differs from the upstream definition it references,
+it says so in `upstream_divergence`, and CI fails on any difference a row does
+not record (`tools/check_weaver_types.py`). Today that is
+`gen_ai.request.top_k`: the row says `double`, upstream says `int`.
 
 The registry is moving to the [OTel Weaver](https://github.com/open-telemetry/weaver)
 format. `tools/to_weaver.py` writes the Weaver registry under `model/` from
 `registry/`, which stays the file you edit; CI fails when the two disagree.
 Each Rius key there carries a one-line brief, examples and a stability
 level (all in development today), and renamed keys stay as deprecated
-entries. `model/manifest.yaml` is the Weaver manifest, maintained by hand: it names the registry's
-`schema_url` (`https://docs.glassflow.ai/rius/schemas/<version>`, the last
-segment being the version in `version.txt`) and depends on the OpenTelemetry
-core and GenAI registries at the versions pinned in `versions.env`. Renovate
-(`renovate.json`) opens a pull request when one of those pins moves. The
-schema files are not served at that URL yet.
+entries. `model/manifest.yaml` is the Weaver manifest, maintained by hand: it
+names the registry's `schema_url`
+(`https://docs.glassflow.ai/rius/schemas/<version>`, the last segment being
+the version in `version.txt`) and its dependencies. Renovate (`renovate.json`)
+opens a pull request when a pin in `versions.env` moves. The schema files are
+not served at that URL yet.
 
 ## How consumers use it
 
@@ -208,11 +232,14 @@ tools/
   install_weaver.sh        install the Weaver release pinned in versions.env, checksum-verified
   check_weaver_pins.py     model/manifest.yaml pins what versions.env and version.txt say
   to_weaver.py             write model/ and templates/params.yaml from registry/
+  check_weaver_types.py    every referenced upstream key has the type its row says
   go_reference_only.yaml   backend constants the registry does not generate, and why
 tests/                     pytest suites for the loader, linter, generators and tools
 model/                     the Weaver registry, written from registry/ by tools/to_weaver.py
   manifest.yaml            the Weaver manifest: schema_url and upstream dependencies (by hand)
   rius/registry.yaml       the Rius keys as Weaver definitions
+  rius/upstream.yaml       refs to the upstream keys the SDKs emit or read
+  inputs/<producer>.yaml   other producers' keys the normalizers read, with each decision
 templates/params.yaml      the Weaver --params sidecar: emission order and the non-attribute data
 versions.env               pinned Weaver and upstream registry versions (bumped by Renovate)
 version.txt                the registry's released version (written by release-please)

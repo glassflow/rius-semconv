@@ -63,8 +63,12 @@ from it: never edit `out/` by hand.
 5. If no consumer ships the key yet, mark it `status: planned`.
 6. If the languages deliberately differ, say so with `shipped_in:` and a
    `divergence:` that explains why.
-7. A Rius key (`origin: rius`) also needs a one-line `brief`, realistic
-   `examples` and a `stability` (`development` for a new key). These are
+7. A Rius key (`origin: rius`), or an OpenInference key no upstream registry
+   defines, also needs a one-line `brief`, realistic `examples` and a
+   `stability` (`development` for a new key). A key a convention defines
+   takes none of them: `model/` references the upstream definition. If its
+   row's `type` must differ from upstream's, say why in
+   `upstream_divergence`; CI fails on a difference no row records. These are
    for the Weaver registry under `model/`; the file's header lists the
    columns.
 8. Lint, regenerate, and commit the registry change, `out/` and `model/`
