@@ -1,0 +1,67 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "enabledManagers": ["custom.regex"],
+  "semanticCommits": "enabled",
+  "semanticCommitType": "chore",
+  "customManagers": [
+    {
+      "description": "Weaver and the core semantic conventions in versions.env",
+      "customType": "regex",
+      "managerFilePatterns": ["/^versions\\.env$/"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>\\S+)\\n[A-Z0-9_]+_VERSION=(?<currentValue>\\S+)"
+      ]
+    },
+    {
+      "description": "The GenAI semantic conventions commit in versions.env",
+      "customType": "regex",
+      "managerFilePatterns": ["/^versions\\.env$/"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>git-refs) depName=(?<depName>\\S+) currentValue=(?<currentValue>\\S+)\\n[A-Z0-9_]+_REF=(?<currentDigest>[0-9a-f]{40})"
+      ]
+    },
+    {
+      "description": "The core semantic conventions in model/manifest.yaml (registry_path and schema_url)",
+      "customType": "regex",
+      "managerFilePatterns": ["/^model/manifest\\.yaml$/"],
+      "matchStrings": [
+        "registry_path: https://github\\.com/open-telemetry/semantic-conventions@(?<currentValue>v[0-9.]+)\\[model\\]"
+      ],
+      "depNameTemplate": "open-telemetry/semantic-conventions",
+      "datasourceTemplate": "github-tags"
+    },
+    {
+      "description": "The GenAI semantic conventions commit in model/manifest.yaml",
+      "customType": "regex",
+      "managerFilePatterns": ["/^model/manifest\\.yaml$/"],
+      "matchStrings": [
+        "registry_path: https://github\\.com/open-telemetry/semantic-conventions-genai@(?<currentDigest>[0-9a-f]{40})\\[model\\]"
+      ],
+      "depNameTemplate": "https://github.com/open-telemetry/semantic-conventions-genai",
+      "currentValueTemplate": "main",
+      "datasourceTemplate": "git-refs"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "Weaver bumps also need the release's checksums in versions.env",
+      "matchDepNames": ["open-telemetry/weaver"],
+      "prBodyNotes": [
+        "Run `tools/install_weaver.sh --print-checksums` and paste its output over the `WEAVER_SHA256_*` lines in `versions.env`; CI fails the checksum until then."
+      ]
+    },
+    {
+      "description": "A core bump also moves the dependency's schema_url in model/manifest.yaml",
+      "matchDepNames": ["open-telemetry/semantic-conventions"],
+      "prBodyNotes": [
+        "Update the core dependency's `schema_url` in `model/manifest.yaml` to the new version; `tools/check_weaver_pins.py` fails until then."
+      ]
+    },
+    {
+      "description": "GenAI moves daily: batch its commits into one weekly pull request",
+      "matchDepNames": ["https://github.com/open-telemetry/semantic-conventions-genai"],
+      "schedule": ["before 6am on monday"]
+    }
+  ]
+}
