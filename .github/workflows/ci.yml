@@ -116,3 +116,34 @@ jobs:
       # they generate must be byte-identical to the committed out/.
       - name: Weaver templates reproduce out/
         run: python -m generators.weaver --check python
+
+  # Checks every fixtures/*/*.expected.json against the registry under model/
+  # with weaver registry live-check: a key the registry does not define, or one
+  # with the wrong type, fails. Matchers and the naming exception are in
+  # .weaver.toml, the reviewed pass-through extras in fixtures/passthrough.yaml.
+  live-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements-dev.txt
+
+      - name: Install the pinned Weaver
+        run: |
+          tools/install_weaver.sh "$RUNNER_TEMP/weaver"
+          echo "$RUNNER_TEMP/weaver" >> "$GITHUB_PATH"
+
+      - name: Expected results as live-check samples
+        run: python tools/expected_to_samples.py --out "$RUNNER_TEMP/samples.json"
+
+      - name: weaver registry live-check
+        run: |
+          status=0
+          weaver registry live-check -r model --v2 --quiet \
+            --input-source "$RUNNER_TEMP/samples.json" --input-format json \
+            --format json --output "$RUNNER_TEMP/live-check" \
+            --fail-on violation || status=$?
+          python tools/live_check_findings.py "$RUNNER_TEMP/live-check/live_check.json"
+          exit "$status"

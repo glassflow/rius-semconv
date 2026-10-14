@@ -1,0 +1,76 @@
+# Keys the expected results carry that the registry deliberately does not
+# model: what an instrumentor writes and the normalizers leave untouched.
+# tools/expected_to_samples.py leaves a key under one of these prefixes out of
+# the live-check samples, unless model/ defines it (then it is always checked).
+# Every entry needs a reason, and one that matches no left-out key fails the
+# run, so the list cannot outgrow the fixtures.
+#
+# Before adding an entry, ask whether the key should be modelled instead: a
+# key a normalizer reads belongs in model/inputs/, an upstream key a Rius SDK
+# emits in model/rius/upstream.yaml.
+passthrough:
+  # OpenInference
+  - prefix: input.mime_type
+    reason: OpenInference's content type of input.value. Rius reads input.value alone.
+  - prefix: output.mime_type
+    reason: As input.mime_type, for output.value.
+  - prefix: llm.
+    reason: |
+      OpenInference's llm.* family (llm.model_name, llm.system,
+      llm.prompt_template.*, llm.input_messages.*). The llm.token_count.* and
+      llm.invocation_parameters keys the normalizers read are modelled in
+      model/inputs/openinference.yaml and still checked.
+  - prefix: embedding.
+    reason: OpenInference's embedding inputs and vectors, stored as written.
+  - prefix: metadata
+    reason: |
+      OpenInference's free-form metadata JSON (LangChain run metadata). No Rius
+      reader parses it.
+
+  # pydantic-ai (Logfire conventions)
+  - prefix: gen_ai.agent.call.id
+    reason: |
+      pydantic-ai's per-run call id. No upstream registry defines it, and this
+      registry may not define gen_ai.* keys, so it stays a pass-through extra.
+  - prefix: pydantic_ai.
+    reason: |
+      pydantic-ai's own namespace (pydantic_ai.all_messages). The cache
+      diagnostics the normalizers decide on, pydantic_ai.cache.*, are modelled
+      in model/inputs/pydantic_ai.yaml and still checked.
+  - prefix: logfire.
+    reason: Logfire's rendering hints (logfire.msg, logfire.json_schema).
+  - prefix: agent_name
+    reason: pydantic-ai's un-namespaced copy of gen_ai.agent.name on the agent span.
+  - prefix: model_name
+    reason: pydantic-ai's un-namespaced copy of gen_ai.request.model on the agent span.
+  - prefix: final_result
+    reason: pydantic-ai's agent output on the agent span.
+  - prefix: model_request_parameters
+    reason: pydantic-ai's request settings JSON (tools, output mode), beside the gen_ai.request.* keys.
+
+  # Vercel AI SDK
+  - prefix: ai.
+    reason: |
+      The AI SDK's own namespace (ai.operationId, ai.settings.*, ai.response.*,
+      ai.request.headers.*, ...). The ai.usage.* and ai.settings.maxOutputTokens
+      keys the normalizers read are modelled in model/inputs/vercel.yaml and
+      still checked.
+  - prefix: operation.name
+    reason: The AI SDK's operation id (and the function id, when set), beside ai.operationId.
+  - prefix: gen_ai.client.operation.duration
+    reason: |
+      @ai-sdk/otel writes metric names as span attributes. They are metrics in
+      the GenAI conventions, not attributes, and this registry may not define
+      gen_ai.* keys.
+  - prefix: gen_ai.client.operation.time_per_output_chunk
+    reason: As gen_ai.client.operation.duration.
+  - prefix: gen_ai.execute_tool.duration
+    reason: As gen_ai.client.operation.duration.
+
+  # OpenTelemetry SDK
+  - prefix: exception.escaped
+    reason: |
+      The OpenTelemetry Python SDK's record_exception writes it as a string
+      ("False"), where core types it boolean and deprecates it. Every Python
+      family's exception event carries it as recorded; the normalizers do not
+      touch event attributes.

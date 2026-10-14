@@ -205,6 +205,11 @@ environment. A normalizer outside Rius can use them the same way. See
 [fixtures/README.md](fixtures/README.md) for the format, where each expected
 result comes from, and how to record a new family.
 
+CI also checks every expected result against this registry with Weaver's
+`registry live-check`: a key the registry does not define, or one with the
+wrong type, fails the build, so what the normalizers produce and what the
+registry promises cannot drift apart.
+
 Consumers pin the recordings by exact commit, not by registry version: they
 change with every normalizer fix, and only exact equality matters to a
 conformance test.
@@ -224,6 +229,7 @@ out/                       generated files, committed so every change is a revie
   docs/usage-keys.md       the usage-key table: each key, its decision, what each normalizer does
 fixtures/                  recorded spans and the result every normalizer must
                            produce from them (see fixtures/README.md)
+  passthrough.yaml         third-party keys live-check allows unmodelled, each with its reason
 tools/
   check_registry.py        lint the registry
   check_parity.py          compare out/ with what each consumer ships
@@ -237,6 +243,8 @@ tools/
   to_weaver.py             write model/ and templates/params.yaml from registry/
   check_weaver_types.py    every referenced upstream key has the type its row says
   weaver_check.py          weaver registry check with the policies, against the last release
+  expected_to_samples.py   the expected results as weaver registry live-check samples
+  live_check_findings.py   what a live-check report found, for the CI log
   go_reference_only.yaml   backend constants the registry does not generate, and why
 tests/                     pytest suites for the loader, linter, generators and tools
 policies/                  Rego policies weaver registry check runs, and their test cases
@@ -245,6 +253,7 @@ model/                     the Weaver registry, written from registry/ by tools/
   rius/registry.yaml       the Rius keys as Weaver definitions
   rius/upstream.yaml       refs to the upstream keys the SDKs emit or read
   inputs/<producer>.yaml   other producers' keys the normalizers read, with each decision
+.weaver.toml               live-check matchers and the naming exception for camelCase third-party keys
 templates/params.yaml      the Weaver --params sidecar: emission order and the non-attribute data
 templates/registry/        Weaver templates, one directory per language; CI checks they reproduce out/
 versions.env               pinned Weaver and upstream registry versions (bumped by Renovate)
