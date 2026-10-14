@@ -1,0 +1,3 @@
+- {id: rius_development_attribute_retyped, attribute_key: rius.retyped}
+- {id: rius_development_attribute_retyped, attribute_key: rius.int_to_double}
+- {id: rius_referenced_attribute_removed, attribute_key: up.dropped}

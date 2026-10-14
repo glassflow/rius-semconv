@@ -213,6 +213,14 @@ def test_openinference_keys_are_defined_with_their_enum(files):
     assert "llm.invocation_parameters" in groups["rius.normalizer_input.openinference"]
 
 
+def test_a_usage_prefix_becomes_a_template_weaver_can_match(files):
+    # Weaver matches a template key by `<key>.`, so the key carries no `*`.
+    doc = files["model/inputs/pydantic_ai.yaml"]
+    cache = next(a for a in doc["attributes"] if a["key"] == "pydantic_ai.cache")
+    assert cache["type"] == "template[any]"
+    assert not [a for a in doc["attributes"] if "*" in a["key"]]
+
+
 def test_every_decided_usage_key_names_its_target(base_data, files):
     inputs = [
         a

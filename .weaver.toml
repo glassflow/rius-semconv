@@ -1,0 +1,51 @@
+# Weaver project config, found from the repository root.
+
+# `weaver registry live-check` over the fixtures' expected results (the
+# samples tools/expected_to_samples.py writes). A span or resource sample
+# matches nothing without a matcher, so each one names the groups a key may
+# come from: every key the SDKs emit, plus the third-party keys the
+# normalizers read, under the group that models them.
+#
+# A key no matched group has is then looked up among every attribute the
+# pinned upstream registries define, so an OpenTelemetry key we pass through
+# without referencing it (telemetry.sdk.*, exception.message, server.address)
+# is still type-checked instead of reported missing.
+["live-check"]
+search_all_attributes = true
+
+[["live-check".matchers]]
+id = "rius.span"
+sample_type = "span"
+when = "true"
+attribute_groups = [
+  "registry.rius",
+  "rius.upstream",
+  "rius.passthrough",
+  "rius.openinference",
+  "rius.normalizer_input.openinference",
+  "rius.normalizer_input.openllmetry",
+  "rius.normalizer_input.pydantic_ai",
+  "rius.normalizer_input.vercel",
+]
+
+[["live-check".matchers]]
+id = "rius.span_event"
+sample_type = "span_event"
+when = "true"
+attribute_groups = ["rius.upstream"]
+
+[["live-check".matchers]]
+id = "rius.resource"
+sample_type = "resource"
+when = "true"
+attribute_groups = ["registry.rius", "rius.upstream"]
+
+# Weaver's built-in naming advice wants lower snake_case keys. The Vercel AI
+# SDK spells its own namespace in camelCase (ai.usage.promptTokens), and
+# OpenInference JS copies it under metadata.*. These keys are modelled in
+# model/inputs/ because the normalizers read them; their spelling is not ours
+# to change. Only the naming finding is dropped, and only for those two
+# namespaces: a wrong type or an undefined key there still fails.
+[["live-check".finding_filters]]
+exclude = ["invalid_format"]
+sample_names = ["ai.*", "metadata.ai.*"]

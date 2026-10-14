@@ -70,12 +70,14 @@ attributes:
         --- Attribute keys ---
         OpenInference
       go: OpenInferenceSpanKind
+      key: openinference.span.kind
       values_from: span_kind
       symbol: attribute
       origin: openinference
       kinds: all
       category: identity
       level: required
+      type: string
       fill:
       - native
       - openinference
@@ -90,6 +92,7 @@ attributes:
   annotations:
     rius:
       const: INPUT_VALUE
+      key: input.value
       symbol: attribute
       origin: openinference
       kinds:
@@ -99,6 +102,7 @@ attributes:
       - CHAIN
       category: content
       level: vendor
+      type: string
       fill:
       - native
       - openinference
@@ -113,6 +117,7 @@ attributes:
   annotations:
     rius:
       const: OUTPUT_VALUE
+      key: output.value
       symbol: attribute
       origin: openinference
       kinds:
@@ -122,6 +127,7 @@ attributes:
       - CHAIN
       category: content
       level: vendor
+      type: string
       fill:
       - native
       - openinference
@@ -137,14 +143,18 @@ attributes:
   annotations:
     rius:
       const: LLM_INVOCATION_PARAMETERS
+      key: llm.invocation_parameters
       symbol: attribute
       origin: openinference
       direction: read
       kinds:
       - LLM
       category: content
+      type: json
       fill:
       - openinference
+      rationale: |
+        The request-parameters bag OpenInference instrumentors emit.
       wire_type: json
 - key: llm.token_count.prompt
   type: int

@@ -1,0 +1,59 @@
+# Shared by every target under templates/registry/<lang>/, whose own
+# weaver.yaml only names the language. Run them with tools/generate.py.
+#
+# The filter turns the resolved registry plus the params file
+# (templates/params.yaml, written by tools/to_weaver.py) into what the
+# templates need:
+#
+#   all            every registry row in file order: a row Weaver defines or
+#                  references comes back from its `rius` annotation, the rest
+#                  are whole in the params file's `layout`
+#   rows           the rows generated for `lang`, a skipped row's section
+#                  heading moved to the next emitted row
+#   const_for_key  wire key -> the constant it is emitted as, for `lang`
+#   go_names       constant -> its Go name (the row's `go`, else PascalCase
+#                  with the initialisms below)
+#   members        allowlist -> its members generated for `lang`
+#   included       the member allowlists folded into the content allowlist
+#   tables         taxonomy table -> the table, for the ones generated for `lang`
+whitespace_control:
+  trim_blocks: true
+  lstrip_blocks: true
+  keep_trailing_newline: true
+params:
+  include_planned: false
+templates:
+  - template: constants.j2
+    application_mode: single
+    file_name: constants
+    filter: >
+      def wanted: ($params.include_planned or ((.status // "shipped") == "shipped"))
+        and ((.shipped_in // ["python", "typescript", "go"]) | index($params.lang) != null);
+      def initialisms: {"ID": "ID", "GEN": "Gen", "AI": "AI", "MCP": "MCP", "LLM": "LLM",
+        "URL": "URL", "SDK": "SDK", "TTL": "TTL"};
+      ( [ .registry.attributes[], .registry.attribute_groups[].attributes[], .registry.events[] ]
+        | map(.annotations.rius // empty | select(.const != null))
+        | map({key: .const, value: .}) | from_entries ) as $by
+      | [ $params.layout[]
+          | if .key then . else ($by[.const] // error("no definition for \(.const)")) end ] as $all
+      | ( reduce $all[] as $row ({out: [], carried: null};
+            if ($row | wanted | not) then .carried = ($row.section // .carried)
+            else .out += [ if (.carried != null) and ($row.section == null)
+                           then $row + {section: .carried} else $row end ]
+                 | .carried = null
+            end) | .out ) as $rows
+      | $params.allowlists as $al
+      | { all: $all,
+          rows: $rows,
+          const_for_key: (reduce ($rows[] | select(.symbol == "attribute" or .symbol == "prefix"
+                                                   or .symbol == "event")) as $r
+            ({}; if has($r.key) then . else .[$r.key] = $r.const end)),
+          go_names: (reduce $all[] as $r ({};
+            .[$r.const] = ($r.go // ($r.const | split("_")
+              | map(. as $p | initialisms[$p] // (($p[0:1] | ascii_upcase) + ($p[1:] | ascii_downcase)))
+              | join(""))))),
+          members: ($al | with_entries(select(.value | type == "object" and has("attributes"))
+            | .value = [.value.attributes[] | select(wanted)])),
+          included: [ ($al.content.includes // [])[]
+            | select(. as $n | $al[$n] | type == "object" and has("attributes")) ],
+          tables: ($params.taxonomy | with_entries(select(.value | wanted))) }

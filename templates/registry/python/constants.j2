@@ -1,0 +1,146 @@
+{#- The Python constants module: constants and tables only. The SDK's
+    hand-written semconv.py re-exports it and keeps the helper functions,
+    because logic is not registry data. Shaped to pass `ruff format --check`
+    and `ruff check` under the Python SDK's configuration. The context is
+    built in ../weaver.yaml. -#}
+{% set lang = params.lang %}
+{% set pre = params.preamble %}
+{% set al = params.allowlists %}
+{% set mp = params.model_parameters %}
+{% set sk = params.taxonomy.span_kind %}
+{% set kind_type = sk.names[lang] %}
+{% set ns = namespace(public=[]) %}
+{{- template.set_file_name(pre[lang].filename) -}}
+{% macro comment(text, marker, indent) %}
+{% if text %}
+{% for line in text.rstrip("\n").split("\n") %}
+{{ (indent ~ marker ~ " " ~ line).rstrip() }}
+{% endfor %}
+{% endif %}
+{% endmacro %}
+{% macro lit(value) %}"{{ value | replace("\\", "\\\\") | replace('"', '\\"') }}"{% endmacro %}
+{% macro ref_or_literal(key) %}{% if key in ctx.const_for_key %}{{ ctx.const_for_key[key] }}{% else %}{{ lit(key) }}{% endif %}{% endmacro %}
+{% macro member_lines(section) %}
+{% for mem in ctx.members[section] %}
+{{ comment(mem.note, "#", "        ") }}        {% if mem.ref %}{{ mem.ref }}{% else %}{{ lit(mem.key) }}{% endif %},
+{% endfor %}
+{% endmacro %}
+{% macro member_set(section) %}
+
+{{ comment(al[section].doc, "#", "") }}{{ al[section].const }} = frozenset(
+    {
+{{ member_lines(section) }}    }
+)
+{% endmacro %}
+{% macro string_tuple(section) %}
+
+{{ comment(al[section].doc, "#", "") }}{{ al[section].const }} = (
+{% for v in al[section]["values"] %}
+    {{ lit(v) }},
+{% endfor %}
+)
+{% endmacro %}
+{% macro fmt(value, how) %}{% if how == "kind" %}{{ kind_type }}.{{ value }}{% elif how == "otel" %}OtelSpanKind.{{ value }}{% elif how == "ref" %}{{ value }}{% else %}{{ lit(value) }}{% endif %}{% endmacro %}
+"""{{ pre.python.docstring.rstrip("\n") }}
+"""
+
+{{ comment(pre.notice, "#", "") }}{{ comment(pre.header, "#", "") }}
+from __future__ import annotations
+
+from enum import Enum
+{% if "otel_kind_by_kind" in ctx.tables %}
+
+from opentelemetry.trace import SpanKind as OtelSpanKind
+{% endif %}
+{% for row in ctx.rows %}
+{% if row.section or row.rationale %}
+
+{% endif %}
+{{ comment(row.section, "#", "") }}{{ comment(row.rationale, "#", "") }}{{ row.const }} = {{ lit(row.key) }}
+{% set ns.public = ns.public + [row.const] %}
+{% endfor %}
+
+{{ comment(mp.doc, "#", "") }}{{ mp.const }}: dict[str, str] = {
+{% for group in mp.groups %}
+{% for spelling in group.spellings %}
+{% if loop.first %}{{ comment(group.note, "#", "    ") }}{% endif %}
+    {{ lit(spelling) }}: {{ ref_or_literal(group.target) }},
+{% endfor %}
+{% endfor %}
+}
+{{ member_set("pending_identity") -}}
+{% set refs = al.pending_identity_prefixes.refs %}
+{{ comment(al.pending_identity_prefixes.doc, "#", "") }}{{ al.pending_identity_prefixes.const }} = ({{ refs | join(", ") }}{% if refs | length == 1 %},{% endif %})
+{% set ipc = al.invocation_parameters_content_members %}
+
+{{ comment(ipc.doc, "#", "") }}{{ ipc.const }} = ({% for v in ipc["values"] %}{{ lit(v) }}{% if not loop.last %}, {% endif %}{% endfor %}{% if ipc["values"] | length == 1 %},{% endif %})
+{% set ns.public = ns.public + [mp.const, al.pending_identity.const, al.pending_identity_prefixes.const, ipc.const] %}
+{% for section in ctx.included %}
+{{ member_set(section) }}
+{%- set ns.public = ns.public + [al[section].const] %}
+{% endfor %}
+{% set content = al.content %}
+
+{{ comment(content.doc, "#", "") }}{{ content.const }} = frozenset(
+    {
+{{ member_lines("content") }}    }
+{% if content.derived %}
+{{ comment(content.derived.note, "#", "    ") }}    | {
+        f"{prefix}{member}"
+        for prefix in ({{ content.derived.prefixes | join(", ") }})
+        for member in {{ content.derived.members }}
+    }
+{% endif %}
+{% for section in ctx.included %}
+    | {{ al[section].const }}
+{% endfor %}
+)
+{{ string_tuple("content_prefixes") }}
+{{- member_set("content_prefix_identity") }}
+{{- string_tuple("content_suffixes") }}
+{%- set block = al.content_prefixed_suffixes %}
+
+{{ comment(block.doc, "#", "") }}{{ block.const }} = (
+{% for entry in block["values"] %}
+    ({{ lit(entry.prefix) }}, ({% for s in entry.suffixes %}{{ lit(s) }}{% if not loop.last %}, {% endif %}{% endfor %}{% if entry.suffixes | length == 1 %},{% endif %})),
+{% endfor %}
+)
+{% set ns.public = ns.public + [content.const, al.content_prefixes.const, al.content_prefix_identity.const, al.content_suffixes.const, block.const, kind_type] %}
+
+
+class {{ kind_type }}(str, Enum):
+    """{{ sk.doc.rstrip("\n") }}
+
+{% for k in sk["values"] %}
+    - ``{{ k.name }}``: {{ k.doc }}
+{% endfor %}
+    """
+
+{% for k in sk["values"] %}
+    {{ k.name }} = {{ lit(k.name) }}
+{% endfor %}
+
+{% for t in [
+    ["operation_by_kind", "kind", "literal", "dict[" ~ kind_type ~ ", str]"],
+    ["kind_by_operation", "literal", "kind", "dict[str, " ~ kind_type ~ "]"],
+    ["otel_kind_by_kind", "kind", "otel", "dict[" ~ kind_type ~ ", OtelSpanKind]"],
+    ["name_target_by_kind", "kind", "ref", "dict[" ~ kind_type ~ ", str]"],
+] if t[0] in ctx.tables %}
+{% set table = ctx.tables[t[0]] %}
+{% set ident = table.names[lang] %}
+
+{{ comment(table.doc, "#", "") }}{{ ident }}: {{ t[3] }} = {
+{% for pair in table.map %}
+    {{ fmt(pair[0], t[1]) }}: {{ fmt(pair[1], t[2]) }},
+{% endfor %}
+}
+{% if not ident.startswith("_") %}
+{% set ns.public = ns.public + [ident] %}
+{% endif %}
+{% endfor %}
+
+__all__ = [
+{% for name in ns.public | sort(case_sensitive=true) %}
+    {{ lit(name) }},
+{% endfor %}
+]

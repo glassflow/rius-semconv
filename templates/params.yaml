@@ -82,11 +82,15 @@ params:
   - const: GEN_AI_RETRIEVAL_DOCUMENTS
   - const: MCP_METHOD_NAME
   - const: MCP_METHOD_TOOLS_CALL
-    value_of: MCP_METHOD_NAME
+    key: tools/call
+    symbol: value
+    of: MCP_METHOD_NAME
   - const: MCP_PROTOCOL_VERSION
   - const: ERROR_TYPE
   - const: ERROR_TYPE_TOOL_ERROR
-    value_of: ERROR_TYPE
+    key: tool_error
+    symbol: value
+    of: ERROR_TYPE
   - const: EXCEPTION_EVENT
     key: exception
     symbol: event
@@ -772,12 +776,18 @@ params:
         the kind to it gives every rerank span (AI SDK, OpenInference RERANKER,
         user-created) the same operation, so a filter on either key finds them all.
       map:
-        LLM: chat
-        TOOL: execute_tool
-        EMBEDDING: embeddings
-        AGENT: invoke_agent
-        RETRIEVER: retrieval
-        RERANKER: rerank
+      - - LLM
+        - chat
+      - - TOOL
+        - execute_tool
+      - - EMBEDDING
+        - embeddings
+      - - AGENT
+        - invoke_agent
+      - - RETRIEVER
+        - retrieval
+      - - RERANKER
+        - rerank
       unmapped:
         CHAIN: the conventions define no operation for a generic workflow step
     kind_by_operation:
@@ -807,18 +817,30 @@ params:
             for), a step within the run rather than an agent invocation, so
             CHAIN as well.
       map:
-        chat: LLM
-        text_completion: LLM
-        generate_content: LLM
-        execute_tool: TOOL
-        embeddings: EMBEDDING
-        invoke_agent: AGENT
-        create_agent: AGENT
-        retrieval: RETRIEVER
-        rerank: RERANKER
-        invoke_workflow: CHAIN
-        plan: CHAIN
-        agent_step: CHAIN
+      - - chat
+        - LLM
+      - - text_completion
+        - LLM
+      - - generate_content
+        - LLM
+      - - execute_tool
+        - TOOL
+      - - embeddings
+        - EMBEDDING
+      - - invoke_agent
+        - AGENT
+      - - create_agent
+        - AGENT
+      - - retrieval
+        - RETRIEVER
+      - - rerank
+        - RERANKER
+      - - invoke_workflow
+        - CHAIN
+      - - plan
+        - CHAIN
+      - - agent_step
+        - CHAIN
     otel_kind_by_kind:
       names:
         python: _OTEL_KIND_BY_KIND
@@ -847,13 +869,20 @@ params:
         Nothing in the backend groups on this field (it reads the attributes), so
         the mapping is free to follow the conventions exactly.
       map:
-        LLM: CLIENT
-        EMBEDDING: CLIENT
-        RETRIEVER: CLIENT
-        RERANKER: CLIENT
-        TOOL: INTERNAL
-        AGENT: INTERNAL
-        CHAIN: INTERNAL
+      - - LLM
+        - CLIENT
+      - - EMBEDDING
+        - CLIENT
+      - - RETRIEVER
+        - CLIENT
+      - - RERANKER
+        - CLIENT
+      - - TOOL
+        - INTERNAL
+      - - AGENT
+        - INTERNAL
+      - - CHAIN
+        - INTERNAL
     name_target_by_kind:
       names:
         python: _NAME_TARGET_BY_KIND
@@ -868,12 +897,18 @@ params:
         RERANKER reads the request model too, as EMBEDDING does, so a rerank span
         is named `rerank <model>`.
       map:
-        LLM: GEN_AI_REQUEST_MODEL
-        EMBEDDING: GEN_AI_REQUEST_MODEL
-        TOOL: GEN_AI_TOOL_NAME
-        AGENT: GEN_AI_AGENT_NAME
-        RETRIEVER: GEN_AI_DATA_SOURCE_ID
-        RERANKER: GEN_AI_REQUEST_MODEL
+      - - LLM
+        - GEN_AI_REQUEST_MODEL
+      - - EMBEDDING
+        - GEN_AI_REQUEST_MODEL
+      - - TOOL
+        - GEN_AI_TOOL_NAME
+      - - AGENT
+        - GEN_AI_AGENT_NAME
+      - - RETRIEVER
+        - GEN_AI_DATA_SOURCE_ID
+      - - RERANKER
+        - GEN_AI_REQUEST_MODEL
       unmapped:
         CHAIN: no operation, so nothing to compose a name from
   model_parameters:

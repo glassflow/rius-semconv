@@ -1,0 +1,3 @@
+- {id: rius_ticket_id_in_prose, location: rius.thing.name}
+- {id: rius_ticket_id_in_prose, location: rius.things}
+- {id: rius_ticket_id_in_prose, location: rius.things ref rius.thing.id}

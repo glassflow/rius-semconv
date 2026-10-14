@@ -181,11 +181,17 @@ check rejects a `renamed_to` that points into a dependency's registry.
 
 ### How it is enforced
 
-Today the rules are enforced in review. Once the registry is on Weaver, CI
-compares every pull request with the last release
-(`weaver registry check --baseline-registry`), which rejects a removed
-attribute and a retyped stable one, plus a local policy that rejects
-retyping a development attribute.
+CI's `weaver` job runs `python tools/weaver_check.py`, which compares every
+pull request with the last release that has a Weaver registry
+(`weaver registry check --baseline-registry`). The shared OpenTelemetry
+`backwards-compatibility` pack rejects a removed attribute and a retyped
+stable one; `policies/check/rius_compat.rego` rejects a retyped development
+attribute (rule 5) and an upstream key that is no longer referenced (rule 1).
+Rows marked `status: planned` are exempt. No release has a Weaver registry
+yet, so until one does the job prints a notice and skips that comparison;
+`tests/test_policies.py` exercises it against a synthetic baseline in the
+meantime. A rename into a dependency's key with `reason: renamed` fails
+the shared `stability` pack, as described above.
 
 ## Recordings and expected results
 

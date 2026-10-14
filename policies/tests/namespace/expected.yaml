@@ -1,0 +1,4 @@
+- {id: rius_attribute_outside_namespace, attribute_key: thing.id}
+- {id: rius_upstream_namespace_defined, attribute_key: gen_ai.thing}
+- {id: rius_upstream_namespace_defined, attribute_key: service.thing}
+- {id: rius_annotation_missing, attribute_key: rius.unannotated}
