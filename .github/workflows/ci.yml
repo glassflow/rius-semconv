@@ -126,6 +126,13 @@ jobs:
           RIUS_REQUIRE_WEAVER: "1"
         run: python -m pytest -q -rs tests/test_generators.py
 
+      - name: docs/registry/ is current
+        run: |
+          if ! python -m generators.registry_docs --check; then
+            echo "::error::docs/registry/ is stale. Run 'python -m generators.registry_docs' and commit the result."
+            exit 1
+          fi
+
   # Checks every fixtures/*/*.expected.json against the registry under model/
   # with weaver registry live-check: a key the registry does not define, or one
   # with the wrong type, fails. Matchers and the naming exception are in
