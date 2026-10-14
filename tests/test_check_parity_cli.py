@@ -55,6 +55,32 @@ def test_vendored_mode_compares_bytes(tmp_path):
     assert run(make_repo(tmp_path / "sdk", files)) == 0
 
 
+@pytest.mark.parametrize("comment", ["#", "//"])
+def test_vendored_mode_reads_past_the_vendor_header(tmp_path, capsys, comment):
+    """A consumer's sync script prepends two comment lines naming the release
+    it vendored; the bytes after them are what is compared."""
+    header = (
+        f"{comment} Vendored from rius-semconv v1.2.0 out/python/_semconv_generated.py by\n"
+        f"{comment} scripts/sync-semconv.sh. Do not edit: change the registry in rius-semconv.\n"
+    )
+    files = {
+        "src/rius/semconv.py": "from ._semconv_generated import *\n",
+        "src/rius/_semconv_generated.py": header + GENERATED,
+    }
+    assert run(make_repo(tmp_path / "sdk", files), "--strict") == 0
+    out = capsys.readouterr().out
+    assert "vendored src/rius/_semconv_generated.py (rius-semconv v1.2.0): identical" in out
+
+
+def test_a_vendor_header_does_not_hide_an_edit(tmp_path):
+    header = "# Vendored from rius-semconv v1.2.0 out/python/_semconv_generated.py by\n# x\n"
+    files = {
+        "src/rius/semconv.py": "from ._semconv_generated import *\n",
+        "src/rius/_semconv_generated.py": header + GENERATED + "# edited\n",
+    }
+    assert run(make_repo(tmp_path / "sdk", files), "--strict") == 1
+
+
 @pytest.mark.parametrize("strict, expected", [(False, 0), (True, 1)])
 def test_vendored_lag_is_a_warning_unless_strict(tmp_path, strict, expected):
     files = {
