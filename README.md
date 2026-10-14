@@ -304,14 +304,19 @@ In Go, the generated file covers the **canonical** keys only; see [Go](#go).
 
 When the SDKs deliberately differ, the registry says so instead of picking a
 winner silently. `shipped_in: [python, go]` limits a row, allowlist member or
-table to those languages, and `divergence:` (required) says why. Today:
+table to those languages, and `divergence:` (required) says why;
+`git grep -n shipped_in registry/` finds every one. Today:
 
 - `TRACER_NAME` is not generated for Go: the backend deliberately names no
   instrumentation scope.
 - `SERVICE_NAME` is generated only for Go: the SDKs set `service.name`
   through the OpenTelemetry SDK and name no constant for it.
-- `llm.invocation_parameters` is content in Python and Go, but not in
-  TypeScript, which redacts only the bag's `tools` / `functions` members.
+- `GEN_AI_USAGE_PREFIX` and `RIUS_AGGREGATED_USAGE_PREFIX` are not generated
+  for Go: the SDKs move a run's aggregate usage by prefix, and the backend
+  names each usage key on its own.
+- The flattened-message prefixes (`llm.input_messages.`,
+  `llm.output_messages.`) are generated only for TypeScript: the Python SDK
+  keeps the same strings private in its normalizer.
 - `otel_kind_by_kind` is not generated for Go, which creates no spans.
 
 ## Adding an attribute
