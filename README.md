@@ -352,7 +352,9 @@ table to those languages, and `divergence:` (required) says why;
 The SDKs are read from sibling checkouts (`../rius-sdk-python`,
 `../rius-sdk-typescript`; override with `--python-repo` and
 `--typescript-repo`). The Rius backend has no default location: check it with
-`python tools/check_parity.py go --go-repo <checkout>`. Pick a ref with
+`python tools/check_parity.py go --go-dir <dir>`, where `<dir>` is its semconv
+package directory (the one holding `semconv.go`, and `semconv_generated.go`
+once it vendors it) inside a git checkout. Pick a ref with
 `--ref`, fetch first with `--fetch`, and add `--cross` to also diff the two
 SDKs' hand-written files directly, for review.
 
@@ -375,7 +377,8 @@ comment.
 
 The backend's semconv package holds two kinds of constant. The **canonical**
 keys are the ones the SDKs emit, and this registry generates them into
-`semconv_generated.go`. The rest are the backend normalizer's **input
+`semconv_generated.go`, in the same package (the directory `--go-dir`
+names). The rest are the backend normalizer's **input
 spellings**, which the SDKs never emit and the backend reads from other
 producers. `tools/go_reference_only.yaml` lists every one by class, except
 the usage keys, which `registry/usage_keys.yaml` already decides with their

@@ -2,7 +2,7 @@
 
     python tools/check_parity.py                     # both SDKs, vs origin/main
     python tools/check_parity.py python              # a subset
-    python tools/check_parity.py go --go-repo PATH   # the Rius backend
+    python tools/check_parity.py go --go-dir DIR     # the Rius backend
     python tools/check_parity.py --fetch             # git fetch each repo first
     python tools/check_parity.py --ref HEAD          # e.g. a CI checkout of main
     python tools/check_parity.py --cross             # also diff the two SDKs
@@ -10,8 +10,9 @@
 Each consumer is read from a git ref (default origin/main) of a checkout, so a
 stale local branch cannot make the check pass by accident. The SDKs default to
 sibling checkouts; point elsewhere with --python-repo / --typescript-repo. The
-backend has no default location: pass --go-repo to check it. With no consumer
-named, the check covers both SDKs, plus the backend when --go-repo is given.
+backend has no default location: pass --go-dir, its semconv package directory
+(the one holding semconv.go) inside a git checkout. With no consumer named,
+the check covers both SDKs, plus the backend when --go-dir is given.
 
 What is compared, per consumer:
 
@@ -72,10 +73,12 @@ CONSUMERS = {
         "vendored": "src/semconv.generated.ts",
         "generated": ROOT / "out" / "typescript" / "semconv.generated.ts",
     },
+    # Given as the package directory (--go-dir), not a repository: the paths
+    # below are relative to it.
     "go": {
         "repo": None,
-        "reference": "packages/argus-core/semconv/semconv.go",
-        "vendored": "packages/argus-core/semconv/semconv_generated.go",
+        "reference": "semconv.go",
+        "vendored": "semconv_generated.go",
         "generated": ROOT / "out" / "go" / "semconv_generated.go",
     },
 }
@@ -91,6 +94,21 @@ def git(repo: pathlib.Path, *args: str, check: bool = True) -> subprocess.Comple
 def read_at(repo: pathlib.Path, ref: str, path: str) -> str | None:
     result = git(repo, "show", f"{ref}:{path}", check=False)
     return result.stdout if result.returncode == 0 else None
+
+
+def locate(lang: str, path: pathlib.Path) -> tuple[pathlib.Path, str] | None:
+    """The git checkout to read, and the prefix of the consumer's files in it.
+    An SDK is given as its checkout; the backend as its semconv package
+    directory, anywhere inside its checkout."""
+    if lang != "go":
+        return path, ""
+    if not path.is_dir():
+        return None
+    top = git(path, "rev-parse", "--show-toplevel", check=False)
+    if top.returncode != 0:
+        return None
+    prefix = git(path, "rev-parse", "--show-prefix").stdout.strip()
+    return pathlib.Path(top.stdout.strip()), prefix
 
 
 def section(title: str) -> None:
@@ -178,28 +196,36 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="check_parity.py")
     parser.add_argument("consumers", nargs="*", metavar="CONSUMER")
     parser.add_argument("--ref", default="origin/main", help="git ref to read (origin/main)")
-    for lang, spec in CONSUMERS.items():
-        default = spec["repo"]
-        parser.add_argument(f"--{lang}-repo", default=None if default is None else str(default))
+    for lang in ("python", "typescript"):
+        parser.add_argument(f"--{lang}-repo", default=str(CONSUMERS[lang]["repo"]))
+    parser.add_argument("--go-dir", help="the backend's semconv package directory, in a checkout")
     parser.add_argument("--fetch", action="store_true", help="git fetch origin in each repo first")
     parser.add_argument("--strict", action="store_true", help="fail on a stale vendored file")
     parser.add_argument("--cross", action="store_true", help="also diff the two SDKs directly")
     args = parser.parse_args(argv)
 
     named = [c for c in args.consumers if c != "all"]
-    wanted = named or [c for c in CONSUMERS if getattr(args, f"{c}_repo") is not None]
+    wanted = named or [c for c in CONSUMERS if c != "go" or args.go_dir is not None]
     unknown = [c for c in wanted if c not in CONSUMERS]
     if unknown:
         parser.error(f"unknown consumer(s): {', '.join(unknown)}")
-    if "go" in wanted and args.go_repo is None:
-        parser.error("go needs --go-repo: the backend has no default location")
+    if "go" in wanted and args.go_dir is None:
+        parser.error("go needs --go-dir: the backend has no default location")
 
     ok = True
     references: dict[str, str] = {}
     for lang in wanted:
         spec = CONSUMERS[lang]
-        repo = pathlib.Path(getattr(args, f"{lang}_repo"))
-        section(f"{lang}: {repo.name} @ {args.ref}")
+        given = pathlib.Path(args.go_dir if lang == "go" else getattr(args, f"{lang}_repo"))
+        section(f"{lang}: {given} @ {args.ref}")
+        located = locate(lang, given)
+        if located is None:
+            print(f"FAIL: {given} is not a directory in a git checkout")
+            ok = False
+            continue
+        repo, prefix = located
+        reference_path = prefix + spec["reference"]
+        vendored_path = prefix + spec["vendored"]
         if args.fetch:
             git(repo, "fetch", "--quiet", "origin")
         sha = git(repo, "rev-parse", "--short", args.ref, check=False).stdout.strip()
@@ -210,19 +236,19 @@ def main(argv: list[str] | None = None) -> int:
         print(f"commit: {sha}")
         generated = spec["generated"].read_text()
 
-        vendored = read_at(repo, args.ref, spec["vendored"])
+        vendored = read_at(repo, args.ref, vendored_path)
         if vendored is not None:
             same = vendored == generated
-            print(f"vendored {spec['vendored']}: {'identical' if same else 'DIFFERS'}")
+            print(f"vendored {vendored_path}: {'identical' if same else 'DIFFERS'}")
             if not same:
                 print("  the consumer is pinned to another registry version (lag is allowed)")
                 ok = ok and not args.strict
             print(f"{lang}: {'PASS' if same else 'LAGGING'}")
             continue
 
-        reference = read_at(repo, args.ref, spec["reference"])
+        reference = read_at(repo, args.ref, reference_path)
         if reference is None:
-            print(f"FAIL: {spec['reference']} not found at {args.ref}")
+            print(f"FAIL: {reference_path} not found at {args.ref}")
             ok = False
             continue
         references[lang] = reference
