@@ -1,0 +1,49 @@
+file_format: definition/2
+attributes:
+# Passes: own keys under rius.*, or outside it with a reason.
+- key: rius.thing.id
+  type: string
+  brief: An own key in the namespace.
+  stability: development
+  annotations: {rius: {origin: rius}}
+- key: mcp.thing
+  type: string
+  brief: An own key outside the namespace, with its reason.
+  stability: development
+  annotations: {rius: {origin: rius, namespace_exception: Predates the rule.}}
+- key: legacy.thing
+  type: boolean
+  brief: A former spelling, deprecated.
+  stability: development
+  deprecated: {reason: renamed, renamed_to: rius.thing.id}
+  annotations: {rius: {origin: rius}}
+- key: ai.usage.someTokens
+  type: int
+  brief: Another producer's key a normalizer reads.
+  stability: development
+  annotations: {rius: {producer: vercel, normalizer_input: {decision: ignored}}}
+- key: input.value
+  type: string
+  brief: A key another producer defines, which the SDKs also write.
+  stability: development
+  annotations: {rius: {origin: openinference}}
+# Fails.
+- key: thing.id
+  type: string
+  brief: An own key outside the namespace, with no reason.
+  stability: development
+  annotations: {rius: {origin: rius}}
+- key: gen_ai.thing
+  type: string
+  brief: A key in a namespace OpenTelemetry owns, defined here.
+  stability: development
+  annotations: {rius: {origin: rius}}
+- key: service.thing
+  type: string
+  brief: An OpenTelemetry key copied here instead of referenced.
+  stability: development
+  annotations: {rius: {origin: otel}}
+- key: rius.unannotated
+  type: string
+  brief: No rius annotation.
+  stability: development

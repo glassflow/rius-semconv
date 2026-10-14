@@ -1,0 +1,14 @@
+file_format: definition/2
+attributes:
+- key: up.kept
+  type: string
+  brief: An upstream key we keep referencing.
+  stability: development
+- key: up.dropped
+  type: string
+  brief: An upstream key we stop referencing.
+  stability: development
+- key: up.planned
+  type: string
+  brief: An upstream key a planned row references.
+  stability: development

@@ -1,0 +1,45 @@
+file_format: definition/2
+attribute_groups:
+- id: rius.upstream
+  visibility: public
+  stability: development
+  brief: Upstream keys we use.
+  attributes:
+  - ref: up.kept
+attributes:
+# Fails: a retyped development key.
+- key: rius.retyped
+  type: int
+  brief: A development key.
+  stability: development
+  annotations: {rius: {origin: rius}}
+- key: rius.int_to_double
+  type: double
+  brief: A development key.
+  stability: development
+  annotations: {rius: {origin: rius}}
+# Passes: a planned row changes freely; the enum keeps its wire type.
+- key: rius.planned
+  type: int
+  brief: A row that never shipped.
+  stability: development
+  annotations: {rius: {status: planned}}
+- key: rius.enum_grows
+  type:
+    members:
+    - {id: a, value: a, brief: A., stability: development}
+    - {id: b, value: b, brief: B., stability: development}
+  brief: An enum.
+  stability: development
+  annotations: {rius: {origin: rius}}
+- key: rius.enum_to_string
+  type: string
+  brief: An enum.
+  stability: development
+  annotations: {rius: {origin: rius}}
+# Left to the shared backwards-compatibility pack, which this test does not load.
+- key: rius.stable_retyped
+  type: int
+  brief: A stable key.
+  stability: stable
+  annotations: {rius: {origin: rius}}

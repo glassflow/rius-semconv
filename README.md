@@ -75,6 +75,10 @@ the same pins as Weaver dependencies:
   table in `registry/model_parameters.yaml` was verified against commit
   `8ffdf56` (2026-09-22).
 - **OTel Weaver** `v0.27.0`, which checks and resolves the registry.
+- **OTel Weaver policy packs** at commit `b524723` (`WEAVER_PACKAGES_REF`):
+  the shared `stability` and `backwards-compatibility` policies from
+  [opentelemetry-weaver-packages](https://github.com/open-telemetry/opentelemetry-weaver-packages),
+  which cuts no releases either.
 - **OpenInference.** The span kinds and the flattened `llm.*` keys its
   instrumentors emit. It publishes no Weaver registry, so nothing is pinned;
   the recordings pin every instrumentor to an exact version (each family's
@@ -232,8 +236,10 @@ tools/
   check_weaver_pins.py     model/manifest.yaml pins what versions.env and version.txt say
   to_weaver.py             write model/ and templates/params.yaml from registry/
   check_weaver_types.py    every referenced upstream key has the type its row says
+  weaver_check.py          weaver registry check with the policies, against the last release
   go_reference_only.yaml   backend constants the registry does not generate, and why
 tests/                     pytest suites for the loader, linter, generators and tools
+policies/                  Rego policies weaver registry check runs, and their test cases
 model/                     the Weaver registry, written from registry/ by tools/to_weaver.py
   manifest.yaml            the Weaver manifest: schema_url and upstream dependencies (by hand)
   rius/registry.yaml       the Rius keys as Weaver definitions
@@ -263,15 +269,19 @@ python -m pytest
 `ruff format --check .` and a determinism check that generates twice and
 diffs. None of them reads any other repository.
 
-Its `weaver` job also checks and resolves the Weaver registry, which fetches
-the pinned upstream registries from GitHub:
+Its `weaver` job also checks and resolves the Weaver registry, runs the
+policies (see [policies/README.md](policies/README.md)) and compares the
+registry with the last release. It fetches the pinned upstream registries and
+policy packs from GitHub:
 
 ```
 python tools/check_weaver_pins.py         # manifest pins match versions.env
 python tools/to_weaver.py --check         # model/ matches registry/
 tools/install_weaver.sh                   # installs .weaver/bin/weaver
-.weaver/bin/weaver registry check -r model --v2
-.weaver/bin/weaver registry resolve -r model --v2 -o /tmp/resolved.yaml
+export PATH="$PWD/.weaver/bin:$PATH"
+python tools/weaver_check.py              # policies, and the breaking-change gate
+python -m pytest tests/test_policies.py   # the policies' own tests
+weaver registry resolve -r model --v2 -o /tmp/resolved.yaml
 ```
 
 ## What a row says

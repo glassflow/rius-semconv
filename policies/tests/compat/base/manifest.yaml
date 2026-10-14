@@ -1,0 +1,7 @@
+file_format: definition_manifest/2.0
+name: rius
+schema_url: https://example.com/schemas/rius/1.0.0
+stability: development
+dependencies:
+  - schema_url: https://example.com/schemas/upstream/1.0.0
+    registry_path: upstream
