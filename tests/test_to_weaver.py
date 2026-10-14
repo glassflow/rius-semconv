@@ -20,6 +20,14 @@ def own(base_data):
 
 
 @pytest.fixture(scope="module")
+def files(base_data):
+    return {
+        p.relative_to(to_weaver.ROOT).as_posix(): yaml.safe_load(text)
+        for p, text in to_weaver.render(base_data).items()
+    }
+
+
+@pytest.fixture(scope="module")
 def params(base_data):
     return yaml.safe_load(to_weaver.render(base_data)[to_weaver.PARAMS])["params"]
 
@@ -115,3 +123,81 @@ def test_lint_errors_write_nothing(monkeypatch, data):
 
 def test_manifest_is_not_written_here():
     assert (ROOT / "model" / "manifest.yaml") not in to_weaver.render(to_weaver.load_data())
+
+
+def refs(files, group_id):
+    groups = files["model/rius/upstream.yaml"]["attribute_groups"]
+    return {a["ref"]: a for g in groups if g["id"] == group_id for a in g["attributes"]}
+
+
+def defined(files):
+    return {
+        a["key"]
+        for path, doc in files.items()
+        if path.startswith("model/")
+        for a in doc.get("attributes", [])
+    }
+
+
+def test_no_upstream_key_is_defined_here(base_data, files):
+    keys = defined(files)
+    for r in base_data["attributes"]["attributes"]:
+        if r.get("origin") == "otel" or "upstream" in r:
+            assert r["key"] not in keys
+    assert not [k for k in keys if k.startswith(("gen_ai.", "otel."))]
+
+
+def test_every_upstream_row_is_a_ref(base_data, files):
+    upstream = refs(files, "rius.upstream")
+    for r in base_data["attributes"]["attributes"]:
+        if r["symbol"] == "attribute" and (r.get("origin") == "otel" or "upstream" in r):
+            assert r["key"] in upstream
+
+
+def test_a_ref_carries_its_level_values_and_rationale(files):
+    upstream = refs(files, "rius.upstream")
+    assert upstream["mcp.method.name"]["requirement_level"] == "required"
+    rius = upstream["mcp.method.name"]["annotations"]["rius"]
+    assert rius["values"] == {"MCP_METHOD_TOOLS_CALL": "tools/call"}
+    assert "rationale" in upstream["gen_ai.tool.call.id"]["annotations"]["rius"]
+
+
+def test_a_ref_carries_its_wire_type(files):
+    rius = refs(files, "rius.upstream")["gen_ai.request.top_k"]["annotations"]["rius"]
+    assert rius["type"] == "int"
+    assert "upstream_divergence" not in rius
+
+
+def test_passthrough_keys_are_refs(files):
+    assert "gen_ai.conversation.id" in refs(files, "rius.passthrough")
+
+
+def test_openinference_keys_are_defined_with_their_enum(files):
+    doc = files["model/inputs/openinference.yaml"]
+    kind = next(a for a in doc["attributes"] if a["key"] == "openinference.span.kind")
+    assert [m["value"] for m in kind["type"]["members"]][:2] == ["AGENT", "LLM"]
+    groups = {g["id"]: [a["ref"] for a in g["attributes"]] for g in doc["attribute_groups"]}
+    assert "input.value" in groups["rius.openinference"]
+    assert "llm.invocation_parameters" in groups["rius.normalizer_input.openinference"]
+
+
+def test_every_decided_usage_key_names_its_target(base_data, files):
+    inputs = [
+        a
+        for path, doc in files.items()
+        if path.startswith("model/inputs/")
+        for a in doc["attributes"]
+        if "normalizer_input" in a["annotations"]["rius"]
+    ]
+    assert inputs
+    for a in inputs:
+        decision = a["annotations"]["rius"]["normalizer_input"]
+        if decision["decision"] == "mapped":
+            assert decision["target"]
+            assert decision["target"] in a["brief"]
+
+
+def test_gen_ai_usage_inputs_stay_in_the_sidecar(params):
+    names = {e.get("key") or e.get("prefix") for e in params["normalizer_inputs"]}
+    assert "gen_ai.usage.prompt_tokens" in names
+    assert "gen_ai.aggregated_usage." in names

@@ -95,3 +95,6 @@ jobs:
 
       - name: weaver registry resolve
         run: weaver registry resolve -r model --v2 -o "$RUNNER_TEMP/resolved.yaml"
+
+      - name: Our rows agree with the upstream types they reference
+        run: python tools/check_weaver_types.py "$RUNNER_TEMP/resolved.yaml"

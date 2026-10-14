@@ -42,9 +42,25 @@ STATUSES = {"shipped", "planned"}
 PLACEMENT_SCOPES = {"resource", "span"}
 STABILITIES = {"development", "stable"}
 DEPRECATION_REASONS = {"renamed", "obsoleted", "uncategorized"}
-# Rows that need the Weaver fields (brief, examples, stability): our own
-# definitions. An upstream key's brief and stability are upstream's.
-WEAVER_SYMBOLS = {"attribute", "prefix", "event"}
+UPSTREAMS = {"core", "genai"}
+
+
+def defined_here(row: dict) -> bool:
+    """Whether the Weaver registry defines this row's key (and so the row
+    needs a brief, examples and a stability), rather than referencing an
+    upstream definition or keeping the row in the params sidecar."""
+    symbol, origin = row.get("symbol"), row.get("origin")
+    if symbol == "attribute":
+        return origin == "rius" or (origin == "openinference" and "upstream" not in row)
+    if symbol == "prefix":
+        return origin == "rius" and str(row.get("key", "")).startswith("rius.")
+    return symbol == "event" and origin == "rius"
+
+
+def referenced(row: dict) -> bool:
+    """Whether the Weaver registry references this row's key upstream."""
+    return row.get("symbol") == "attribute" and (row.get("origin") == "otel" or "upstream" in row)
+
 
 # Internal ticket references. The registry is written for readers outside the
 # team: a decision is recorded as its reason, never as a ticket number.
@@ -62,6 +78,8 @@ class Registry:
         self.attributes: list[dict] = data["attributes"]["attributes"]
         # Deprecated keys with no generated constant. Never generated.
         self.retired: list[dict] = data["attributes"].get("retired") or []
+        # Upstream keys other producers write that no SDK emits. Never generated.
+        self.passthrough: list[dict] = data["attributes"].get("passthrough") or []
         self.allowlists: dict = data["allowlists"]
         self.taxonomy: dict = data["taxonomy"]
         self.model_parameters: dict = data["model_parameters"]
@@ -250,6 +268,15 @@ class Registry:
                 errors.append(f"retired {label}: still a row in attributes; keep it in one place")
             errors += _enum(r, "origin", ORIGINS, f"retired {label}")
             errors += _lint_weaver_row(r, f"retired {label}", keys)
+        for i, r in enumerate(self.passthrough):
+            label = f"passthrough {r.get('key', i)}"
+            if r.get("key") in keys:
+                errors.append(f"{label}: has a row in attributes; keep it in one place")
+            if r.get("origin") != "otel":
+                errors.append(f"{label}: only upstream (origin: otel) keys pass through")
+            if not str(r.get("rationale", "")).strip():
+                errors.append(f"{label}: needs a rationale saying who writes and reads it")
+            errors += _enum(r, "upstream", UPSTREAMS, label, required=True)
         return errors
 
     def _lint_attribute(self, r: dict) -> list[str]:
@@ -446,12 +473,21 @@ class Registry:
 
 def _lint_weaver_row(r: dict, label: str, keys: set) -> list[str]:
     errors: list[str] = []
-    symbol, origin = r.get("symbol"), r.get("origin")
-    own = origin == "rius" and symbol in WEAVER_SYMBOLS
-    if origin == "otel":
+    symbol = r.get("symbol")
+    own = defined_here(r)
+    if referenced(r):
         for field in ("brief", "examples", "stability"):
             if field in r:
-                errors.append(f"{label}: {field} on an otel row; upstream defines it")
+                errors.append(f"{label}: {field} on a referenced upstream key; upstream defines it")
+    errors += _enum(r, "upstream", UPSTREAMS, label)
+    if "upstream_divergence" in r:
+        d = r["upstream_divergence"]
+        if not referenced(r):
+            errors.append(f"{label}: upstream_divergence only goes on a referenced upstream key")
+        elif not isinstance(d, dict) or not str(d.get("note", "")).strip():
+            errors.append(f"{label}: upstream_divergence needs a note")
+        elif d.get("type") not in TYPES or d.get("type") == r.get("type"):
+            errors.append(f"{label}: upstream_divergence type must be a type other than the row's")
     if own:
         for field in ("brief", "stability"):
             if field not in r:

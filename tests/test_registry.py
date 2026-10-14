@@ -235,7 +235,56 @@ def test_an_event_needs_no_examples(data):
 
 def test_an_otel_row_takes_no_brief(data):
     row(data, "GEN_AI_TOOL_NAME")["brief"] = "Name of the tool."
-    assert_flags(data, "GEN_AI_TOOL_NAME: brief on an otel row")
+    assert_flags(data, "GEN_AI_TOOL_NAME: brief on a referenced upstream key")
+
+
+def test_a_row_upstream_defines_takes_no_brief(data):
+    row(data, "SESSION_ID")["brief"] = "The session."
+    assert_flags(data, "SESSION_ID: brief on a referenced upstream key")
+
+
+def test_an_openinference_key_no_registry_defines_needs_a_brief(data):
+    del row(data, "INPUT_VALUE")["brief"]
+    assert_flags(data, "INPUT_VALUE: missing brief")
+
+
+def test_an_unknown_upstream_is_flagged(data):
+    row(data, "SESSION_ID")["upstream"] = "openinference"
+    assert_flags(data, "SESSION_ID: upstream openinference is not one of")
+
+
+def test_an_upstream_divergence_needs_another_type(data):
+    row(data, "GEN_AI_REQUEST_TOP_K")["upstream_divergence"] = {"type": "int", "note": "x"}
+    assert_flags(data, "upstream_divergence type must be a type other than the row's")
+
+
+def test_an_upstream_divergence_needs_a_note(data):
+    row(data, "GEN_AI_REQUEST_TOP_K")["upstream_divergence"] = {"type": "double"}
+    assert_flags(data, "upstream_divergence needs a note")
+
+
+def test_only_upstream_keys_diverge_from_upstream(data):
+    row(data, "RIUS_SPAN_PENDING")["upstream_divergence"] = {"type": "int", "note": "x"}
+    assert_flags(data, "upstream_divergence only goes on a referenced upstream key")
+
+
+def passthrough(data, key):
+    return next(r for r in data["attributes"]["passthrough"] if r["key"] == key)
+
+
+def test_a_passthrough_key_is_upstream(data):
+    passthrough(data, "gen_ai.conversation.id")["origin"] = "openinference"
+    assert_flags(data, "only upstream (origin: otel) keys pass through")
+
+
+def test_a_passthrough_key_has_no_row(data):
+    passthrough(data, "gen_ai.conversation.id")["key"] = "session.id"
+    assert_flags(data, "has a row in attributes; keep it in one place")
+
+
+def test_a_passthrough_key_needs_a_rationale(data):
+    del passthrough(data, "gen_ai.conversation.id")["rationale"]
+    assert_flags(data, "needs a rationale saying who writes and reads it")
 
 
 def test_a_brief_is_one_line(data):

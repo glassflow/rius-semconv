@@ -40,11 +40,32 @@
 #              check_parity.py counts these constants as classified.
 #   reason     Why. Required for ignored, not_usage and gap, where nothing
 #              reads the key as usage.
+#   type       int or double. A key without it is an int count; the keys
+#              under a prefix without it may hold any type.
+#
+# `producers` names who writes the keys no convention defines, by key prefix.
+# tools/to_weaver.py files each such key under model/inputs/<producer>.yaml
+# with its decision. Keys under gen_ai.* are never filed there: the namespace
+# is OpenTelemetry's, so the Weaver registry must not define them.
 
 #: Case-insensitive substrings of an attribute key that make it a usage key.
 match: [token, usage, cost, price]
 
 normalizers: [python, typescript, sink]
+
+producers:
+  openinference:
+    name: OpenInference
+    prefixes: [llm.token_count., llm.cost., metadata.ai.]
+  openllmetry:
+    name: OpenLLMetry
+    prefixes: [llm.usage.]
+  vercel:
+    name: the Vercel AI SDK
+    prefixes: [ai.]
+  pydantic_ai:
+    name: pydantic-ai
+    prefixes: [operation.cost, pydantic_ai.]
 
 keys:
   # --- Canonical -------------------------------------------------------------
@@ -109,6 +130,7 @@ keys:
     decision: ignored
     reason: No canonical key; modality splits are not priced separately.
   - key: llm.cost.total
+    type: double
     decision: ignored
     reason: |
       Cost stays off the wire on purpose: the backend prices from the token
@@ -171,6 +193,7 @@ keys:
       usage on the call's own span. Reading it as usage would count the run
       twice; it stays under its own name, which nothing reads.
   - key: operation.cost
+    type: double
     decision: ignored
     reason: |
       pydantic-ai's own price for the call. Cost stays off the wire on
@@ -299,9 +322,11 @@ keys:
       A request parameter, mapped to gen_ai.request.max_tokens (which the AI
       SDK also writes itself on a model call).
   - key: ai.response.avgOutputTokensPerSecond
+    type: double
     decision: not_usage
     reason: A throughput figure, not a count.
   - key: metadata.ai.response.avgOutputTokensPerSecond
+    type: double
     decision: not_usage
     reason: |
       @arizeai/openinference-vercel's metadata.* mirror of

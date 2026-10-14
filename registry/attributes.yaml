@@ -60,9 +60,11 @@
 # Columns for the Weaver registry (tools/to_weaver.py writes model/ from this
 # file). The generators do not read them.
 #
-#   brief        One plain line saying what the key means. Required on
-#                `origin: rius` attributes, prefixes and events; not allowed
-#                on `origin: otel` rows, whose brief is upstream's.
+#   brief        One plain line saying what the key means. Required on every
+#                key model/ defines (`origin: rius` attributes, prefixes and
+#                events, and OpenInference attributes no upstream registry
+#                defines); not allowed on a key model/ references, whose brief
+#                is upstream's.
 #   examples     Realistic values. Required where brief is, except on events.
 #   stability    development | stable. Required where brief is. Every Rius
 #                key starts in development.
@@ -73,7 +75,22 @@
 #                "Deprecation and compatibility".
 #   upstream_equivalent
 #                An upstream key that now names the same fact as this Rius
-#                key. Recorded for the docs; it does not deprecate the row.
+#                key, which the key is planned to move to. Recorded for the
+#                docs; it does not deprecate the row.
+#
+#   upstream     core | genai, on a row whose key an upstream registry defines
+#                although `origin` names another source (session.id, user.id).
+#                Such a row, like every `origin: otel` attribute, is a ref to
+#                the upstream definition in model/, never a definition of ours.
+#   values_from  The taxonomy table whose values are this attribute's enum
+#                members in model/ (openinference.span.kind: span_kind).
+#   upstream_divergence
+#                {type, note}: where this row's type differs from the upstream
+#                definition the ref points at, and why.
+#
+# `passthrough:`, after the rows, lists upstream keys other producers put on
+# spans that Rius stores, which no SDK emits or rewrites, so they have no row
+# and no constant. Each says who writes it and who reads it.
 #
 # `retired:`, after the rows, lists deprecated keys that have no generated
 # constant any more (or never had one). They are never generated; they are
@@ -326,6 +343,10 @@ attributes:
       OpenInference
     go: OpenInferenceSpanKind
     key: openinference.span.kind
+    brief: "The OpenInference span kind, which is the Rius span taxonomy."
+    values_from: span_kind
+    stability: development
+    examples: ["LLM", "AGENT"]
     symbol: attribute
     origin: openinference
     kinds: all
@@ -336,6 +357,9 @@ attributes:
 
   - const: INPUT_VALUE
     key: input.value
+    brief: "The input of an agent, tool, retriever or chain step, as text or JSON."
+    stability: development
+    examples: ['{"args":["Weather in Paris?"],"kwargs":{}}', "What is the weather in Paris?"]
     symbol: attribute
     origin: openinference
     kinds: [AGENT, TOOL, RETRIEVER, CHAIN]
@@ -346,6 +370,9 @@ attributes:
 
   - const: OUTPUT_VALUE
     key: output.value
+    brief: "The output of an agent, tool, retriever or chain step, as text or JSON."
+    stability: development
+    examples: ["sunny, 22C", '{"temperature_c":22}']
     symbol: attribute
     origin: openinference
     kinds: [AGENT, TOOL, RETRIEVER, CHAIN]
@@ -356,6 +383,7 @@ attributes:
 
   - const: SESSION_ID
     key: session.id
+    upstream: core
     symbol: attribute
     origin: openinference
     kinds: all
@@ -370,6 +398,7 @@ attributes:
 
   - const: USER_ID
     key: user.id
+    upstream: core
     symbol: attribute
     origin: openinference
     kinds: all
@@ -553,7 +582,7 @@ attributes:
     kinds: [LLM]
     category: identity
     level: recommended
-    type: double
+    type: int
     fill: [native, openinference]
 
   - const: GEN_AI_REQUEST_MAX_TOKENS
@@ -732,6 +761,22 @@ attributes:
     type: json
     fill: [native, openinference, vercel]
 
+  - const: GEN_AI_SYSTEM_INSTRUCTIONS
+    key: gen_ai.system_instructions
+    symbol: attribute
+    origin: otel
+    kinds: [AGENT, LLM]
+    category: content
+    level: opt_in
+    type: json
+    fill: [vercel]
+    status: planned
+    rationale: |
+      The system prompt, apart from the input messages. The TypeScript SDK
+      writes it when it normalizes a Vercel AI SDK span, as an inline literal
+      with no semconv constant, which is why the row is planned rather than
+      shipped. Content, listed in CONTENT_ATTRIBUTES by key.
+
   - const: GEN_AI_RESPONSE_FINISH_REASONS
     go: GenAIResponseFinishReason
     key: gen_ai.response.finish_reasons
@@ -800,6 +845,37 @@ attributes:
       The request's tool/function definitions, serialized verbatim (provider
       shapes differ; the backend reads names and sizes from either). Content,
       not identity — listed in CONTENT_ATTRIBUTES.
+
+  - const: GEN_AI_TOOL_CALL_ARGUMENTS
+    key: gen_ai.tool.call.arguments
+    symbol: attribute
+    origin: otel
+    kinds: [TOOL]
+    category: content
+    level: opt_in
+    type: json
+    fill: [vercel]
+    status: planned
+    rationale: |
+      The arguments the model passed to the tool. The TypeScript SDK writes it
+      from the Vercel AI SDK's ai.toolCall.args, as an inline literal with no
+      semconv constant, which is why the row is planned rather than shipped.
+      Content, listed in CONTENT_ATTRIBUTES by key.
+
+  - const: GEN_AI_TOOL_CALL_RESULT
+    key: gen_ai.tool.call.result
+    symbol: attribute
+    origin: otel
+    kinds: [TOOL]
+    category: content
+    level: opt_in
+    type: string
+    fill: [vercel]
+    status: planned
+    rationale: |
+      What the tool returned. Written as gen_ai.tool.call.arguments is, from
+      ai.toolCall.result; planned for the same reason. Content, listed in
+      CONTENT_ATTRIBUTES by key.
 
   - const: GEN_AI_DATA_SOURCE_ID
     key: gen_ai.data_source.id
@@ -1169,6 +1245,9 @@ attributes:
 
   - const: LLM_INVOCATION_PARAMETERS
     key: llm.invocation_parameters
+    brief: "The request parameters an OpenInference instrumentor recorded, as one JSON object."
+    stability: development
+    examples: ['{"model": "gpt-4o-mini", "max_tokens": 64, "temperature": 0.2}']
     symbol: attribute
     origin: openinference
     direction: read
@@ -1295,6 +1374,15 @@ attributes:
       from. The conventions define no operation for a generic workflow step, and
       the manual span helpers see nothing but the kind. A literal beats an empty
       name.
+
+passthrough:
+  - key: gen_ai.conversation.id
+    origin: otel
+    upstream: genai
+    rationale: |
+      pydantic-ai writes it. Neither SDK emits or rewrites it: they write
+      session.id, one name for one fact. The Rius backend falls back to it for
+      session.id (tools/go_reference_only.yaml, GenAIConversationID).
 
 retired:
   - key: glassflow.span.pending

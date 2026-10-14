@@ -24,6 +24,9 @@ from dataclasses import dataclass, field
 from typing import Any
 
 DECISIONS = {"canonical", "mapped", "ignored", "not_usage", "gap"}
+VALUE_TYPES = {"int", "double"}
+# The OpenTelemetry namespace the Weaver registry must never define a key in.
+OTEL_PREFIX = "gen_ai."
 #: Decisions that leave a usage key unread: each must say why.
 REASONED = {"ignored", "not_usage", "gap"}
 
@@ -54,12 +57,28 @@ def is_usage_key(data: dict, key: str) -> bool:
     return any(word in lowered for word in data["match"])
 
 
+def producer_for(data: dict, name: str) -> str | None:
+    """The producer whose prefix is the longest match for a key or prefix."""
+    best, length = None, 0
+    for producer, spec in (data.get("producers") or {}).items():
+        for prefix in spec.get("prefixes") or []:
+            if name.startswith(prefix) and len(prefix) > length:
+                best, length = producer, len(prefix)
+    return best
+
+
 def lint(data: dict, registry_keys: set[str], registry_prefixes: set[str]) -> list[str]:
     """Every rule the file itself must satisfy. Empty list = clean."""
     errors: list[str] = []
     normalizers = set(data.get("normalizers", []))
     if not data.get("match"):
         errors.append("usage_keys: match must list at least one word")
+    for producer, spec in (data.get("producers") or {}).items():
+        if not str((spec or {}).get("name", "")).strip():
+            errors.append(f"usage_keys: producer {producer} needs a name")
+        for prefix in (spec or {}).get("prefixes") or []:
+            if prefix.startswith(OTEL_PREFIX):
+                errors.append(f"usage_keys: producer {producer} claims {prefix}, in gen_ai.*")
     seen: set[str] = set()
     for entry in data.get("keys", []):
         name = entry_name(entry)
@@ -76,6 +95,11 @@ def lint(data: dict, registry_keys: set[str], registry_prefixes: set[str]) -> li
             continue
         if decision in REASONED and not str(entry.get("reason", "")).strip():
             errors.append(f"{label}: a {decision} key needs a reason")
+        if "type" in entry and entry["type"] not in VALUE_TYPES:
+            errors.append(f"{label}: type must be one of {sorted(VALUE_TYPES)}")
+        foreign = decision != "canonical" and name not in registry_keys
+        if foreign and not name.startswith(OTEL_PREFIX) and producer_for(data, name) is None:
+            errors.append(f"{label}: no producers prefix covers it; name who writes it")
         if decision == "canonical":
             # Exact for a key: a registry prefix such as gen_ai.usage. covers
             # any spelling under it, real or not.

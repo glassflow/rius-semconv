@@ -264,3 +264,30 @@ def test_a_mapped_target_may_have_moved_aside():
     assert usage_keys._target_set("gen_ai.usage.input_tokens", after)
     assert not usage_keys._target_set("gen_ai.usage.output_tokens", after)
     assert not usage_keys._target_set("gen_ai.usage.input_tokens", {})
+
+
+# --- producers (the Weaver registry's normalizer inputs) ----------------------
+
+
+def test_every_foreign_usage_key_has_a_producer(base_data):
+    data = base_data["usage_keys"]
+    assert usage_keys.producer_for(data, "llm.token_count.prompt") == "openinference"
+    assert usage_keys.producer_for(data, "llm.usage.total_tokens") == "openllmetry"
+    assert usage_keys.producer_for(data, "gen_ai.usage.prompt_tokens") is None
+
+
+def test_a_foreign_key_without_a_producer_is_flagged(data):
+    data["usage_keys"]["keys"].append(
+        {"key": "acme.token_count", "decision": "ignored", "reason": "test"}
+    )
+    assert any("no producers prefix covers it" in e for e in lint(data))
+
+
+def test_a_producer_cannot_claim_gen_ai(data):
+    data["usage_keys"]["producers"]["vercel"]["prefixes"].append("gen_ai.usage.")
+    assert any("claims gen_ai.usage., in gen_ai.*" in e for e in lint(data))
+
+
+def test_an_unknown_value_type_is_flagged(data):
+    entry(data, "llm.cost.total")["type"] = "string"
+    assert any("llm.cost.total: type must be one of" in e for e in lint(data))
