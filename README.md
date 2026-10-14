@@ -1,26 +1,154 @@
 # rius-semconv
 
-The semantic-convention registry for **Rius**, GlassFlow's observability
-product for AI agents, and the generators that turn it into Python,
-TypeScript and Go.
+The attribute contract for [Rius](https://docs.glassflow.ai/rius), GlassFlow's
+observability product for AI agents: every wire string Rius's SDKs and backend
+agree on, defined once as data, with generators for Python, TypeScript and Go,
+and recorded instrumentor spans that every Rius normalizer must turn into the
+same result.
+
+## Who it is for
+
+- **SDK authors.** The Rius SDKs
+  ([`glassflow-rius`](https://github.com/glassflow/rius-sdk-python) for Python,
+  [`@glassflow-ai/rius`](https://github.com/glassflow/rius-sdk-typescript) for
+  TypeScript) must match this registry's attribute keys, span kinds,
+  allowlists and tables. A new SDK, in any language, starts here.
+- **People writing other normalizers.** If you turn OpenInference, Vercel AI
+  SDK, OpenLLMetry, Laminar or pydantic-ai spans into the OpenTelemetry GenAI
+  conventions, the recordings under `fixtures/` and their expected results are
+  a ready-made test suite (see
+  [Recorded spans](#recorded-spans-a-conformance-suite)).
+- **Anyone who wants Rius's attribute contract.** Each attribute row says what
+  the key means, where it belongs, whether it is content that capture settings
+  mask, and why it is shaped the way it is.
+
+User documentation for Rius itself is at
+[docs.glassflow.ai/rius](https://docs.glassflow.ai/rius).
+
+## What it defines
 
 Rius SDKs emit OpenTelemetry traces that follow the
 [OpenTelemetry GenAI conventions](https://github.com/open-telemetry/semantic-conventions-genai)
 (`gen_ai.*`) and OpenInference's span taxonomy (`openinference.span.kind`).
-Every wire string those SDKs and the Rius backend have to agree on (attribute
-keys, event names, the span-kind taxonomy, the allowlists that decide what
-may leave a process, the table that maps provider parameter spellings to
-convention keys) is defined **once**, here, as data. Each consumer vendors
-the generated file for its language; nothing depends on this repository at
-run time.
+The registry holds every wire string the SDKs and the Rius backend have to
+agree on: attribute keys, event names, the span-kind taxonomy, the allowlists
+that decide what may leave a process, and the table that maps provider
+parameter spellings to convention keys.
 
-Consumers today:
+**It owns one namespace, `rius.*`.** Keys under `gen_ai.*`, `error.*`,
+`service.*`, `mcp.*` and the other OpenTelemetry namespaces, and
+OpenInference's keys, are *referenced*, not redefined: each row records the
+upstream key, type and requirement level as published (`origin: otel` or
+`origin: openinference`), so the generated constants for them are a
+convenience, not a fork. A fact no convention names gets a key under `rius.*`
+(`origin: rius`). The linter rejects `glassflow.*`, and an `origin: rius` key
+outside `rius.*` needs a written `namespace_exception`; `gen_ai.first_token`
+and `mcp.result_type` predate the rule and carry one.
 
-| Consumer | Language | Generated file, vendored as |
+## Which upstream versions it tracks
+
+- **OpenTelemetry GenAI conventions.** They are in Development status, and
+  [semantic-conventions-genai](https://github.com/open-telemetry/semantic-conventions-genai)
+  cuts no releases, so the registry follows its `main` branch and cites a
+  commit where a table depends on it: the request-parameter table in
+  `registry/model_parameters.yaml` was verified against commit `8ffdf56`
+  (2026-09-22).
+- **General OpenTelemetry attributes** (`service.*`, `error.type`, the
+  `exception` event, `telemetry.*`) follow the
+  [attribute registry](https://opentelemetry.io/docs/specs/semconv/registry/attributes/)
+  as published.
+- **OpenInference.** The span kinds and the flattened `llm.*` keys its
+  instrumentors emit. The recordings pin every instrumentor to an exact
+  version (each family's `manifest.json`), and the third-party content
+  allowlists pin the source version each group was read from.
+
+The registry does not publish an OpenTelemetry `schema_url` yet.
+
+## How consumers use it
+
+**Today: value parity.** The two SDKs and the Rius backend still keep their
+own hand-written constants, and `tools/check_parity.py` proves they match the
+registry. It evaluates the generated module and each SDK's file (Python by
+executing it, TypeScript through Node) and fails when a value differs, when
+the registry generates a name the SDK lacks, or when the SDK exports data the
+registry does not cover. For the backend it compares Go constants: every
+shared name must agree, and every backend-only constant must be explained
+(see [Go](#go)). Comments, ordering, and literal versus constant-reference
+spellings are invisible to it, by design. The registry is the source of
+truth; parity is what proves the consumers still follow it.
+
+**Planned: generated files, then packages.** The next step is for each
+consumer to vendor the generated file for its language, at a pinned registry
+version, and for its CI to regenerate and diff it:
+
+| Consumer | Language | Generated file |
 | -- | -- | -- |
-| `rius-sdk-python` | Python | `src/rius/_semconv_generated.py` |
-| `rius-sdk-typescript` | TypeScript | `src/semconv.generated.ts` |
-| `argus-core` (the Rius backend) | Go | `packages/argus-core/semconv/semconv_generated.go` |
+| Python SDK | Python | `out/python/_semconv_generated.py` |
+| TypeScript SDK | TypeScript | `out/typescript/semconv.generated.ts` |
+| Rius backend | Go | `out/go/semconv_generated.go` |
+
+`check_parity.py` already handles that case: once a consumer has the
+generated file, it compares it byte for byte, and a difference means the
+consumer pins an older registry version (a warning unless `--strict`).
+Publishing the constants as packages comes after that, as a separate
+decision. Nothing depends on this repository at run time.
+
+## Versioning and stability
+
+The **registry** is versioned: it is the wire contract the SDKs and the
+backend implement, and traffic depends on it for as long as an SDK runs.
+release-please (`.github/workflows/release.yml`) keeps a release pull request
+open; merging it tags `vX.Y.Z` and writes `CHANGELOG.md`, which lists contract
+changes only. Nothing is published to a package registry.
+
+A version step says what changed on the wire:
+
+- **major**: a wire value changes or a row is removed. Consumers must act.
+- **minor**: rows, members or tables are added, or `planned` becomes
+  `shipped`.
+- **patch**: the meaning of an existing row is corrected; generated values
+  are unchanged.
+
+The step comes from the commit type, so label changes accordingly:
+
+| Change | Commit type |
+| -- | -- |
+| A wire value renamed or a row removed | `feat!:` (or a `BREAKING CHANGE:` footer) |
+| A row, member or table added, or `planned` becomes `shipped` | `feat:` |
+| A row's meaning or disposition corrected, generated values unchanged | `fix:` |
+| Recordings, expected results, tests, tooling | `test:` or `chore:` |
+| Documentation only | `docs:` |
+
+Commits that touch nothing but `fixtures/`, `tests/`, `tools/` or `.github/`
+never cause a release, whatever their type.
+
+`status: planned` marks a decided row that no consumer ships yet, such as
+`telemetry.distro.name`; planned rows are left out of generated output unless
+you pass `--include-planned`. Keys borrowed from OpenTelemetry are only as
+stable as their upstream convention, and the GenAI conventions are still in
+Development: if upstream renames a key and the registry adopts the rename,
+that changes a wire value, so it is a major release under the rules above.
+
+## Recorded spans: a conformance suite
+
+`fixtures/` holds real spans from the instrumentors Rius normalizes
+(OpenInference for Python and JavaScript, the Vercel AI SDK, pydantic-ai,
+OpenLLMetry, Laminar), recorded against scripted providers with no network
+and no API keys, plus two control families recorded from the Rius SDKs
+themselves. Each recording comes with the result a normalizer is expected to
+produce from it. The Python SDK, the TypeScript SDK and the Rius backend each
+run the recordings through their own normalizer and must produce exactly that
+result, so they agree with each other without ever being compared directly.
+
+Recordings are OTLP/JSON, so any language can decode them with its own OTLP
+types, and they are byte-identical when re-recorded in the pinned
+environment. A normalizer outside Rius can use them the same way. See
+[fixtures/README.md](fixtures/README.md) for the format, where each expected
+result comes from, and how to record a new family.
+
+Consumers pin the recordings by exact commit, not by registry version: they
+change with every normalizer fix, and only exact equality matters to a
+conformance test.
 
 ## Layout
 
@@ -35,7 +163,7 @@ registry/                  the data (this is what you edit)
 generators/                one small module per language, plus the loader and linter
 out/                       generated files, committed so every change is a reviewable diff
   docs/usage-keys.md       the usage-key table: each key, its decision, what each normalizer does
-fixtures/                  real instrumentor spans and the result every normalizer must
+fixtures/                  recorded spans and the result every normalizer must
                            produce from them (see fixtures/README.md)
 tools/
   check_registry.py        lint the registry
@@ -45,16 +173,15 @@ tools/
   expect_python.py         write a recording's expected result with the Python SDK
   expect_typescript.mts    write one with the TypeScript SDK (Vercel families), under tsx
   review_expected.py       what a normalizer did to each span, for the hand review
-  go_reference_only.yaml   argus-core constants the registry does not generate, and why
-tests/                     pytest suites for the loader, linter, generators and parity tools
+  go_reference_only.yaml   backend constants the registry does not generate, and why
+tests/                     pytest suites for the loader, linter, generators and tools
 version.txt                the registry's released version (written by release-please)
-release-please-config.json what counts toward a release (see Versioning)
 ```
 
 ## Quick start
 
 Python 3.11+, plus Go (for `gofmt`) and Node 22.7+ (to evaluate TypeScript in
-tests and parity checks).
+the tests and the parity check).
 
 ```
 pip install -r requirements-dev.txt
@@ -64,8 +191,11 @@ python -m generators.generate --check     # exit 1 if out/ is stale
 python tools/check_fixtures.py            # every recording is complete
 python tools/check_usage_keys.py          # every recorded usage key is decided
 python -m pytest
-python tools/check_parity.py --fetch      # compare with the consumers' main branches
 ```
+
+`.github/workflows/ci.yml` runs these, plus `ruff check .`,
+`ruff format --check .` and a determinism check that generates twice and
+diffs. None of them reads any other repository.
 
 ## What a row says
 
@@ -124,7 +254,7 @@ behaviour:
   or stripped at export. It includes third-party keys the registry has no
   constant for, because content exclusion must hold for other
   instrumentations' spans too. The keys of other tracing SDKs a customer
-  runs next to rius (Langfuse, Traceloop, Logfire, MLflow, OpenLIT, Laminar)
+  runs next to Rius (Langfuse, Traceloop, Logfire, MLflow, OpenLIT, Laminar)
   are kept in their own list, `THIRD_PARTY_CONTENT_ATTRIBUTES`, each group
   pinned to the source version it was read from, and folded into
   `CONTENT_ATTRIBUTES` through `includes`. `CONTENT_PREFIX_IDENTITY_ATTRIBUTES`
@@ -148,31 +278,27 @@ write anything if the lint fails), and renders one file per language into
 no code-generation DSL. If a generator needs a fact the registry does not
 state, the fix is a column in the YAML, not a special case in the generator.
 
-Output is deterministic. The same registry always renders byte-identical
-files, which CI proves by generating twice and diffing. The Python file
-passes `ruff`, the TypeScript file passes `biome`, and the Go file is
-`gofmt`'d, under the consumers' own settings, so vendoring needs no lint
-exemptions.
+Output is deterministic: the same registry always renders byte-identical
+files, which CI proves by generating twice and diffing. The Go file is
+`gofmt`'d, and a test checks the TypeScript file with `biome` when a
+TypeScript SDK checkout is available.
 
 ### The generation boundary: constants, not whole files
 
 The generators emit a **constants-and-tables module**, not a replacement for
-each SDK's hand-written `semconv.py` / `semconv.ts`. The hand-written file
-re-exports the generated module and keeps the helper functions
-(`kind_attributes`, `compose_span_name`, `request_attribute_key` and their
-TypeScript twins).
+each SDK's hand-written `semconv.py` / `semconv.ts`. Once vendored, the
+hand-written file re-exports the generated module and keeps the helper
+functions (`kind_attributes`, `compose_span_name`, `request_attribute_key`
+and their TypeScript twins).
 
 Why not generate the whole file? The helpers are logic, and logic is not
 registry data: reproducing them from a template would make the template a
-second copy of the code. The SDKs' comments also differ in wording and
-order, so a byte-identical copy of both files from one source is not
-possible without keeping per-language prose, which is the drift this
-repository exists to remove. Everything the helpers *read* (the maps, the
+second copy of the code. Everything the helpers *read* (the maps, the
 allowlists, the parameter table) is generated, so the two SDKs cannot
 disagree about data, only about code, and code is covered by each SDK's own
 tests.
 
-In Go, the generated file covers the **canonical** keys only; see "Go" below.
+In Go, the generated file covers the **canonical** keys only; see [Go](#go).
 
 ### Divergence between languages
 
@@ -180,17 +306,13 @@ When the SDKs deliberately differ, the registry says so instead of picking a
 winner silently. `shipped_in: [python, go]` limits a row, allowlist member or
 table to those languages, and `divergence:` (required) says why. Today:
 
-- `TRACER_NAME` is not generated for Go: argus-core deliberately names no
+- `TRACER_NAME` is not generated for Go: the backend deliberately names no
   instrumentation scope.
 - `SERVICE_NAME` is generated only for Go: the SDKs set `service.name`
   through the OpenTelemetry SDK and name no constant for it.
 - `llm.invocation_parameters` is content in Python and Go, but not in
   TypeScript, which redacts only the bag's `tools` / `functions` members.
 - `otel_kind_by_kind` is not generated for Go, which creates no spans.
-
-`status: planned` marks a decided row that no consumer ships yet, such as
-`telemetry.distro.name`. Planned rows are left out of generated output unless
-you pass `--include-planned`.
 
 ## Adding an attribute
 
@@ -205,118 +327,66 @@ you pass `--include-planned`.
    namespace such as `gen_ai.*`, even when it looks like a natural fit: the
    convention is free to define that exact key later and mean something
    else. Never use `glassflow.*`: GlassFlow is the company, and Rius is the
-   product. The linter rejects `glassflow.*`, and an `origin: rius` key
-   outside `rius.*` needs a written `namespace_exception`. Two keys predate
-   the rule and carry one: `gen_ai.first_token` and `mcp.result_type`.
+   product.
 3. **Add the row** to `registry/attributes.yaml` with its category (span
    attributes only), level, kinds and a rationale that says *why*. Write the
-   reason itself, never a ticket number: this registry is read outside the
-   team, and the linter rejects internal ticket IDs.
+   reason itself, never an issue-tracker reference: the linter rejects
+   ticket ids.
 4. **Decide allowlist membership explicitly.** An identity key goes on
    `pending_identity` (or states `not_pending`). A content key goes on
    `content`.
 5. If no consumer ships it yet, mark it `status: planned`.
 6. `python -m generators.generate`, then commit the registry change and
    `out/` together. CI fails if `out/` lags.
-7. Land the constant in each consumer by bumping its pinned version (below).
-   Until every consumer has it, parity reports the gap. That is the signal
-   working, not a failure to silence.
-
-## Consumers: pinning, vendoring, drift
-
-1. **Pin a version.** A consumer records which `rius-semconv` tag it vendors,
-   in its CI workflow. Never a floating `main`: a registry edit must not
-   change an SDK's behaviour on its next unrelated CI run.
-2. **Vendor the output.** Copy the file from `out/<language>/` to the path in
-   the table at the top, and commit it. The consumer builds and tests
-   against the committed file with no dependency on this repository.
-3. **CI regenerates and diffs.** A job in the consumer checks out the pinned
-   tag, runs `python -m generators.generate <language> --out <tmp>`, and
-   fails if the result differs from the committed file.
-4. **Bumping is a deliberate PR.** Move the pin, regenerate, commit. The
-   diff in that PR is the review surface for a convention change.
-5. **A consumer may lag.** Consumers can sit on different versions during a
-   migration. This repository's parity job reports a vendored file that
-   differs from `out/` as *lagging*, a warning rather than a failure.
-
-The **recordings** under `fixtures/` are pinned differently: by exact commit,
-not by version. Each consumer copies them with its sync script and records the
-commit in the copy's `SOURCE` file. They change with every normalizer fix and
-only exact equality matters to a conformance test, so a release per change
-would add work without telling anyone anything.
+7. Until every consumer has the constant, parity reports the gap. That is
+   the signal working, not a failure to silence.
 
 ## Parity checks
 
-`tools/check_parity.py` compares `out/` with each consumer's `main` branch.
-The SDKs are read from sibling checkouts (`../rius-sdk-python`,
-`../rius-sdk-typescript`; override with `--python-repo` and
-`--typescript-repo`). The Rius backend has no default location: check it with
-`python tools/check_parity.py go --go-repo <checkout>`. Pick a ref with
-`--ref`.
+`tools/check_parity.py` reads each consumer at a git ref (default
+`origin/main`) from a local checkout: `--python-repo`, `--typescript-repo`
+and `--go-repo` say where, `--ref` picks the ref, `--fetch` fetches first, and
+`--cross` also diffs the two SDKs' hand-written files directly, for review.
+The SDK repositories are public; the backend's is not, so the Go comparison
+runs only where it can be read.
 
-- **Before a consumer vendors the generated file**, parity is checked by
-  *value*: both files are evaluated (Python by executing it, TypeScript
-  through Node) and every name the generated module defines must exist in
-  the consumer with an equal value, while every data name the consumer
-  defines must be covered by the registry. Comments, ordering, and literal
-  versus constant-reference spellings are invisible, by design.
-- **Go** compares constants. A constant argus-core has and the registry does
-  not generate must be explained in `tools/go_reference_only.yaml`, or be a
-  usage key `registry/usage_keys.yaml` decides (its `go` field).
-- **After a consumer vendors the file**, the check compares it byte for
-  byte, and a difference means that consumer pins an older version.
-- `--cross` also diffs the two SDKs' hand-written files directly, for
-  review.
-
-## CI
-
-- **`ci.yml`** (no secrets): lints this repository's code and the registry,
-  generates twice and diffs to prove determinism, fails if `out/` is stale,
-  checks the fixtures and the usage-key decisions, and runs the tests.
-- **`parity.yml`** (no secrets): runs `check_parity.py` against each SDK's
-  `main` on every pull request, on pushes to `main`, daily, and on demand.
-- **`release.yml`**: keeps the registry's release pull request up to date
-  on pushes to `main` (see Versioning).
-
-Both SDK repositories are public, so `parity.yml` reads them without a
-token. The Rius backend runs the Go check in its own CI, against a pinned
-release of this registry, and fails when its constants drift from it.
-
-Every action is pinned to a full commit SHA, with its version in a trailing
-comment.
+`.github/workflows/parity.yml` runs the check against each consumer's `main`
+on pull requests, on pushes to `main`, daily and on demand. When it cannot
+read the consumers (a fork's pull request, for example) it skips the
+comparison and says so in a **"Parity NOT checked"** warning and the run
+summary. A green run without that warning is the only proof of parity.
 
 ## Go
 
-argus-core's `semconv.go` holds two kinds of constant. The **canonical** keys
-are the ones the SDKs emit, and this registry generates them into
-`semconv_generated.go`, in the same package. The rest are the backend
-normalizer's **input spellings**, which the SDKs never emit and the sink
-reads from other producers. `tools/go_reference_only.yaml` lists every one
-by class, except the usage keys, which `registry/usage_keys.yaml` already
-decides with their mapping. Before the whole Go file can be generated, the
-registry needs:
+The backend's semconv package holds two kinds of constant. The **canonical**
+keys are the ones the SDKs emit, and this registry generates them into
+`semconv_generated.go`. The rest are the backend normalizer's **input
+spellings**, which the SDKs never emit and the backend reads from other
+producers. `tools/go_reference_only.yaml` lists every one by class, except
+the usage keys, which `registry/usage_keys.yaml` already decides with their
+mapping. Before the whole Go file can be generated, the registry needs:
 
 1. **Per-source-family mapping tables**, one per family, each row a
    source key, target key, converter, when it applies (span start or end) and
    whether the source key is deleted after mapping:
-   - OpenInference: `llm.model_name`, `llm.provider`, `llm.finish_reason`, the request/response model pair, the
-     flattened message prefixes, the indexed tool definitions
-     (`llm.tools.<i>.tool.json_schema`), and the `First Token Stream Event`
-     event rename.
+   - OpenInference: `llm.model_name`, `llm.provider`, `llm.finish_reason`,
+     the request/response model pair, the flattened message prefixes, the
+     indexed tool definitions (`llm.tools.<i>.tool.json_schema`), and the
+     `First Token Stream Event` event rename.
    - Vercel AI SDK: `ai.prompt.tools`, then the rest of the `ai.*` family.
    - OTel legacy and draft spellings: `enduser.id`, `enduser.pseudo.id` and
      `gen_ai.conversation.id`, as fallbacks for `user.id` and `session.id`.
 2. **An alias table for legacy spellings** that released SDKs still send:
    `gen_ai.system`, `glassflow.span.pending`, and `gen_ai.request.tool_choice`,
    each with the condition for retiring it.
-3. **A decision on dynamic keys** the sink reads by name inside a namespace
-   the registry owns only as a prefix, such as `rius.request.tool_choice`.
+3. **A decision on dynamic keys** the backend reads by name inside a
+   namespace the registry owns only as a prefix, such as
+   `rius.request.tool_choice`.
 
 Those tables are decisions about normalization that are still being made in
-the consumers, so encoding a guess here would create the second source of
-truth this repository exists to prevent. The inventory is kept exact instead:
-parity fails on any argus-core constant that is neither generated nor
-classified.
+the consumers, so encoding a guess here would create a second source of
+truth. The inventory is kept exact instead: parity fails on any backend
+constant that is neither generated nor classified.
 
 ## Usage keys
 
@@ -332,50 +402,22 @@ event attributes) and fails on a key matching the file's `match` words that no
 entry decides, so a new instrumentor version that adds one fails CI. It also
 checks each decision against the expected results: a normalizer listed in
 `mapped_by` must drop the key and leave its target, and one not listed must
-leave it alone. Python is checked on the families it produced the expected
-result for, TypeScript on the Vercel families, the sink on its stored rows.
+leave it alone.
 
 The generated table, [`out/docs/usage-keys.md`](out/docs/usage-keys.md),
 lists each key with its decision, what each normalizer does with it, and the
 families it was recorded in.
 
-## Versioning
+## Contributing
 
-The **registry** is versioned: it is the wire contract the SDKs and the sink
-implement, and customers' traffic depends on it for as long as they run an
-SDK. release-please (`.github/workflows/release.yml`) keeps a release pull
-request open; merging it tags `vX.Y.Z` and writes `CHANGELOG.md`, which lists
-contract changes only. Nothing is published.
+See [CONTRIBUTING.md](CONTRIBUTING.md). In short: edit `registry/`,
+regenerate `out/`, run the checks in [Quick start](#quick-start), and title
+the pull request with the commit type from
+[Versioning and stability](#versioning-and-stability).
 
-A version step says what changed on the wire:
+## License
 
-- **major**: a wire value changes or a row is removed. Consumers must act.
-- **minor**: rows, members or tables are added, or `planned` becomes
-  `shipped`.
-- **patch**: the meaning of an existing row is corrected; generated values are
-  unchanged.
+[Apache License 2.0](LICENSE).
 
-The step comes from the commit type, so label registry changes accordingly:
-
-| Change | Commit type |
-| -- | -- |
-| A wire value renamed or a row removed | `feat!:` (or a `BREAKING CHANGE:` footer) |
-| A row, member or table added, or `planned` becomes `shipped` | `feat:` |
-| A row's meaning or disposition corrected, generated values unchanged | `fix:` |
-| Recordings, expected results, tests, tooling | `test:` or `chore:` |
-
-While the version is below 1.0, release-please bumps the minor version for a
-breaking change instead of the major; the changelog still marks it as
-breaking. The 1.0 release is a deliberate decision, once the contract settles.
-
-Only changes under the registry, the generators and `out/` count. Commits that
-touch nothing but `fixtures/`, `tests/`, `tools/` or `.github/` never cause a
-release, whatever their type: the recordings are pinned by commit, not by
-version (see below).
-
-## Status
-
-The repository is private while the contract is reviewed. Licensing, and
-whether and when to make it public, are open decisions; there is deliberately
-no LICENSE file yet. See [DISCREPANCIES.md](DISCREPANCIES.md) for where the
-consumers currently disagree with each other.
+OpenTelemetry, OpenInference, Vercel, OpenLLMetry, Laminar, pydantic-ai and
+other product names are trademarks of their respective owners.
