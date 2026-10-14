@@ -51,11 +51,13 @@ attributes:
 
         Named so a future rename to gen_ai.main_agent.* is a prefix substitution,
         should the conventions ever grow the concept.
+      key: rius.main_agent.name
       upstream_equivalent: gen_ai.main_agent.name
       symbol: attribute
       origin: rius
       kinds: resource
       level: vendor
+      type: string
       fill:
       - native
 - key: rius.main_agent.id
@@ -78,13 +80,21 @@ attributes:
   annotations:
     rius:
       const: RIUS_MAIN_AGENT_ID
+      key: rius.main_agent.id
       upstream_equivalent: gen_ai.main_agent.id
       symbol: attribute
       origin: rius
       kinds: resource
       level: vendor
+      type: string
       fill:
       - native
+      rationale: |
+        The SAME stability constraint the conventions put on gen_ai.agent.id,
+        adopted rather than loosened because we own the namespace: a transient
+        in-memory or process-local id here would mint a new "agent" every restart and
+        make the key useless for grouping. Taking the constraint now is what keeps
+        that future rename mechanical instead of a data-quality problem.
 - key: rius.main_agent.description
   type: string
   brief: What the agent this process is does, in free text.
@@ -98,11 +108,13 @@ attributes:
   annotations:
     rius:
       const: RIUS_MAIN_AGENT_DESCRIPTION
+      key: rius.main_agent.description
       upstream_equivalent: gen_ai.main_agent.description
       symbol: attribute
       origin: rius
       kinds: resource
       level: vendor
+      type: string
       fill:
       - native
 - key: rius.main_agent.version
@@ -121,12 +133,20 @@ attributes:
   annotations:
     rius:
       const: RIUS_MAIN_AGENT_VERSION
+      key: rius.main_agent.version
       symbol: attribute
       origin: rius
       kinds: resource
       level: vendor
+      type: string
       fill:
       - native
+      rationale: |
+        The version of the agent DEFINITION — its prompt, tools and policy — which is
+        deliberately NOT service.version. A service can sit at 2.3.1 while its
+        agent definition is at 7, and the two move independently; deriving either
+        from the other produces confidently wrong data on every deployment where
+        they disagree, which is most of them.
 - key: rius.workspace
   type: string
   brief: Alias of the workspace a span is exported to when one process sends to several; stripped before the span leaves the process.
@@ -142,13 +162,20 @@ attributes:
   annotations:
     rius:
       const: WORKSPACE_ROUTE
+      key: rius.workspace
       symbol: attribute
       origin: rius
       kinds: all
       category: process_local
       level: vendor
+      type: string
       fill:
       - native
+      rationale: |
+        Process-local routing marker for multi-workspace export. Stamped at span
+        start so pending snapshots route too, and ALWAYS stripped by the routing
+        exporter before spans leave the process: the destination's API key is what
+        tells the backend which workspace a span belongs to.
 - key: mcp.result_type
   type: string
   brief: Result type of an MCP tools/call round that ended with an interim result instead of a final one.
@@ -164,6 +191,7 @@ attributes:
   annotations:
     rius:
       const: MCP_RESULT_TYPE
+      key: mcp.result_type
       symbol: attribute
       origin: rius
       namespace_exception: |
@@ -174,11 +202,18 @@ attributes:
       category: identity
       level: vendor
       level_note: interim tools/call rounds only
+      type: string
       fill:
       - native
       not_pending: |
         Set when an interim round ENDS, so it is never known at span start and a
         pending snapshot has nothing to carry.
+      rationale: |
+        MCP spec 2026-07-28: a tools/call round can end with an interim
+        "input_required" result (MRTR) instead of a final one. Set ONLY on interim
+        rounds. NOT an OTel semconv attribute, unlike the two above: the key
+        borrows the mcp SDK's own `mcp.*` spelling for its result-type field, and
+        no convention defines it. Kept as-is because the backend reads it.
 - key: rius.request
   type: template[any]
   brief: A request parameter the GenAI conventions do not define, keyed by the parameter's name as the caller spelled it.
@@ -203,9 +238,23 @@ attributes:
   annotations:
     rius:
       const: RIUS_REQUEST_PREFIX
+      key: rius.request.
       symbol: prefix
       origin: rius
       covers: rius.request.<parameter>
+      rationale: |
+        Where a request parameter the GenAI registry does NOT define goes. Our own
+        namespace rather than gen_ai.request.<key>, per OTel's naming guidance: an
+        existing semantic-convention namespace must not be used as a prefix for
+        application-specific attributes, because the convention is free to define
+        that exact key later and mean something else. The GenAI conventions offer
+        no catch-all of their own, so we own one.
+
+        Masking: rius.request.* follows gen_ai.request.* exactly. Today neither is
+        in CONTENT_ATTRIBUTES, so both export in clear. The TIE is the rule, not
+        the current value — if request parameters ever become maskable, both
+        namespaces change together, and neither may join the content allowlist
+        alone.
 - key: rius.request.tool_choice
   type: string
   brief: 'How the request constrained tool use: a mode string, or the provider''s forced-call object as compact JSON.'
@@ -224,15 +273,24 @@ attributes:
   annotations:
     rius:
       const: RIUS_REQUEST_TOOL_CHOICE
+      key: rius.request.tool_choice
       symbol: attribute
       origin: rius
       kinds:
       - LLM
       category: identity
       level: vendor
+      type: string
       fill:
       - native
       - openinference
+      rationale: |
+        How the request constrained tool use: a mode string ("auto", "required")
+        or, for a forced call, the provider's object as compact JSON. The GenAI
+        conventions define no tool_choice, so it lives in our namespace. Context
+        attribution reads it to price the tool-use preamble, which is why the
+        normalizer lifts it out of the OpenInference request bag (content) into
+        here (not content).
 - key: rius.aggregated_usage
   type: template[int]
   brief: A whole agent run's token usage, moved off gen_ai.usage.* so per-call usage is not counted twice; the suffix is the gen_ai.usage.* suffix.
@@ -267,6 +325,8 @@ attributes:
   annotations:
     rius:
       const: RIUS_AGGREGATED_USAGE_PREFIX
+      key: rius.aggregated_usage.
+      type: int
       symbol: prefix
       origin: rius
       covers: rius.aggregated_usage.<usage key suffix>
@@ -278,6 +338,30 @@ attributes:
         Vercel AI SDK v7 (@ai-sdk/otel), Python for LiteLLM spans whose OpenAI
         child recorded the same call. The sink adds the key when the trace
         view displays the aggregate.
+      rationale: |
+        Where a whole agent run's token usage goes when the same producer also
+        reports each model call's usage on that call's own span:
+        gen_ai.usage.<suffix> becomes rius.aggregated_usage.<suffix>, on the
+        in-process (INTERNAL) invoke_agent span only. Left under gen_ai.usage.*,
+        the run's tokens are counted once per call span and once more on the
+        agent span by any backend that sums usage across spans.
+
+        Applied only to producers KNOWN to repeat the usage on per-call spans,
+        because a span on its own cannot say whether its usage is an aggregate
+        or the only record. CLIENT invoke_agent spans keep their usage: a remote
+        agent's model calls are not in the trace.
+
+        The same move covers a wrapper span that repeats ONE call's usage: a
+        LiteLLM completion span whose child, the openai instrumentor's
+        ChatCompletion span, records the call. The child keeps gen_ai.usage.*,
+        since it is the call itself. Decided from end order (a child ends
+        before its parent), so a LiteLLM span with no such child keeps its usage.
+
+        Our namespace, not pydantic-ai's gen_ai.aggregated_usage.*: the GenAI
+        conventions define no aggregate yet (semantic-conventions-genai#19), and
+        one could be defined later with different semantics (sub-agents included
+        or not). A backend reads both spellings, for display only; totals read
+        gen_ai.usage.* alone.
 - key: rius.context.sizes
   type: any
   brief: Byte sizes of each part of a generation's context (tool definitions, input and output messages), as compact JSON.
@@ -300,14 +384,29 @@ attributes:
   annotations:
     rius:
       const: RIUS_CONTEXT_SIZES
+      key: rius.context.sizes
       symbol: attribute
       origin: rius
       kinds:
       - LLM
       category: metadata
       level: vendor
+      type: json
       fill:
       - native
+      rationale: |
+        Per-part byte sizes of a generation's context, as compact JSON with
+        readable keys: tool_definitions (name, bytes), input_messages and
+        output_messages (literal role, parts typed text / tool_call /
+        tool_call_response with bytes and tool name), cache_marker, and a folded
+        summary of older input.
+        A Rius vendor attribute, NOT a convention:
+        the backend reads it to attribute gen_ai.usage.input_tokens across the
+        context, and no convention describes context composition. Deliberately
+        absent from CONTENT_ATTRIBUTES (it is sizes, not content, and must survive
+        masking and capture_content=False — that is its whole point when the
+        messages are truncated or stripped) and from PENDING_IDENTITY_ATTRIBUTES
+        (content is unknown at span start, so a pending snapshot never has it).
       wire_type: json
 - key: rius.span.pending
   type: boolean
@@ -328,17 +427,28 @@ attributes:
     rius:
       const: RIUS_SPAN_PENDING
       section: '--- Pending (partial) spans ---'
+      key: rius.span.pending
       symbol: attribute
       origin: rius
       kinds: all
       category: identity
       level: vendor
+      type: boolean
       fill:
       - native
       not_pending: |
         The snapshot builder stamps this marker onto the snapshot; it is not
         copied from the span, so listing it in PENDING_IDENTITY_ATTRIBUTES would
         be a no-op at best and a double write at worst.
+      rationale: |
+        Marks the content-free snapshot exported at span START; the backend maps it
+        to Finished=0 and the real span replaces it at end. This key knowingly bends
+        the convention-native rule (no vendor namespace): OpenTelemetry has NO
+        pending-span mechanism to align with (spec #3732/#4646, semconv #2133, all
+        open, none planned), and the only shipping precedent (Logfire's
+        logfire.span_type) is equally vendor-namespaced. Spelled glassflow.span.pending
+        before the vendor keys moved under rius.*; the backend reads both spellings
+        for as long as pre-rename SDK versions are in the field.
 - key: rius.parent.foreign
   type: boolean
   brief: The span's parent is local to this process but was never received by Rius, so the trace arrives without it.
@@ -353,17 +463,23 @@ attributes:
     rius:
       const: RIUS_PARENT_FOREIGN
       section: '--- Another SDK''s tracer provider in the process ---'
+      key: rius.parent.foreign
       symbol: attribute
       origin: rius
       kinds: all
       category: identity
       level: vendor
+      type: boolean
       fill:
       - native
       not_pending: |
         Set at span start but not on PENDING_IDENTITY_ATTRIBUTES in either SDK
         today, so a pending snapshot does not carry it. Recorded as found; whether
         the live view needs it is an SDK decision.
+      rationale: |
+        On a span: its parent is local to this process, yet rius never received
+        it, so the trace arrives without that parent. Remote parents are never
+        flagged.
 - key: rius.sdk.global_provider
   type: string
   brief: The tracer provider that already held the OpenTelemetry global when Rius initialized, as foreign:<class>.
@@ -378,12 +494,18 @@ attributes:
   annotations:
     rius:
       const: RIUS_SDK_GLOBAL_PROVIDER
+      key: rius.sdk.global_provider
       symbol: attribute
       origin: rius
       kinds: resource
       level: vendor
+      type: string
       fill:
       - native
+      rationale: |
+        On the resource: foreign:<module.Class> when another provider already
+        held the OpenTelemetry global at init(). Absent when rius registered the
+        global.
 - key: glassflow.span.pending
   type: boolean
   brief: Former spelling of rius.span.pending.
@@ -405,10 +527,16 @@ attributes:
     code_generation:
       exclude: true
     rius:
+      key: glassflow.span.pending
       symbol: attribute
       origin: rius
       kinds: all
       category: identity
+      type: boolean
+      rationale: |
+        Marked the content-free snapshot exported at span start, as
+        rius.span.pending does now. Kept so a reader of older spans can tell
+        what the key was.
 events:
 - name: gen_ai.first_token
   brief: The first streamed token or chunk of a generation arrived.
@@ -427,8 +555,18 @@ events:
     rius:
       const: GEN_AI_FIRST_TOKEN_EVENT
       section: '--- Span event names ---'
+      key: gen_ai.first_token
       symbol: event
       origin: rius
       namespace_exception: |
         Predates the rule, and a rename is a wire change the backend keys on. No
         convention defines an event for the first streamed token.
+      rationale: |
+        First streamed token/chunk arrived: the exact timestamp the backend reads to
+        derive TTFT (event time minus span start). The GenAI conventions express the
+        same signal as the derived span attribute
+        gen_ai.response.time_to_first_chunk, which record_first_token emits
+        alongside this event; the event stays because it is what the backend
+        keys on, and an absolute timestamp is not recoverable from the duration
+        once the span is stored. The name follows the gen_ai.* style (precedent
+        Langfuse's completion_start_time); no convention defines an event for this.

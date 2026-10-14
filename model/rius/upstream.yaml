@@ -13,6 +13,7 @@ attribute_groups:
       rius:
         const: SERVICE_NAME
         section: '--- Resource attribute keys ---'
+        key: service.name
         symbol: attribute
         origin: otel
         kinds: resource
@@ -33,6 +34,7 @@ attribute_groups:
     annotations:
       rius:
         const: SERVICE_INSTANCE_ID
+        key: service.instance.id
         symbol: attribute
         origin: otel
         kinds: resource
@@ -49,6 +51,7 @@ attribute_groups:
     annotations:
       rius:
         const: SERVICE_VERSION
+        key: service.version
         symbol: attribute
         origin: otel
         kinds: resource
@@ -70,6 +73,7 @@ attribute_groups:
     annotations:
       rius:
         const: TELEMETRY_DISTRO_NAME
+        key: telemetry.distro.name
         symbol: attribute
         origin: otel
         kinds: resource
@@ -87,6 +91,7 @@ attribute_groups:
     annotations:
       rius:
         const: TELEMETRY_DISTRO_VERSION
+        key: telemetry.distro.version
         symbol: attribute
         origin: otel
         kinds: resource
@@ -104,6 +109,7 @@ attribute_groups:
     annotations:
       rius:
         const: GEN_AI_AGENT_NAME
+        key: gen_ai.agent.name
         symbol: attribute
         origin: otel
         kinds:
@@ -145,6 +151,7 @@ attribute_groups:
     annotations:
       rius:
         const: GEN_AI_AGENT_ID
+        key: gen_ai.agent.id
         symbol: attribute
         origin: otel
         kinds:
@@ -168,6 +175,7 @@ attribute_groups:
     annotations:
       rius:
         const: GEN_AI_AGENT_VERSION
+        key: gen_ai.agent.version
         symbol: attribute
         origin: otel
         kinds:
@@ -187,6 +195,7 @@ attribute_groups:
     annotations:
       rius:
         const: SESSION_ID
+        key: session.id
         upstream: core
         symbol: attribute
         origin: openinference
@@ -204,6 +213,7 @@ attribute_groups:
     annotations:
       rius:
         const: USER_ID
+        key: user.id
         upstream: core
         symbol: attribute
         origin: openinference
@@ -224,6 +234,7 @@ attribute_groups:
       rius:
         const: GEN_AI_OPERATION_NAME
         section: OTel GenAI (subset we emit)
+        key: gen_ai.operation.name
         symbol: attribute
         origin: otel
         kinds:
@@ -242,6 +253,7 @@ attribute_groups:
     annotations:
       rius:
         const: GEN_AI_PROVIDER_NAME
+        key: gen_ai.provider.name
         symbol: attribute
         origin: otel
         kinds:
@@ -261,6 +273,7 @@ attribute_groups:
     annotations:
       rius:
         const: GEN_AI_REQUEST_MODEL
+        key: gen_ai.request.model
         symbol: attribute
         origin: otel
         kinds:
@@ -279,6 +292,7 @@ attribute_groups:
     annotations:
       rius:
         const: GEN_AI_REQUEST_REASONING_LEVEL
+        key: gen_ai.request.reasoning.level
         symbol: attribute
         origin: otel
         kinds:
@@ -293,6 +307,7 @@ attribute_groups:
     annotations:
       rius:
         const: GEN_AI_RESPONSE_MODEL
+        key: gen_ai.response.model
         symbol: attribute
         origin: otel
         kinds:
@@ -310,6 +325,7 @@ attribute_groups:
     annotations:
       rius:
         const: GEN_AI_RESPONSE_ID
+        key: gen_ai.response.id
         symbol: attribute
         origin: otel
         kinds:
@@ -331,6 +347,7 @@ attribute_groups:
     annotations:
       rius:
         const: GEN_AI_OUTPUT_TYPE
+        key: gen_ai.output.type
         symbol: attribute
         origin: otel
         kinds:
@@ -356,6 +373,7 @@ attribute_groups:
     annotations:
       rius:
         const: GEN_AI_REQUEST_STREAM
+        key: gen_ai.request.stream
         symbol: attribute
         origin: otel
         kinds:
@@ -379,6 +397,7 @@ attribute_groups:
     annotations:
       rius:
         const: GEN_AI_RESPONSE_TIME_TO_FIRST_CHUNK
+        key: gen_ai.response.time_to_first_chunk
         symbol: attribute
         origin: otel
         kinds:
@@ -395,6 +414,7 @@ attribute_groups:
     annotations:
       rius:
         const: GEN_AI_REQUEST_TEMPERATURE
+        key: gen_ai.request.temperature
         symbol: attribute
         origin: otel
         kinds:
@@ -415,6 +435,7 @@ attribute_groups:
     annotations:
       rius:
         const: GEN_AI_REQUEST_TOP_P
+        key: gen_ai.request.top_p
         symbol: attribute
         origin: otel
         kinds:
@@ -430,6 +451,7 @@ attribute_groups:
     annotations:
       rius:
         const: GEN_AI_REQUEST_TOP_K
+        key: gen_ai.request.top_k
         symbol: attribute
         origin: otel
         kinds:
@@ -445,6 +467,7 @@ attribute_groups:
     annotations:
       rius:
         const: GEN_AI_REQUEST_MAX_TOKENS
+        key: gen_ai.request.max_tokens
         symbol: attribute
         origin: otel
         kinds:
@@ -460,6 +483,7 @@ attribute_groups:
     annotations:
       rius:
         const: GEN_AI_REQUEST_FREQUENCY_PENALTY
+        key: gen_ai.request.frequency_penalty
         symbol: attribute
         origin: otel
         kinds:
@@ -475,6 +499,7 @@ attribute_groups:
     annotations:
       rius:
         const: GEN_AI_REQUEST_PRESENCE_PENALTY
+        key: gen_ai.request.presence_penalty
         symbol: attribute
         origin: otel
         kinds:
@@ -491,6 +516,7 @@ attribute_groups:
     annotations:
       rius:
         const: GEN_AI_REQUEST_SEED
+        key: gen_ai.request.seed
         symbol: attribute
         origin: otel
         kinds:
@@ -507,6 +533,7 @@ attribute_groups:
     annotations:
       rius:
         const: GEN_AI_REQUEST_STOP_SEQUENCES
+        key: gen_ai.request.stop_sequences
         symbol: attribute
         origin: otel
         kinds:
@@ -523,6 +550,7 @@ attribute_groups:
     annotations:
       rius:
         const: GEN_AI_REQUEST_CHOICE_COUNT
+        key: gen_ai.request.choice.count
         symbol: attribute
         origin: otel
         kinds:
@@ -541,6 +569,7 @@ attribute_groups:
     annotations:
       rius:
         const: GEN_AI_REQUEST_ENCODING_FORMATS
+        key: gen_ai.request.encoding_formats
         symbol: attribute
         origin: otel
         kinds:
@@ -560,6 +589,7 @@ attribute_groups:
     annotations:
       rius:
         const: GEN_AI_REQUEST_PREVIOUS_RESPONSE_ID
+        key: gen_ai.request.previous_response.id
         symbol: attribute
         origin: otel
         kinds:
@@ -575,6 +605,7 @@ attribute_groups:
     annotations:
       rius:
         const: GEN_AI_REQUEST_STREAM_CURSOR
+        key: gen_ai.request.stream_cursor
         symbol: attribute
         origin: otel
         kinds:
@@ -590,6 +621,7 @@ attribute_groups:
     annotations:
       rius:
         const: GEN_AI_USAGE_INPUT_TOKENS
+        key: gen_ai.usage.input_tokens
         symbol: attribute
         origin: otel
         kinds:
@@ -606,6 +638,7 @@ attribute_groups:
     annotations:
       rius:
         const: GEN_AI_USAGE_OUTPUT_TOKENS
+        key: gen_ai.usage.output_tokens
         symbol: attribute
         origin: otel
         kinds:
@@ -622,6 +655,7 @@ attribute_groups:
     annotations:
       rius:
         const: GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS
+        key: gen_ai.usage.cache_read.input_tokens
         symbol: attribute
         origin: otel
         kinds:
@@ -639,6 +673,7 @@ attribute_groups:
     annotations:
       rius:
         const: GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS
+        key: gen_ai.usage.cache_write.input_tokens
         symbol: attribute
         origin: otel
         kinds:
@@ -658,6 +693,7 @@ attribute_groups:
     annotations:
       rius:
         const: GEN_AI_USAGE_REASONING_OUTPUT_TOKENS
+        key: gen_ai.usage.reasoning.output_tokens
         symbol: attribute
         origin: otel
         kinds:
@@ -675,6 +711,7 @@ attribute_groups:
     annotations:
       rius:
         const: GEN_AI_INPUT_MESSAGES
+        key: gen_ai.input.messages
         symbol: attribute
         origin: otel
         kinds:
@@ -692,6 +729,7 @@ attribute_groups:
     annotations:
       rius:
         const: GEN_AI_OUTPUT_MESSAGES
+        key: gen_ai.output.messages
         symbol: attribute
         origin: otel
         kinds:
@@ -709,6 +747,7 @@ attribute_groups:
     annotations:
       rius:
         const: GEN_AI_SYSTEM_INSTRUCTIONS
+        key: gen_ai.system_instructions
         symbol: attribute
         origin: otel
         kinds:
@@ -731,6 +770,7 @@ attribute_groups:
       rius:
         const: GEN_AI_RESPONSE_FINISH_REASONS
         go: GenAIResponseFinishReason
+        key: gen_ai.response.finish_reasons
         symbol: attribute
         origin: otel
         kinds:
@@ -747,6 +787,7 @@ attribute_groups:
     annotations:
       rius:
         const: GEN_AI_TOOL_NAME
+        key: gen_ai.tool.name
         symbol: attribute
         origin: otel
         kinds:
@@ -763,6 +804,7 @@ attribute_groups:
     annotations:
       rius:
         const: GEN_AI_TOOL_CALL_ID
+        key: gen_ai.tool.call.id
         symbol: attribute
         origin: otel
         kinds:
@@ -785,6 +827,7 @@ attribute_groups:
     annotations:
       rius:
         const: GEN_AI_TOOL_TYPE
+        key: gen_ai.tool.type
         symbol: attribute
         origin: otel
         kinds:
@@ -805,6 +848,7 @@ attribute_groups:
     annotations:
       rius:
         const: GEN_AI_TOOL_DEFINITIONS
+        key: gen_ai.tool.definitions
         symbol: attribute
         origin: otel
         kinds:
@@ -825,6 +869,7 @@ attribute_groups:
     annotations:
       rius:
         const: GEN_AI_TOOL_CALL_ARGUMENTS
+        key: gen_ai.tool.call.arguments
         symbol: attribute
         origin: otel
         kinds:
@@ -845,6 +890,7 @@ attribute_groups:
     annotations:
       rius:
         const: GEN_AI_TOOL_CALL_RESULT
+        key: gen_ai.tool.call.result
         symbol: attribute
         origin: otel
         kinds:
@@ -865,6 +911,7 @@ attribute_groups:
     annotations:
       rius:
         const: GEN_AI_DATA_SOURCE_ID
+        key: gen_ai.data_source.id
         symbol: attribute
         origin: otel
         kinds:
@@ -884,6 +931,7 @@ attribute_groups:
     annotations:
       rius:
         const: GEN_AI_RETRIEVAL_TOP_K
+        key: gen_ai.retrieval.top_k
         symbol: attribute
         origin: otel
         kinds:
@@ -902,6 +950,7 @@ attribute_groups:
     annotations:
       rius:
         const: GEN_AI_RETRIEVAL_DOCUMENTS
+        key: gen_ai.retrieval.documents
         symbol: attribute
         origin: otel
         kinds:
@@ -923,6 +972,7 @@ attribute_groups:
     annotations:
       rius:
         const: MCP_METHOD_NAME
+        key: mcp.method.name
         symbol: attribute
         origin: otel
         kinds:
@@ -945,6 +995,7 @@ attribute_groups:
     annotations:
       rius:
         const: MCP_PROTOCOL_VERSION
+        key: mcp.protocol.version
         symbol: attribute
         origin: otel
         kinds:
@@ -963,6 +1014,7 @@ attribute_groups:
     annotations:
       rius:
         const: ERROR_TYPE
+        key: error.type
         symbol: attribute
         origin: otel
         kinds: all
@@ -984,6 +1036,7 @@ attribute_groups:
     annotations:
       rius:
         const: EXCEPTION_TYPE
+        key: exception.type
         symbol: attribute
         origin: otel
         direction: read
