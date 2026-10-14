@@ -30,9 +30,14 @@ What is compared, per consumer:
               or decided in registry/usage_keys.yaml (usage keys).
 
 Once a consumer vendors the generated file (it exists at the ref), the check
-switches to comparing that file byte for byte. A difference there means the
-consumer is pinned to an older registry version, which is allowed, so it is a
-warning unless --strict.
+switches to comparing that file byte for byte. A consumer's sync script may
+start the copy with two comment lines naming the release it came from
+("# Vendored from rius-semconv v1.2.0 ..." or the // form); the bytes after
+them are compared. A difference means the consumer is pinned to an older
+registry version, which is allowed, so it is a warning unless --strict. For the
+backend, when the copy is current, the constants its hand-written semconv.go
+still declares must each be classified, as above, and none may repeat a
+generated one.
 
 Exit 0 when every requested consumer passes, 1 otherwise.
 """
@@ -41,6 +46,7 @@ from __future__ import annotations
 
 import argparse
 import pathlib
+import re
 import subprocess
 import sys
 
@@ -83,12 +89,24 @@ CONSUMERS = {
     },
 }
 GO_GAPS = ROOT / "tools" / "go_reference_only.yaml"
+# The two comment lines a consumer's sync script puts above a vendored copy,
+# the first naming the release it came from.
+VENDOR_HEADER = re.compile(
+    r"\A(?:#|//) Vendored from rius-semconv (?P<tag>\S+) [^\n]*\n(?:#|//)[^\n]*\n"
+)
 
 
 def git(repo: pathlib.Path, *args: str, check: bool = True) -> subprocess.CompletedProcess:
     return subprocess.run(
         ["git", "-C", str(repo), *args], capture_output=True, text=True, check=check
     )
+
+
+def split_vendor_header(text: str) -> tuple[str | None, str]:
+    """The release a vendored copy names in its header, and the copy without
+    the header. (None, text) when there is no header."""
+    m = VENDOR_HEADER.match(text)
+    return (m.group("tag"), text[m.end() :]) if m else (None, text)
 
 
 def read_at(repo: pathlib.Path, ref: str, path: str) -> str | None:
@@ -192,6 +210,22 @@ def check_go(reference: str, generated: str) -> bool:
     return report.ok
 
 
+def check_go_hand_written(reference: str, generated: str) -> bool:
+    """Beside a vendored generated file, the backend's hand-written constants
+    must each be explained: none may repeat a generated name or value, and
+    every one must be classified like a backend-only constant."""
+    report = compare_go(go_constants(reference), go_constants(generated), go_gaps())
+    duplicated = sorted(set(go_constants(reference)) & set(go_constants(generated)))
+    print(f"hand-written constants beside it: {len(go_constants(reference))}")
+    listing("DUPLICATED (declared in both files)", duplicated)
+    listing("RENAMED (generated name, backend name)", report.renamed)
+    listing(
+        "UNCLASSIFIED (backend only, not in go_reference_only.yaml or usage_keys.yaml)",
+        report.unclassified,
+    )
+    return not (duplicated or report.renamed or report.unclassified)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="check_parity.py")
     parser.add_argument("consumers", nargs="*", metavar="CONSUMER")
@@ -238,11 +272,20 @@ def main(argv: list[str] | None = None) -> int:
 
         vendored = read_at(repo, args.ref, vendored_path)
         if vendored is not None:
+            tag, vendored = split_vendor_header(vendored)
             same = vendored == generated
-            print(f"vendored {vendored_path}: {'identical' if same else 'DIFFERS'}")
+            source = f" (rius-semconv {tag})" if tag else ""
+            print(f"vendored {vendored_path}{source}: {'identical' if same else 'DIFFERS'}")
             if not same:
                 print("  the consumer is pinned to another registry version (lag is allowed)")
                 ok = ok and not args.strict
+            hand_written = (
+                read_at(repo, args.ref, reference_path) if lang == "go" and same else None
+            )
+            if hand_written is not None and not check_go_hand_written(hand_written, generated):
+                print(f"{lang}: FAIL")
+                ok = False
+                continue
             print(f"{lang}: {'PASS' if same else 'LAGGING'}")
             continue
 

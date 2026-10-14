@@ -55,6 +55,32 @@ def test_vendored_mode_compares_bytes(tmp_path):
     assert run(make_repo(tmp_path / "sdk", files)) == 0
 
 
+@pytest.mark.parametrize("comment", ["#", "//"])
+def test_vendored_mode_reads_past_the_vendor_header(tmp_path, capsys, comment):
+    """A consumer's sync script prepends two comment lines naming the release
+    it vendored; the bytes after them are what is compared."""
+    header = (
+        f"{comment} Vendored from rius-semconv v1.2.0 out/python/_semconv_generated.py by\n"
+        f"{comment} scripts/sync-semconv.sh. Do not edit: change the registry in rius-semconv.\n"
+    )
+    files = {
+        "src/rius/semconv.py": "from ._semconv_generated import *\n",
+        "src/rius/_semconv_generated.py": header + GENERATED,
+    }
+    assert run(make_repo(tmp_path / "sdk", files), "--strict") == 0
+    out = capsys.readouterr().out
+    assert "vendored src/rius/_semconv_generated.py (rius-semconv v1.2.0): identical" in out
+
+
+def test_a_vendor_header_does_not_hide_an_edit(tmp_path):
+    header = "# Vendored from rius-semconv v1.2.0 out/python/_semconv_generated.py by\n# x\n"
+    files = {
+        "src/rius/semconv.py": "from ._semconv_generated import *\n",
+        "src/rius/_semconv_generated.py": header + GENERATED + "# edited\n",
+    }
+    assert run(make_repo(tmp_path / "sdk", files), "--strict") == 1
+
+
 @pytest.mark.parametrize("strict, expected", [(False, 0), (True, 1)])
 def test_vendored_lag_is_a_warning_unless_strict(tmp_path, strict, expected):
     files = {
@@ -115,6 +141,31 @@ def test_go_vendored_file_in_the_package_directory_is_compared_by_bytes(tmp_path
     repo = make_repo(tmp_path / "backend", files)
     assert run_go(repo / "pkg" / "semconv") == 0
     assert "vendored pkg/semconv/semconv_generated.go: identical" in capsys.readouterr().out
+
+
+def test_go_vendored_still_classifies_the_hand_written_constants(tmp_path, capsys):
+    """The generated file no longer says what the hand-written one holds, so
+    each of its constants must still be generated-or-explained."""
+    files = {
+        "pkg/semconv/semconv.go": 'package semconv\n\nconst (\n\tEndUserID = "enduser.id"\n'
+        '\tNewInput = "new.input"\n)\n',
+        "pkg/semconv/semconv_generated.go": GENERATED_GO,
+    }
+    repo = make_repo(tmp_path / "backend", files)
+    assert run_go(repo / "pkg" / "semconv") == 1
+    out = capsys.readouterr().out
+    assert "vendored pkg/semconv/semconv_generated.go: identical" in out
+    assert "NewInput" in out
+    assert "EndUserID" not in out.split("UNCLASSIFIED")[1].split("backend only")[0]
+
+
+def test_go_vendored_with_only_classified_hand_written_constants_passes(tmp_path):
+    files = {
+        "pkg/semconv/semconv.go": 'package semconv\n\nconst EndUserID = "enduser.id"\n',
+        "pkg/semconv/semconv_generated.go": GENERATED_GO,
+    }
+    repo = make_repo(tmp_path / "backend", files)
+    assert run_go(repo / "pkg" / "semconv") == 0
 
 
 def test_go_dir_outside_a_checkout_fails(tmp_path, capsys):
