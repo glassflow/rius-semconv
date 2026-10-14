@@ -88,6 +88,84 @@ deterministic and must pass each consumer's own formatter (`ruff`, `biome`,
 `gofmt`); `tests/test_generators.py` checks both (the `biome` check runs
 only when a rius-sdk-typescript checkout sits next to this one).
 
+## Deprecation and compatibility
+
+Spans written by an SDK released today are read for as long as that SDK runs,
+so a key, once shipped, keeps its meaning. These rules apply to every key a
+consumer can have shipped, that is every row not marked `status: planned`.
+
+### The rules
+
+1. **Deprecate, never remove.** A shipped key is never deleted from the
+   registry and its string is never reused for something else. To retire a
+   key, mark it deprecated and say either which key replaces it or why it has
+   no replacement.
+2. **A rename is a deprecation.** The key is the identity, so a new spelling
+   is a new row. The old row stays, deprecated, pointing at the new one.
+3. **Deprecation window.** A deprecated key keeps its generated constant for
+   at least two minor releases or six months after the release that first
+   marks it deprecated, whichever is longer. During the window, readers (the
+   backend and the normalizers) accept both keys; producers move to the new
+   one. After the window, a major release may stop generating the constant.
+   The row itself stays, so readers, documentation and the checks still
+   recognise the key.
+4. **Stable keys.** A stable key's type or meaning changes only in a major
+   release.
+5. **Development keys.** A key in development may still change its
+   description, requirement level, category or kinds in a minor release. Its
+   type may not: a new type is a new key, and the old one is deprecated under
+   rule 3. The only exception is a row that never shipped (`status: planned`),
+   which can change freely.
+
+The registry has no stability column yet, so every Rius-owned key is in
+development today. A key borrowed from OpenTelemetry has the stability of its
+upstream convention, and the GenAI conventions are still in development.
+Adopting an upstream rename follows rules 2 and 3: the old key stays,
+deprecated.
+
+### Marking a deprecation
+
+Until the registry moves to OpenTelemetry Weaver, `registry/attributes.yaml`
+has no deprecation column, so a deprecation is written in the rows:
+
+1. **Keep the old row** with its `const`, `key` and `type` unchanged.
+2. **Start its `rationale`** with one line that says what replaces it, or why
+   nothing does:
+
+   ```yaml
+   rationale: |
+     Deprecated: renamed to rius.new.key.
+     ...
+   ```
+
+3. **Add the replacement row**, if there is one, and say in its `rationale`
+   which key it replaces, so a reader of either row finds the other.
+4. **Title the pull request `feat(deprecate): ...`** (see
+   [Commits and pull requests](#commits-and-pull-requests)).
+
+In the Weaver registry the same facts become Weaver's `deprecated` field:
+
+```yaml
+- key: rius.old.key
+  deprecated:
+    reason: renamed
+    renamed_to: rius.new.key
+```
+
+with `reason: obsoleted` and a `note` when nothing replaces the key. A key
+that moves into a convention we depend on (for example a `rius.*` key that
+OpenTelemetry later defines under `gen_ai.*`) uses `reason: uncategorized`
+with a `note` naming the new key, not `renamed`: Weaver's compatibility
+check rejects a `renamed_to` that points into a dependency's registry.
+
+### How it is enforced
+
+Today the rules are enforced in review. Once the registry is on Weaver, CI
+compares every pull request with the last release
+(`weaver registry check --baseline-registry`), which rejects a removed
+attribute and a retyped stable one, plus a local policy that rejects
+retyping a development attribute.
+
 ## Recordings and expected results
 
 `fixtures/` holds real spans from the instrumentors Rius normalizes, and the
@@ -181,7 +259,8 @@ constant is reported as a gap, which is the signal working, not a failure.
 
   | Change | Type |
   | -- | -- |
-  | A wire value renamed or a row removed | `feat!:` (or a `BREAKING CHANGE:` footer) |
+  | A wire value changed in place, a stable key's type or meaning changed, or a deprecated constant dropped after its window | `feat!:` (or a `BREAKING CHANGE:` footer) |
+  | A key deprecated (with its replacement, if any) | `feat(deprecate):` |
   | A row, member or table added, or `planned` becomes `shipped` | `feat:` |
   | A row's meaning or disposition corrected, generated values unchanged | `fix:` |
   | Recordings, expected results, tests, tooling | `test:` or `chore:` |
@@ -198,7 +277,11 @@ The registry is versioned, because it is the wire contract. release-please
 keeps a release pull request open on `main`; merging it tags `vX.Y.Z` and
 writes `CHANGELOG.md`. A `feat:` or `fix:` commit that touches the registry,
 the generators or `out/` cuts a release: a minor or patch step, or a breaking
-step for `feat!:`. Commits that touch only `fixtures/`, `tests/`, `tools/` or
+step for `feat!:`. The changelog lists breaking changes first, then
+deprecations (`feat(deprecate):`) under their own heading, then features and
+fixes. A deprecation is a `feat` with the `deprecate` scope, not a type of
+its own, because release-please picks the version step from the type: a
+custom type would never cut more than a patch release. Commits that touch only `fixtures/`, `tests/`, `tools/` or
 `.github/` never cut a release, whatever their type: consumers pin the
 recordings by commit, not by version. Maintainers merge the release pull
 request.

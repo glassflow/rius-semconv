@@ -103,9 +103,11 @@ changes only. Nothing is published to a package registry.
 
 A version step says what changed on the wire:
 
-- **major**: a wire value changes or a row is removed. Consumers must act.
-- **minor**: rows, members or tables are added, or `planned` becomes
-  `shipped`.
+- **major**: a wire value changes in place, a stable key changes type or
+  meaning, or a deprecated key's constant is dropped after its window.
+  Consumers must act.
+- **minor**: rows, members or tables are added, `planned` becomes
+  `shipped`, or a key is deprecated.
 - **patch**: the meaning of an existing row is corrected; generated values
   are unchanged.
 
@@ -113,21 +115,41 @@ The step comes from the commit type, so label changes accordingly:
 
 | Change | Commit type |
 | -- | -- |
-| A wire value renamed or a row removed | `feat!:` (or a `BREAKING CHANGE:` footer) |
+| A wire value changed in place, a stable key's type or meaning changed, or a deprecated constant dropped after its window | `feat!:` (or a `BREAKING CHANGE:` footer) |
+| A key deprecated (with its replacement, if any) | `feat(deprecate):` |
 | A row, member or table added, or `planned` becomes `shipped` | `feat:` |
 | A row's meaning or disposition corrected, generated values unchanged | `fix:` |
 | Recordings, expected results, tests, tooling | `test:` or `chore:` |
 | Documentation only | `docs:` |
 
 Commits that touch nothing but `fixtures/`, `tests/`, `tools/` or `.github/`
-never cause a release, whatever their type.
+never cause a release, whatever their type. Each release's notes list
+breaking changes first, then deprecations under their own **Deprecations**
+heading, then features and fixes.
+
+Shipped keys are deprecated, never removed:
+
+- A key is never deleted from the registry and its string is never reused.
+  A deprecated key names the key that replaces it, or says why nothing does.
+- A deprecated key keeps its generated constant for at least **two minor
+  releases or six months** after the release that deprecates it, whichever
+  is longer. Only a major release after that window may drop the constant;
+  the registry still records the key.
+- A stable key changes type or meaning only in a major release.
+- A development key may still change in a minor release, but not its type:
+  a new type is a new key, and the old one is deprecated. Only a row that
+  never shipped (`status: planned`) changes freely.
+
+Every Rius-owned key is in development until the registry records stability
+per key. [CONTRIBUTING.md](CONTRIBUTING.md#deprecation-and-compatibility)
+has the full policy and how to mark a deprecation.
 
 `status: planned` marks a decided row that no consumer ships yet, such as
 `telemetry.distro.name`; planned rows are left out of generated output unless
 you pass `--include-planned`. Keys borrowed from OpenTelemetry are only as
 stable as their upstream convention, and the GenAI conventions are still in
 Development: if upstream renames a key and the registry adopts the rename,
-that changes a wire value, so it is a major release under the rules above.
+the old key stays, deprecated, under the rules above.
 
 ## Recorded spans: a conformance suite
 
