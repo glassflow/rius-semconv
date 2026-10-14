@@ -76,6 +76,11 @@ def test_no_ticket_ids_in_output(base_data, lang):
 def test_python_constants(py_module):
     assert py_module["TRACER_NAME"] == "rius"
     assert py_module["GEN_AI_AGENT_VERSION"] == "gen_ai.agent.version"
+    assert py_module["GEN_AI_MAIN_AGENT_ID"] == "gen_ai.main_agent.id"
+    assert py_module["GEN_AI_MAIN_AGENT_NAME"] == "gen_ai.main_agent.name"
+    assert py_module["GEN_AI_MAIN_AGENT_DESCRIPTION"] == "gen_ai.main_agent.description"
+    # Deprecated, but still generated through the deprecation window.
+    assert py_module["RIUS_MAIN_AGENT_NAME"] == "rius.main_agent.name"
     assert py_module["EXCEPTION_EVENT"] == "exception"
     assert py_module["RIUS_REQUEST_PREFIX"] == "rius.request."
     assert "SERVICE_NAME" not in py_module  # Go-only

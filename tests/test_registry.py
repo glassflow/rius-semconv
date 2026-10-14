@@ -337,8 +337,15 @@ def test_retired_keys_are_never_generated(registry):
 
 
 def test_upstream_equivalent_names_an_upstream_key(data):
-    row(data, "RIUS_MAIN_AGENT_ID")["upstream_equivalent"] = "rius.other"
+    row(data, "RIUS_MAIN_AGENT_VERSION")["upstream_equivalent"] = "rius.other"
     assert_flags(data, "upstream_equivalent must name an upstream key")
+
+
+def test_a_deprecated_row_takes_no_upstream_equivalent(data):
+    # upstream_equivalent says "planned move, not deprecated"; once the row is
+    # deprecated the deprecation note names the successor instead.
+    row(data, "RIUS_MAIN_AGENT_ID")["upstream_equivalent"] = "gen_ai.main_agent.id"
+    assert_flags(data, "deprecated row takes no upstream_equivalent")
 
 
 # --- ticket ids outside the registry ------------------------------------------

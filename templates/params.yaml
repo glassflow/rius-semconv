@@ -28,6 +28,9 @@ params:
   - const: GEN_AI_AGENT_NAME
   - const: GEN_AI_AGENT_ID
   - const: GEN_AI_AGENT_VERSION
+  - const: GEN_AI_MAIN_AGENT_NAME
+  - const: GEN_AI_MAIN_AGENT_ID
+  - const: GEN_AI_MAIN_AGENT_DESCRIPTION
   - const: RIUS_MAIN_AGENT_NAME
   - const: RIUS_MAIN_AGENT_ID
   - const: RIUS_MAIN_AGENT_DESCRIPTION
