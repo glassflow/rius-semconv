@@ -198,6 +198,12 @@
                 "value": {
                   "stringValue": "{\"id\":\"chatcmpl-rec1\",\"choices\":[{\"finish_reason\":\"stop\",\"index\":0,\"message\":{\"content\":\"Paris.\",\"role\":\"assistant\"}}],\"created\":1700000000,\"model\":\"gpt-4o-mini-2024-07-18\",\"object\":\"chat.completion\",\"system_fingerprint\":\"fp_rec\",\"usage\":{\"completion_tokens\":9,\"prompt_tokens\":42,\"total_tokens\":51,\"completion_tokens_details\":{\"accepted_prediction_tokens\":0,\"audio_tokens\":0,\"reasoning_tokens\":3,\"rejected_prediction_tokens\":0},\"prompt_tokens_details\":{\"audio_tokens\":0,\"cached_tokens\":16}}}"
                 }
+              },
+              {
+                "key": "rius.not_in_registry",
+                "value": {
+                  "stringValue": "x"
+                }
               }
             ],
             "status": {
