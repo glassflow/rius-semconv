@@ -2,7 +2,7 @@
 
 # `rius`
 
-The `rius` namespace (edited by hand) is the one this registry owns: a fact no OpenTelemetry
+The `rius` namespace is the one this registry owns: a fact no OpenTelemetry
 convention names gets a key here.
 
 ## Attributes
