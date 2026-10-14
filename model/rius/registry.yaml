@@ -27,7 +27,8 @@ attributes:
   brief: Name of the agent this process is, stamped once on the resource.
   note: |
     The OpenTelemetry GenAI conventions now define `gen_ai.main_agent.name`
-    for the same fact. This key is not deprecated in its favour.
+    for the same fact. A move to it is planned; until then this key is
+    emitted and is not deprecated.
   stability: development
   examples:
   - weather-agent
@@ -68,7 +69,8 @@ attributes:
     that future rename mechanical instead of a data-quality problem.
 
     The OpenTelemetry GenAI conventions now define `gen_ai.main_agent.id`
-    for the same fact. This key is not deprecated in its favour.
+    for the same fact. A move to it is planned; until then this key is
+    emitted and is not deprecated.
   stability: development
   examples:
   - support-triage-prod
@@ -88,7 +90,8 @@ attributes:
   brief: What the agent this process is does, in free text.
   note: |
     The OpenTelemetry GenAI conventions now define `gen_ai.main_agent.description`
-    for the same fact. This key is not deprecated in its favour.
+    for the same fact. A move to it is planned; until then this key is
+    emitted and is not deprecated.
   stability: development
   examples:
   - Answers weather questions for a named city.

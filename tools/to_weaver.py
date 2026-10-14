@@ -90,7 +90,8 @@ def note(row: dict) -> str | None:
     if upstream:
         line = (
             f"The OpenTelemetry GenAI conventions now define `{upstream}`\n"
-            "for the same fact. This key is not deprecated in its favour.\n"
+            "for the same fact. A move to it is planned; until then this key is\n"
+            "emitted and is not deprecated.\n"
         )
         text = f"{text.rstrip()}\n\n{line}" if text else line
     return text

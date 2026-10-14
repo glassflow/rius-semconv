@@ -73,7 +73,8 @@
 #                "Deprecation and compatibility".
 #   upstream_equivalent
 #                An upstream key that now names the same fact as this Rius
-#                key. Recorded for the docs; it does not deprecate the row.
+#                key, which the key is planned to move to. Recorded for the
+#                docs; it does not deprecate the row.
 #
 # `retired:`, after the rows, lists deprecated keys that have no generated
 # constant any more (or never had one). They are never generated; they are
