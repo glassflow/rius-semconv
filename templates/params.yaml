@@ -973,11 +973,14 @@ params:
       - topK
       - k
     - target: gen_ai.request.stop_sequences
-      note: stop_sequences — OpenAI `stop`, Google `stopSequences`.
+      note: |
+        stop_sequences — OpenAI `stop`, Google `stopSequences`. `stop` is listed
+        FIRST because the llm.invocation_parameters rule prefers it, and both
+        paths must keep the same spelling when a request carries two.
       spellings:
+      - stop
       - stop_sequences
       - stopSequences
-      - stop
     - target: gen_ai.request.frequency_penalty
       spellings:
       - frequency_penalty
