@@ -246,6 +246,7 @@ model/                     the Weaver registry, written from registry/ by tools/
   rius/upstream.yaml       refs to the upstream keys the SDKs emit or read
   inputs/<producer>.yaml   other producers' keys the normalizers read, with each decision
 templates/params.yaml      the Weaver --params sidecar: emission order and the non-attribute data
+templates/registry/        Weaver templates, one directory per language; CI checks they reproduce out/
 versions.env               pinned Weaver and upstream registry versions (bumped by Renovate)
 version.txt                the registry's released version (written by release-please)
 ```
@@ -277,6 +278,7 @@ policy packs from GitHub:
 ```
 python tools/check_weaver_pins.py         # manifest pins match versions.env
 python tools/to_weaver.py --check         # model/ matches registry/
+python -m generators.weaver --check       # the Weaver templates reproduce out/
 tools/install_weaver.sh                   # installs .weaver/bin/weaver
 export PATH="$PWD/.weaver/bin:$PATH"
 python tools/weaver_check.py              # policies, and the breaking-change gate

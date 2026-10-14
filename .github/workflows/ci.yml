@@ -111,3 +111,8 @@ jobs:
 
       - name: Our rows agree with the upstream types they reference
         run: python tools/check_weaver_types.py "$RUNNER_TEMP/resolved.yaml"
+
+      # Golden test for the Weaver templates under templates/registry/: what
+      # they generate must be byte-identical to the committed out/.
+      - name: Weaver templates reproduce out/
+        run: python -m generators.weaver --check python
