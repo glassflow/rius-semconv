@@ -64,7 +64,9 @@ attributes:
     note: |
       Moved to gen_ai.main_agent.id, which the OpenTelemetry GenAI
       conventions now define for the same fact. The SDKs stamp both through
-      the deprecation window; readers take gen_ai.main_agent.id first.
+      the deprecation window; readers take gen_ai.main_agent.id first. This
+      key only ever carried a configured id, while gen_ai.main_agent.id falls
+      back to the agent name when none is configured.
   annotations:
     rius:
       const: RIUS_MAIN_AGENT_ID

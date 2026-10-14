@@ -233,3 +233,12 @@ def test_gen_ai_usage_inputs_stay_in_the_sidecar(params):
     names = {e.get("key") or e.get("prefix") for e in params["normalizer_inputs"]}
     assert "gen_ai.usage.prompt_tokens" in names
     assert "gen_ai.aggregated_usage." in names
+
+
+def test_the_main_agent_id_is_emitted_whenever_the_entity_is(files):
+    groups = files["model/rius/upstream.yaml"]["attribute_groups"]
+    (upstream,) = [g for g in groups if g["id"] == "rius.upstream"]
+    (main_agent_id,) = [a for a in upstream["attributes"] if a["ref"] == "gen_ai.main_agent.id"]
+    assert main_agent_id["requirement_level"] == {
+        "conditionally_required": "always, whenever the main-agent entity is emitted"
+    }
