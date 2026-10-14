@@ -143,6 +143,31 @@ def test_go_vendored_file_in_the_package_directory_is_compared_by_bytes(tmp_path
     assert "vendored pkg/semconv/semconv_generated.go: identical" in capsys.readouterr().out
 
 
+def test_go_vendored_still_classifies_the_hand_written_constants(tmp_path, capsys):
+    """The generated file no longer says what the hand-written one holds, so
+    each of its constants must still be generated-or-explained."""
+    files = {
+        "pkg/semconv/semconv.go": 'package semconv\n\nconst (\n\tEndUserID = "enduser.id"\n'
+        '\tNewInput = "new.input"\n)\n',
+        "pkg/semconv/semconv_generated.go": GENERATED_GO,
+    }
+    repo = make_repo(tmp_path / "backend", files)
+    assert run_go(repo / "pkg" / "semconv") == 1
+    out = capsys.readouterr().out
+    assert "vendored pkg/semconv/semconv_generated.go: identical" in out
+    assert "NewInput" in out
+    assert "EndUserID" not in out.split("UNCLASSIFIED")[1].split("backend only")[0]
+
+
+def test_go_vendored_with_only_classified_hand_written_constants_passes(tmp_path):
+    files = {
+        "pkg/semconv/semconv.go": 'package semconv\n\nconst EndUserID = "enduser.id"\n',
+        "pkg/semconv/semconv_generated.go": GENERATED_GO,
+    }
+    repo = make_repo(tmp_path / "backend", files)
+    assert run_go(repo / "pkg" / "semconv") == 0
+
+
 def test_go_dir_outside_a_checkout_fails(tmp_path, capsys):
     assert run_go(tmp_path / "missing") == 1
     assert "is not a directory in a git checkout" in capsys.readouterr().out
