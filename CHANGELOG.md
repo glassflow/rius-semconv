@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.3.0](https://github.com/glassflow/rius-semconv/compare/v1.2.0...v1.3.0) (2026-10-14)
+
+
+### Deprecations
+
+* **deprecate:** reference gen_ai.main_agent.{id,name,description} and deprecate rius.main_agent.{id,name,description} ([#42](https://github.com/glassflow/rius-semconv/issues/42)) ([6f4d9e8](https://github.com/glassflow/rius-semconv/commit/6f4d9e865f778218fa6937d56b54ea03f1810dea))
+
+
+### Bug Fixes
+
+* list stop first among the stop_sequences spellings, as both SDKs do ([#49](https://github.com/glassflow/rius-semconv/issues/49)) ([243195f](https://github.com/glassflow/rius-semconv/commit/243195f3927d32578d575cb9addfa6fa475c6ce0))
+
 ## [1.2.0](https://github.com/glassflow/rius-semconv/compare/v1.1.0...v1.2.0) (2026-10-14)
 
 
