@@ -62,7 +62,13 @@ and `mcp.result_type` predate the rule and carry one.
   version (each family's `manifest.json`), and the third-party content
   allowlists pin the source version each group was read from.
 
-The registry does not publish an OpenTelemetry `schema_url` yet.
+The registry is moving to the [OTel Weaver](https://github.com/open-telemetry/weaver)
+format. `model/manifest.yaml` is the Weaver manifest: it names the registry's
+`schema_url` (`https://docs.glassflow.ai/rius/schemas/<version>`, the last
+segment being the version in `version.txt`) and depends on the OpenTelemetry
+core and GenAI registries at the versions pinned in `versions.env`. Renovate
+(`renovate.json`) opens a pull request when one of those pins moves. The
+schema files are not served at that URL yet.
 
 ## How consumers use it
 
@@ -195,8 +201,12 @@ tools/
   expect_python.py         write a recording's expected result with the Python SDK
   expect_typescript.mts    write one with the TypeScript SDK (Vercel families), under tsx
   review_expected.py       what a normalizer did to each span, for the hand review
+  install_weaver.sh        install the Weaver release pinned in versions.env, checksum-verified
+  check_weaver_pins.py     model/manifest.yaml pins what versions.env and version.txt say
   go_reference_only.yaml   backend constants the registry does not generate, and why
 tests/                     pytest suites for the loader, linter, generators and tools
+model/manifest.yaml        the Weaver registry manifest: schema_url and upstream dependencies
+versions.env               pinned Weaver and upstream registry versions (bumped by Renovate)
 version.txt                the registry's released version (written by release-please)
 ```
 
@@ -218,6 +228,16 @@ python -m pytest
 `.github/workflows/ci.yml` runs these, plus `ruff check .`,
 `ruff format --check .` and a determinism check that generates twice and
 diffs. None of them reads any other repository.
+
+Its `weaver` job also checks and resolves the Weaver registry, which fetches
+the pinned upstream registries from GitHub:
+
+```
+python tools/check_weaver_pins.py         # manifest pins match versions.env
+tools/install_weaver.sh                   # installs .weaver/bin/weaver
+.weaver/bin/weaver registry check -r model --v2
+.weaver/bin/weaver registry resolve -r model --v2 -o /tmp/resolved.yaml
+```
 
 ## What a row says
 
@@ -380,7 +400,10 @@ SDKs' hand-written files directly, for review.
 
 - **`ci.yml`** (no secrets): lints this repository's code and the registry,
   generates twice and diffs to prove determinism, fails if `out/` is stale,
-  checks the fixtures and the usage-key decisions, and runs the tests.
+  checks the fixtures and the usage-key decisions, and runs the tests. Its
+  `weaver` job installs the pinned Weaver, checksum-verified, and runs
+  `weaver registry check` and `resolve` against the pinned upstream
+  registries.
 - **`parity.yml`** (no secrets): runs `check_parity.py` against each SDK's
   `main` on every pull request, on pushes to `main`, daily, and on demand.
 - **`release.yml`**: keeps the registry's release pull request up to date

@@ -1,0 +1,19 @@
+# The Weaver registry manifest. Weaver reads the registry from this directory
+# (model/); registry/ is still what the generators read.
+file_format: definition_manifest/2.0
+name: rius
+description: >
+  Rius semantic conventions: the rius.* attributes the Rius SDKs and backend
+  share, the upstream keys they use, and the third-party keys they normalize.
+# The last path segment is this registry's version; release-please keeps it
+# equal to version.txt.
+schema_url: https://docs.glassflow.ai/rius/schemas/1.1.0 # x-release-please-version
+stability: development
+# Pinned in versions.env too; tools/check_weaver_pins.py keeps the two equal.
+dependencies:
+  - schema_url: https://opentelemetry.io/schemas/1.44.0
+    registry_path: https://github.com/open-telemetry/semantic-conventions@v1.44.0[model]
+  # semantic-conventions-genai cuts no releases or tags: pinned to a full
+  # commit. The schema_url is the one that commit's own manifest declares.
+  - schema_url: https://opentelemetry.io/schemas/gen-ai-dev/1.42.0-dev
+    registry_path: https://github.com/open-telemetry/semantic-conventions-genai@4e8a2812139b2a999d959e3650e24dfc64e21943[model]

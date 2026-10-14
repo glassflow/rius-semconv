@@ -241,6 +241,8 @@ python -m generators.generate --check
 python tools/check_fixtures.py
 python tools/check_usage_keys.py
 python -m pytest
+python tools/check_weaver_pins.py
+tools/install_weaver.sh && .weaver/bin/weaver registry check -r model --v2
 ```
 
 A separate workflow compares `out/` with what each consumer ships. It needs
