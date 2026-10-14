@@ -1,0 +1,15 @@
+{% import "macros.j2" as m %}
+{{ m.header() }}
+
+# Attribute reference
+
+Generated from the Weaver registry under [model/](../../model). One page per
+namespace Rius defines keys in, then the keys it takes from elsewhere.
+
+| Page | Keys | What it holds |
+| -- | -- | -- |
+{% for n in ctx.namespaces %}
+| [`{{ n.namespace }}`]({{ n.namespace }}.md) | {{ n.count }} | {% if n.namespace == "rius" %}The namespace Rius owns.{% else %}Rius keys outside `rius.*`, by namespace exception or deprecated.{% endif %} |
+{% endfor %}
+| [Upstream keys](upstream.md) | {{ ctx.upstream }} | OpenTelemetry keys the SDKs emit or read, linked to their upstream definitions. |
+| [Keys other producers write](normalizer-inputs.md) | {{ ctx.inputs }} | OpenInference, OpenLLMetry, Vercel AI SDK and pydantic-ai keys the SDKs emit or the normalizers read. |

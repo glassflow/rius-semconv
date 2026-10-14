@@ -1,0 +1,153 @@
+# docs/registry/: the attribute reference, one page per namespace Rius
+# defines keys in, plus a page of the upstream keys it references and one of
+# the other producers' keys its normalizers read. Written by
+# `python -m generators.registry_docs`, which passes the upstream pins as
+# params (semconv_version, genai_ref) for the links into upstream registries.
+#
+# The filters split the resolved registry by provenance: a definition from
+# model/rius/ is ours and documented in full; a ref into a dependency is
+# upstream's and only linked; a definition from model/inputs/ is a key another
+# producer writes, documented with the decision the normalizers take on it.
+#
+# Each page object carries its attributes with:
+#   name      the key as written on the wire; a template key gets `.<key>`
+#   type      the value type; a template's element type, an enum's value type
+#   members   an enum's members, else null
+#   footnote  the number of its note on the page, else null
+templates:
+  - template: namespace.md.j2
+    application_mode: each
+    file_name: "{{ ctx.namespace }}.md"
+    filter: >
+      def md: if type == "string" then
+          split("`") | to_entries
+          | map(if .key % 2 == 0 then .value | gsub("<"; "&lt;") | gsub(">"; "&gt;") | gsub("\\*"; "\\*")
+                else .value end)
+          | join("`") | sub("\\s+$"; "")
+        else . end;
+      def prose: .brief |= md | .note |= md
+        | if .deprecated then .deprecated.note |= md else . end
+        | if .annotations.rius.rationale then .annotations.rius.rationale |= md else . end
+        | if (.type | type) == "object" then .type.members |= map(.brief |= md) else . end;
+      def ours: (.provenance.path // "") | test("(^|/)model/rius/[^/]+$");
+      def shape: prose | . + (
+          if (.type | type) == "object" then
+            {members: .type.members,
+             type: (.type.members[0].value | if type == "number" then
+                      (if . == floor then "int" else "double" end)
+                    elif type == "boolean" then "boolean" else "string" end)}
+          elif (.type // "" | tostring | startswith("template[")) then
+            {name: "\(.key).<key>", type: (.type | ltrimstr("template[") | rtrimstr("]")), members: null}
+          else {members: null} end)
+        | {name: (.name // .key)} + .;
+      def number_notes: [foreach .[] as $a (0; if $a.footnote_text then . + 1 else . end;
+          $a + {footnote: (if $a.footnote_text then . else null end)})];
+      def owned_pages:
+        [ (.registry.attributes[] | select(ours) | . + {kind: "attribute"}),
+          (.registry.events[] | select(ours) | . + {kind: "event", key: .name}) ]
+        | map(shape | . + {footnote_text: ([.note, (.annotations.rius.namespace_exception | md
+              | if . then "Namespace exception: \(.)" else null end)] | map(select(. != null))
+              | if length > 0 then join("\n\n") else null end)})
+        | group_by(.key | split(".")[0])
+        | map((.[0].key | split(".")[0]) as $ns
+              | { namespace: $ns,
+                  rows: (sort_by(.kind != "attribute", .key) | number_notes),
+                  owned: ($ns == "rius") })
+        | map(. + { attributes: [.rows[] | select(.kind == "attribute" and (.deprecated | not))],
+                    events: [.rows[] | select(.kind == "event" and (.deprecated | not))],
+                    deprecated: [.rows[] | select(.deprecated)] });
+      owned_pages
+  - template: upstream.md.j2
+    application_mode: single
+    file_name: upstream.md
+    filter: >
+      def md: if type == "string" then
+          split("`") | to_entries
+          | map(if .key % 2 == 0 then .value | gsub("<"; "&lt;") | gsub(">"; "&gt;") | gsub("\\*"; "\\*")
+                else .value end)
+          | join("`") | sub("\\s+$"; "")
+        else . end;
+      def prose: .brief |= md | .note |= md
+        | if .deprecated then .deprecated.note |= md else . end
+        | if .annotations.rius.rationale then .annotations.rius.rationale |= md else . end
+        | if (.type | type) == "object" then .type.members |= map(.brief |= md) else . end;
+      def link: (.provenance.source // "") as $src
+        | (.key | split(".")[0] | gsub("_"; "-")) as $file
+        | (.key | gsub("[._]"; "-")) as $anchor
+        | if ($src | contains("gen-ai-dev")) then
+            {registry: "OpenTelemetry GenAI",
+             url: "https://github.com/open-telemetry/semantic-conventions-genai/blob/\($params.genai_ref)/docs/registry/attributes/\($file).md#\($anchor)"}
+          else
+            {registry: "OpenTelemetry \($params.semconv_version)",
+             url: "https://github.com/open-telemetry/semantic-conventions/blob/\($params.semconv_version)/docs/registry/attributes/\($file).md#\($anchor)"}
+          end;
+      def level: .requirement_level | if type == "object" then
+          (to_entries[0] | "\(.key | gsub("_"; " ")) (\(.value))") else gsub("_"; " ") end;
+      [ .registry.attribute_groups[] | select(.id == "rius.upstream" or .id == "rius.passthrough")
+        | .id as $group | .attributes[]
+        | prose | . + link + {level: level, passthrough: ($group == "rius.passthrough"),
+                      planned: (.annotations.rius.status == "planned"),
+                      rationale: .annotations.rius.rationale,
+                      type: (if (.type | type) == "object" then
+                               (.type.members[0].value | if type == "number" then "int"
+                                elif type == "boolean" then "boolean" else "string" end)
+                             else .type end)} ]
+      | sort_by(.key)
+      | [foreach .[] as $a (0; if $a.rationale then . + 1 else . end;
+          $a + {footnote: (if $a.rationale then . else null end)})]
+      | {groups: (group_by(.key | split(".")[0])
+                  | map({namespace: (.[0].key | split(".")[0]), attributes: .})),
+         semconv_version: $params.semconv_version, genai_ref: $params.genai_ref}
+  - template: inputs.md.j2
+    application_mode: single
+    file_name: normalizer-inputs.md
+    filter: >
+      def md: if type == "string" then
+          split("`") | to_entries
+          | map(if .key % 2 == 0 then .value | gsub("<"; "&lt;") | gsub(">"; "&gt;") | gsub("\\*"; "\\*")
+                else .value end)
+          | join("`") | sub("\\s+$"; "")
+        else . end;
+      def prose: .brief |= md | .note |= md
+        | if .deprecated then .deprecated.note |= md else . end
+        | if .annotations.rius.rationale then .annotations.rius.rationale |= md else . end
+        | if (.type | type) == "object" then .type.members |= map(.brief |= md) else . end;
+      def shape: prose | . + (
+          if (.type | type) == "object" then
+            {members: .type.members, type: "string"}
+          elif (.type // "" | tostring | startswith("template[")) then
+            {name: "\(.key).<key>", type: (.type | ltrimstr("template[") | rtrimstr("]")), members: null}
+          else {members: null} end)
+        | {name: .key} + .;
+      def decision($group): .annotations.rius.normalizer_input as $d
+        | if $group == "rius.openinference" then "emitted"
+          elif $d == null then "read"
+          elif $d.decision == "mapped" then "mapped to `\($d.target)`"
+            + (if $d.mapped_by then " (\($d.mapped_by | join(", ")))" else "" end)
+          else $d.decision | gsub("_"; " ") end;
+      [ .registry.attribute_groups[]
+        | select(.id == "rius.openinference" or (.id | startswith("rius.normalizer_input.")))
+        | .id as $group
+        | {id, brief: (.brief | rtrimstr(".")),
+           attributes: (.attributes | map(shape + {decision: decision($group)}) | sort_by(.key))} ]
+      | sort_by(.id != "rius.openinference", .id)
+      | . as $groups
+      | [foreach ($groups[] | .attributes[]) as $a (0; if $a.note then . + 1 else . end;
+          {key: $a.key, n: (if $a.note then . else null end)})] as $numbers
+      | ($numbers | map(select(.n)) | map({key: .key, value: .n}) | from_entries) as $n
+      | {groups: [$groups[] | .attributes |= map(. + {footnote: $n[.key]})]}
+  - template: index.md.j2
+    application_mode: single
+    file_name: README.md
+    filter: >
+      def ours: (.provenance.path // "") | test("(^|/)model/rius/[^/]+$");
+      { namespaces: ([ (.registry.attributes[] | select(ours) | .key),
+                       (.registry.events[] | select(ours) | .name) ]
+                     | group_by(split(".")[0])
+                     | map({namespace: (.[0] | split(".")[0]), count: length})),
+        upstream: ([.registry.attribute_groups[]
+                    | select(.id == "rius.upstream" or .id == "rius.passthrough")
+                    | .attributes[]] | length),
+        inputs: ([.registry.attribute_groups[]
+                  | select(.id == "rius.openinference" or (.id | startswith("rius.normalizer_input.")))
+                  | .attributes[]] | length) }
