@@ -8,6 +8,7 @@ committed registry is clean.
 import pytest
 
 from generators.registry import LANGS, Registry
+from tools.check_registry import ROOT, ticket_ids
 
 
 def lint(data):
@@ -211,3 +212,29 @@ def test_multi_meaning_key_needs_when_on_each_span_placement(data):
 def test_required_fields(data, field):
     del row(data, "SESSION_ID")[field]
     assert_flags(data, f"missing {field}")
+
+
+# --- ticket ids outside the registry ------------------------------------------
+
+
+def test_committed_fixtures_and_tools_cite_no_ticket_ids():
+    assert ticket_ids(ROOT) == []
+
+
+def test_a_ticket_id_in_fixtures_or_tools_is_flagged(tmp_path):
+    (tmp_path / "fixtures" / "family").mkdir(parents=True)
+    (tmp_path / "fixtures" / "family" / "record.py").write_text("x = 1\n# see RIUS-917\n")
+    (tmp_path / "tools").mkdir()
+    (tmp_path / "tools" / "helper.mts").write_text("// GLA2-12 and GLA-3\n")
+    assert ticket_ids(tmp_path) == [
+        "fixtures/family/record.py:2: ticket id RIUS-917; write the reason",
+        "tools/helper.mts:1: ticket id GLA2-12; write the reason",
+        "tools/helper.mts:1: ticket id GLA-3; write the reason",
+    ]
+
+
+def test_installed_packages_are_not_scanned(tmp_path):
+    vendored = tmp_path / "fixtures" / "family" / "node_modules" / "pkg"
+    vendored.mkdir(parents=True)
+    (vendored / "CHANGELOG.md").write_text("Fixed RIUS-1\n")
+    assert ticket_ids(tmp_path) == []
