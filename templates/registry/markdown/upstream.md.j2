@@ -1,0 +1,30 @@
+{% import "macros.j2" as m %}
+{{ m.header() }}
+
+# Upstream keys
+
+The OpenTelemetry keys the Rius SDKs emit or read, referenced from the
+registries this one pins: core semantic conventions `{{ ctx.semconv_version }}`
+and the GenAI semantic conventions at
+[`{{ ctx.genai_ref[:7] }}`](https://github.com/open-telemetry/semantic-conventions-genai/tree/{{ ctx.genai_ref }}).
+Their definitions, types and stability are upstream's: each key links to it.
+What is ours is the requirement level Rius gives the key and the note on how
+Rius uses it.
+{% for g in ctx.groups %}
+
+## `{{ g.namespace }}`
+
+| Key | Type | Requirement level | Defined in | How Rius uses it |
+| -- | -- | -- | -- | -- |
+{% for a in g.attributes %}
+| [`{{ a.key }}`]({{ a.url }}) | {{ a.type }} | {{ a.level }} | {{ a.registry }} | {% if a.passthrough %}Stored, not emitted.{% elif a.planned %}Planned, not emitted yet.{% else %}Emitted.{% endif %}{% if a.footnote %} [{{ a.footnote }}]{% endif %} |
+{% endfor %}
+{% endfor %}
+{% for g in ctx.groups %}{% for a in g.attributes if a.footnote %}
+{% if a.footnote == 1 %}
+
+## Notes
+{% endif %}
+
+**[{{ a.footnote }}] `{{ a.key }}`:** {{ a.rationale | trim }}
+{% endfor %}{% endfor %}

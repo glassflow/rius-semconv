@@ -1,0 +1,55 @@
+{% import "macros.j2" as m %}
+{{ m.header() }}
+
+# `{{ ctx.namespace }}`
+
+{% if ctx.owned %}
+The `rius` namespace is the one this registry owns: a fact no OpenTelemetry
+convention names gets a key here.
+{% elif ctx.attributes or ctx.events %}
+`{{ ctx.namespace }}` is not a Rius namespace. Rius defines only the keys below
+in it, each under a documented namespace exception; every other
+`{{ ctx.namespace }}` key Rius uses is upstream's (see [upstream keys](upstream.md)).
+{% else %}
+Rius no longer defines keys in `{{ ctx.namespace }}`. The deprecated keys
+below are kept so a reader of older spans can tell what they were.
+{% endif %}
+{% if ctx.attributes %}
+
+## Attributes
+
+| Key | Stability | Type | Description | Examples |
+| -- | -- | -- | -- | -- |
+{% for a in ctx.attributes %}
+| <a id="{{ a.key | replace(".", "-") | replace("_", "-") | lower }}"></a>`{{ a.name }}` | {{ m.badge(a.stability) }} | {{ a.type }} | {{ m.described(a) }} | {{ m.examples(a.examples) }} |
+{% endfor %}
+{% for a in ctx.attributes %}{{ m.members(a) }}{% endfor %}
+{% endif %}
+{% if ctx.events %}
+
+## Events
+
+| Name | Stability | Description |
+| -- | -- | -- |
+{% for e in ctx.events %}
+| <a id="{{ e.key | replace(".", "-") | replace("_", "-") | lower }}"></a>`{{ e.name }}` | {{ m.badge(e.stability) }} | {{ m.described(e) }} |
+{% endfor %}
+{% endif %}
+{% if ctx.deprecated %}
+
+## Deprecated
+
+| Key | Type | Replaced by | Description |
+| -- | -- | -- | -- |
+{% for a in ctx.deprecated %}
+| <a id="{{ a.key | replace(".", "-") | replace("_", "-") | lower }}"></a>`{{ a.name }}` | {{ a.type }} | {% if a.deprecated.renamed_to %}`{{ a.deprecated.renamed_to }}`{% else %}{{ m.cell(a.deprecated.reason) }}{% endif %} | {{ m.described(a) }}{% if a.deprecated.note %} {{ m.cell(a.deprecated.note) }}{% endif %} |
+{% endfor %}
+{% endif %}
+{% for a in ctx.rows if a.footnote %}
+{% if loop.first %}
+
+## Notes
+{% endif %}
+
+**[{{ a.footnote }}] `{{ a.name }}`:** {{ a.footnote_text | trim }}
+{% endfor %}
