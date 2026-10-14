@@ -24,14 +24,17 @@ opening an issue.
 
 ## Setting up
 
-You need Python 3.11 or later, Go (for `gofmt`, and the tests compile the
-generated Go) and Node 22.7 or later (the tests and the parity check evaluate
-the generated TypeScript). CI uses Python 3.12, Go 1.25 and Node 24.
+You need Python 3.11 or later, the pinned Weaver (it renders `out/`), Go
+(for `gofmt`, and the tests compile the generated Go) and Node 22.7 or later
+(the tests and the parity check evaluate the generated TypeScript). CI uses
+Python 3.12, Go 1.25 and Node 24. Generating fetches the pinned upstream
+registries from GitHub.
 
 ```
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements-dev.txt
+tools/install_weaver.sh
 ```
 
 ## Changing the registry
@@ -93,14 +96,16 @@ The other registry files follow the same rules: `taxonomy.yaml` (span kinds),
 Do not edit `CHANGELOG.md` or `version.txt`: release-please writes them (see
 [Releases](#releases)).
 
-### Generators
+### Templates
 
-Each generator under `generators/` is a short template with no templating
-engine. If a generator needs a fact the registry does not state, add a column
-to the YAML rather than a special case in the generator. Output must stay
-deterministic and must pass each consumer's own formatter (`ruff`, `biome`,
-`gofmt`); `tests/test_generators.py` checks both (the `biome` check runs
-only when a rius-sdk-typescript checkout sits next to this one).
+Each language's module is rendered by a Weaver template under
+`templates/registry/<lang>/`, from a context the jq filter in
+`templates/registry/weaver.yaml` builds. If a template needs a fact the
+registry does not state, add a column to the YAML rather than a special case
+in the template. Output must stay deterministic and must pass each consumer's
+own formatter (`ruff`, `biome`, `gofmt`); `tests/test_generators.py` checks
+both (the `biome` check runs only when a rius-sdk-typescript checkout sits
+next to this one).
 
 ## Deprecation and compatibility
 
@@ -270,7 +275,7 @@ python tools/check_usage_keys.py
 python -m pytest
 python tools/check_weaver_pins.py
 python tools/to_weaver.py --check
-tools/install_weaver.sh && .weaver/bin/weaver registry check -r model --v2
+PATH="$PWD/.weaver/bin:$PATH" python tools/weaver_check.py
 ```
 
 A separate workflow compares `out/` with what each consumer ships. It needs
