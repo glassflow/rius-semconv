@@ -1,0 +1,3 @@
+# out/go: the Go constants file, before gofmt. Shared settings: ../weaver.yaml.
+params:
+  lang: go

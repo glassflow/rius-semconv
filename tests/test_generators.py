@@ -1,9 +1,11 @@
-"""The three generators: deterministic, committed output current, and the
-emitted values are the registry's.
+"""The generated modules: committed output current, and the emitted values
+are the registry's.
 
-Values are checked by EVALUATING the generated code (Python exec, Node for
-TypeScript, the Go compiler), not by grepping it, because the parity tools
-compare evaluated values too.
+Values are checked by EVALUATING the committed out/ files (Python exec, Node
+for TypeScript, the Go compiler), not by grepping them, because the parity
+tools compare evaluated values too. Rendering needs Weaver, so the tests that
+render are skipped without it; CI runs them in the weaver job, which also
+checks that generation is deterministic.
 """
 
 import pathlib
@@ -13,40 +15,34 @@ import subprocess
 
 import pytest
 
-from conftest import ROOT, requires_go, requires_node
+from conftest import ROOT, requires_go, requires_node, requires_weaver
 from generators import generate
 from generators.registry import Registry
 from tools.parity import go_constants, python_surface, ts_surface
 
 TICKET = re.compile(r"\b(?:RIUS|GLA2?)-\d+\b")
+LANGS = ["python", "typescript", "go"]
 
 
-def render(registry, lang):
-    return generate.TARGETS[lang].render(registry)
+def committed(registry, lang):
+    return generate.output_path(ROOT / "out", registry, lang).read_text()
 
 
 @pytest.fixture(scope="module")
 def py_module(base_data):
-    return python_surface(render(Registry(base_data), "python"))
+    return python_surface(committed(Registry(base_data), "python"))
 
 
-# --- determinism and freshness ----------------------------------------------
+# --- freshness ---------------------------------------------------------------
 
 
-@pytest.mark.parametrize("lang", ["python", "typescript", "go"])
-def test_rendering_is_deterministic(base_data, lang):
-    if lang == "go" and shutil.which("gofmt") is None:
-        pytest.skip("needs gofmt")
-    first = render(Registry(base_data), lang)
-    second = render(Registry(base_data), lang)
-    assert first == second
-
-
+@requires_weaver
 def test_committed_output_is_current():
-    """What CI's staleness job runs. Fails if out/ lags the registry."""
+    """What CI's staleness step runs. Fails if out/ lags the registry."""
     assert generate.main(["--check"]) == 0
 
 
+@requires_weaver
 def test_check_detects_a_stale_file(tmp_path):
     assert generate.main(["--out", str(tmp_path)]) == 0
     stale = tmp_path / "python" / "_semconv_generated.py"
@@ -54,20 +50,25 @@ def test_check_detects_a_stale_file(tmp_path):
     assert generate.main(["--out", str(tmp_path), "--check"]) == 1
 
 
-def test_generation_refuses_a_registry_that_fails_lint(monkeypatch, base_data, tmp_path):
-    import copy
+@requires_weaver
+def test_output_follows_the_registry_before_model_is_rewritten(data):
+    """generate renders from what tools/to_weaver.py would write now, not from
+    the committed model/."""
+    row = next(r for r in data["attributes"]["attributes"] if r["const"] == "TRACER_NAME")
+    row["key"] = "rius-renamed"
+    text = generate.render(Registry(data), ["python"])["python"]
+    assert 'TRACER_NAME = "rius-renamed"' in text
 
-    broken = copy.deepcopy(base_data)
-    broken["attributes"]["attributes"][0]["divergence"] = ""
-    monkeypatch.setattr(generate, "load_data", lambda: broken)
+
+def test_generation_refuses_a_registry_that_fails_lint(monkeypatch, data, tmp_path):
+    data["attributes"]["attributes"][0]["divergence"] = ""
+    monkeypatch.setattr(generate, "load_data", lambda: data)
     assert generate.main(["--out", str(tmp_path)]) == 2
 
 
-@pytest.mark.parametrize("lang", ["python", "typescript", "go"])
+@pytest.mark.parametrize("lang", LANGS)
 def test_no_ticket_ids_in_output(base_data, lang):
-    if lang == "go" and shutil.which("gofmt") is None:
-        pytest.skip("needs gofmt")
-    assert not TICKET.findall(render(Registry(base_data), lang))
+    assert not TICKET.findall(committed(Registry(base_data), lang))
 
 
 # --- Python ------------------------------------------------------------------
@@ -119,7 +120,7 @@ def test_python_tables(py_module):
 
 def test_python_all_lists_exactly_the_public_names(base_data):
     namespace = {}
-    source = render(Registry(base_data), "python")
+    source = committed(Registry(base_data), "python")
     surface = python_surface(source)
     exec_globals = python_surface(source, raw=True)
     namespace.update(exec_globals)
@@ -127,8 +128,10 @@ def test_python_all_lists_exactly_the_public_names(base_data):
     assert set(namespace["__all__"]) == public
 
 
+@requires_weaver
 def test_python_include_planned_adds_planned_rows(base_data):
-    surface = python_surface(render(Registry(base_data, include_planned=True), "python"))
+    reg = Registry(base_data, include_planned=True)
+    surface = python_surface(generate.render(reg, ["python"])["python"])
     assert surface["TELEMETRY_DISTRO_NAME"] == "telemetry.distro.name"
 
 
@@ -137,7 +140,7 @@ def test_python_include_planned_adds_planned_rows(base_data):
 
 @requires_node
 def test_typescript_values(base_data):
-    surface = ts_surface(render(Registry(base_data), "typescript"))
+    surface = ts_surface(committed(Registry(base_data), "typescript"))
     values = {name: value for name, (value, _public) in surface.items()}
     assert values["TRACER_NAME"] == "rius"
     assert values["SERVICE_VERSION"] == "service.version"  # via ATTR_SERVICE_VERSION
@@ -154,14 +157,14 @@ def test_typescript_values(base_data):
 
 
 def test_typescript_aliases_upstream_constant(base_data):
-    source = render(Registry(base_data), "typescript")
+    source = committed(Registry(base_data), "typescript")
     assert 'import { ATTR_SERVICE_VERSION } from "@opentelemetry/semantic-conventions";' in source
     assert "export const SERVICE_VERSION = ATTR_SERVICE_VERSION;" in source
 
 
 def test_typescript_marks_a_deprecated_constant_with_a_jsdoc_tag(base_data):
     # A line comment gives editors nothing to strike through; @deprecated does.
-    source = render(Registry(base_data), "typescript")
+    source = committed(Registry(base_data), "typescript")
     block = source.split('export const RIUS_MAIN_AGENT_NAME = "rius.main_agent.name";')[0]
     doc = block[block.rindex("/**") :]
     assert " * @deprecated moved to gen_ai.main_agent.name.\n */\n" in doc
@@ -170,7 +173,7 @@ def test_typescript_marks_a_deprecated_constant_with_a_jsdoc_tag(base_data):
 
 
 def test_typescript_keeps_line_comments_on_a_current_constant(base_data):
-    source = render(Registry(base_data), "typescript")
+    source = committed(Registry(base_data), "typescript")
     block = source.split('export const GEN_AI_MAIN_AGENT_ID = "gen_ai.main_agent.id";')[0]
     assert not block.rstrip().endswith("*/")
     assert "@deprecated" not in block.split("\n\n")[-1]
@@ -185,7 +188,7 @@ def test_typescript_is_biome_clean_when_biome_is_available(base_data, tmp_path):
     if not biome.exists():
         pytest.skip("no rius-sdk-typescript checkout with node_modules alongside")
     target = sdk / "src" / "__rius_semconv_probe__.ts"
-    target.write_text(render(Registry(base_data), "typescript"))
+    target.write_text(committed(Registry(base_data), "typescript"))
     try:
         result = subprocess.run(
             [str(biome), "check", str(target)], cwd=sdk, capture_output=True, text=True
@@ -199,9 +202,7 @@ def test_typescript_is_biome_clean_when_biome_is_available(base_data, tmp_path):
 
 
 def test_go_header_and_names(base_data):
-    if shutil.which("gofmt") is None:
-        pytest.skip("needs gofmt")
-    source = render(Registry(base_data), "go")
+    source = committed(Registry(base_data), "go")
     assert source.startswith("// Code generated by rius-semconv. DO NOT EDIT.\n")
     consts = go_constants(source)
     assert consts["ServiceName"] == "service.name"
@@ -216,7 +217,7 @@ def test_go_compiles_and_holds_the_tables(base_data, tmp_path):
     (tmp_path / "go.mod").write_text("module example.com/probe\n\ngo 1.21\n")
     pkg = tmp_path / "semconv"
     pkg.mkdir()
-    (pkg / "semconv_generated.go").write_text(render(Registry(base_data), "go"))
+    (pkg / "semconv_generated.go").write_text(committed(Registry(base_data), "go"))
     (tmp_path / "main.go").write_text(
         "package main\n\n"
         'import (\n\t"fmt"\n\n\t"example.com/probe/semconv"\n)\n\n'
