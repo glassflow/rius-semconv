@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.2.0](https://github.com/glassflow/rius-semconv/compare/v1.1.0...v1.2.0) (2026-10-14)
+
+
+### Features
+
+* reference upstream keys from the Weaver registry, and describe the normalizer inputs ([#40](https://github.com/glassflow/rius-semconv/issues/40)) ([504bd6f](https://github.com/glassflow/rius-semconv/commit/504bd6f3f4a77513e69a7d3fcc15b6808f40de30))
+* write the rius.* attributes as a Weaver registry, with briefs, examples and stability ([#39](https://github.com/glassflow/rius-semconv/issues/39)) ([14c3159](https://github.com/glassflow/rius-semconv/commit/14c3159fb6653fd696da56ef21df77904992eab3))
+
+
+### Bug Fixes
+
+* model the pydantic_ai.cache prefix as a template Weaver can match ([#46](https://github.com/glassflow/rius-semconv/issues/46)) ([f1f1714](https://github.com/glassflow/rius-semconv/commit/f1f17145993ab523b5b0b755b2374fbc6ec704d0))
+
 ## [1.1.0](https://github.com/glassflow/rius-semconv/compare/v1.0.0...v1.1.0) (2026-10-13)
 
 
