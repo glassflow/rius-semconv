@@ -1,0 +1,48 @@
+name: Bug report
+description: A wrong value in the registry or the generated output, a wrong expected result, or a tool that misbehaves.
+title: "bug: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. If it is a security problem (for example a key that carries content but is not on the content allowlist), please follow [SECURITY.md](https://github.com/glassflow/rius-semconv/blob/main/SECURITY.md) instead.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Registry (registry/*.yaml)
+        - Generated output (out/)
+        - Recording or expected result (fixtures/)
+        - Tools or checks (tools/, generators/, tests/)
+        - Documentation
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What is wrong
+      description: The row, key, file or command, and what it does.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+      description: For a convention question, link the OpenTelemetry or OpenInference definition you are comparing against.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce
+      description: Commands and their output, or the recording and scenario that shows it.
+      render: shell
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      description: The registry release (for example v1.1.0) or the commit you are on.
+    validations:
+      required: true
