@@ -225,7 +225,7 @@ def input_attribute(entry: dict, producer: str, spec: dict) -> dict:
     type_ = entry.get("type", "any" if prefix else "int")
     decision = {k: v for k, v in entry.items() if k not in {"key", "prefix", "type", "reason"}}
     attr: dict[str, Any] = {
-        "key": name.rstrip(".") if prefix else name,
+        "key": entry["prefix"].rstrip(".") if prefix else name,
         "type": f"template[{type_}]" if prefix else type_,
         "brief": brief_for(entry, spec["name"]),
     }

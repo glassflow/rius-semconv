@@ -8,7 +8,7 @@ attribute_groups:
   brief: Attributes pydantic-ai writes that the Rius normalizers read.
   attributes:
   - ref: operation.cost
-  - ref: pydantic_ai.cache.*
+  - ref: pydantic_ai.cache
 attributes:
 - key: operation.cost
   type: double
@@ -23,7 +23,7 @@ attributes:
       direction: read
       normalizer_input:
         decision: ignored
-- key: pydantic_ai.cache.*
+- key: pydantic_ai.cache
   type: template[any]
   brief: Key written by pydantic-ai that names tokens or cost but is not a usage count.
   note: |
