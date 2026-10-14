@@ -49,3 +49,16 @@ attribute_groups = ["registry.rius", "rius.upstream"]
 [["live-check".finding_filters]]
 exclude = ["invalid_format"]
 sample_names = ["ai.*", "metadata.ai.*"]
+
+# A deprecated key stays in the recordings for its deprecation window: an SDK
+# already released keeps sending it, and readers accept it until the window
+# closes (CONTRIBUTING "Deprecation window"). Only the deprecation finding is
+# dropped, and only for these keys: a wrong type still fails. Remove a key
+# here when its window closes and the recordings move to the replacement.
+[["live-check".finding_filters]]
+exclude = ["deprecated"]
+sample_names = [
+  "rius.main_agent.id",
+  "rius.main_agent.name",
+  "rius.main_agent.description",
+]
