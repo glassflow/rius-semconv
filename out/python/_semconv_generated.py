@@ -395,10 +395,12 @@ GEN_AI_REQUEST_PARAMETERS: dict[str, str] = {
     "top_k": GEN_AI_REQUEST_TOP_K,
     "topK": GEN_AI_REQUEST_TOP_K,
     "k": GEN_AI_REQUEST_TOP_K,
-    # stop_sequences — OpenAI `stop`, Google `stopSequences`.
+    # stop_sequences — OpenAI `stop`, Google `stopSequences`. `stop` is listed
+    # FIRST because the llm.invocation_parameters rule prefers it, and both
+    # paths must keep the same spelling when a request carries two.
+    "stop": GEN_AI_REQUEST_STOP_SEQUENCES,
     "stop_sequences": GEN_AI_REQUEST_STOP_SEQUENCES,
     "stopSequences": GEN_AI_REQUEST_STOP_SEQUENCES,
-    "stop": GEN_AI_REQUEST_STOP_SEQUENCES,
     "frequency_penalty": GEN_AI_REQUEST_FREQUENCY_PENALTY,
     "frequencyPenalty": GEN_AI_REQUEST_FREQUENCY_PENALTY,
     "presence_penalty": GEN_AI_REQUEST_PRESENCE_PENALTY,

@@ -368,10 +368,12 @@ var GenAIRequestParameters = map[string]string{
 	"top_k": GenAIRequestTopK,
 	"topK":  GenAIRequestTopK,
 	"k":     GenAIRequestTopK,
-	// stop_sequences — OpenAI `stop`, Google `stopSequences`.
+	// stop_sequences — OpenAI `stop`, Google `stopSequences`. `stop` is listed
+	// FIRST because the llm.invocation_parameters rule prefers it, and both
+	// paths must keep the same spelling when a request carries two.
+	"stop":              GenAIRequestStopSequences,
 	"stop_sequences":    GenAIRequestStopSequences,
 	"stopSequences":     GenAIRequestStopSequences,
-	"stop":              GenAIRequestStopSequences,
 	"frequency_penalty": GenAIRequestFrequencyPenalty,
 	"frequencyPenalty":  GenAIRequestFrequencyPenalty,
 	"presence_penalty":  GenAIRequestPresencePenalty,
