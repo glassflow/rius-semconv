@@ -159,6 +159,23 @@ def test_typescript_aliases_upstream_constant(base_data):
     assert "export const SERVICE_VERSION = ATTR_SERVICE_VERSION;" in source
 
 
+def test_typescript_marks_a_deprecated_constant_with_a_jsdoc_tag(base_data):
+    # A line comment gives editors nothing to strike through; @deprecated does.
+    source = render(Registry(base_data), "typescript")
+    block = source.split('export const RIUS_MAIN_AGENT_NAME = "rius.main_agent.name";')[0]
+    doc = block[block.rindex("/**") :]
+    assert " * @deprecated moved to gen_ai.main_agent.name.\n */\n" in doc
+    assert "Deprecated:" not in doc
+    assert " * Named the agent this process is" in doc
+
+
+def test_typescript_keeps_line_comments_on_a_current_constant(base_data):
+    source = render(Registry(base_data), "typescript")
+    block = source.split('export const GEN_AI_MAIN_AGENT_ID = "gen_ai.main_agent.id";')[0]
+    assert not block.rstrip().endswith("*/")
+    assert "@deprecated" not in block.split("\n\n")[-1]
+
+
 def test_typescript_is_biome_clean_when_biome_is_available(base_data, tmp_path):
     """Optional: runs the TypeScript SDK's own formatter when a checkout with
     node_modules sits next to this repo, so a vendored file never trips the

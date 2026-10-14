@@ -72,11 +72,16 @@ export const GEN_AI_MAIN_AGENT_NAME = "gen_ai.main_agent.name";
 
 // The stable identifier of the agent this process is, and the identity of
 // the conventions' gen_ai.main_agent entity: no id, no entity. It is the
-// configured main-agent id when one is set, otherwise the resolved agent
-// name as is. The name is stable across restarts and readable, which a
-// generated id would not be; the conventions say it MUST NOT come from an
-// in-memory or process-local id. Renaming the agent changes a derived id,
-// so the SDKs log a one-time hint that a stable id can be set. With neither
+// configured main-agent id when one is set (the SDK setting, or a
+// gen_ai.main_agent.id the operator already put on the resource),
+// otherwise the resolved agent name as is. The name is stable across
+// restarts and readable, which a generated id would not be; the
+// conventions say it MUST NOT come from an in-memory or process-local id.
+// A name-derived id meets that MUST but not the conventions' SHOULD that
+// the id be the provider-assigned identifier of the agent resource (a
+// Bedrock ARN, a GCP Agent Registry id): set main_agent_id to one when
+// there is one. Renaming the agent changes a derived id, so the SDKs log a
+// one-time hint that a stable id can be set. With neither
 // an id nor a usable name (empty, or the unknown_service placeholder), no
 // gen_ai.main_agent.* key is emitted at all.
 //
@@ -89,17 +94,25 @@ export const GEN_AI_MAIN_AGENT_ID = "gen_ai.main_agent.id";
 // rius.main_agent.description.
 export const GEN_AI_MAIN_AGENT_DESCRIPTION = "gen_ai.main_agent.description";
 
-// Deprecated: moved to gen_ai.main_agent.name.
-// Named the agent this process is before the conventions had a key for it.
+/**
+ * Named the agent this process is before the conventions had a key for it.
+ *
+ * @deprecated moved to gen_ai.main_agent.name.
+ */
 export const RIUS_MAIN_AGENT_NAME = "rius.main_agent.name";
 
-// Deprecated: moved to gen_ai.main_agent.id.
-// Took the same stability constraint the conventions put on gen_ai.agent.id:
-// a transient in-memory or process-local id here would mint a new "agent"
-// every restart and make the key useless for grouping.
+/**
+ * Took the same stability constraint the conventions put on gen_ai.agent.id:
+ * a transient in-memory or process-local id here would mint a new "agent"
+ * every restart and make the key useless for grouping.
+ *
+ * @deprecated moved to gen_ai.main_agent.id.
+ */
 export const RIUS_MAIN_AGENT_ID = "rius.main_agent.id";
 
-// Deprecated: moved to gen_ai.main_agent.description.
+/**
+ * @deprecated moved to gen_ai.main_agent.description.
+ */
 export const RIUS_MAIN_AGENT_DESCRIPTION = "rius.main_agent.description";
 
 // The version of the agent DEFINITION — its prompt, tools and policy — which is

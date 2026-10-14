@@ -35,6 +35,18 @@ def _ref_or_literal(reg: Registry, key: str) -> str:
     return const if const is not None else _literal(key)
 
 
+def _deprecated_doc(rationale: str | None) -> list[str]:
+    """A deprecated constant's rationale as JSDoc ending in an @deprecated tag,
+    so editors strike the constant through. The rationale's opening
+    `Deprecated: ...` line, which names the successor, becomes the tag."""
+    lines = (rationale or "").rstrip("\n").split("\n") if rationale else []
+    tag = "@deprecated"
+    if lines and lines[0].startswith("Deprecated: "):
+        tag = f"{tag} {lines.pop(0).removeprefix('Deprecated: ')}"
+    body = [f" * {line}".rstrip() for line in lines]
+    return ["/**", *body, *([" *"] if body else []), f" * {tag}", " */"]
+
+
 def _array(head: str, items: list[str], tail: str = ";") -> list[str]:
     """`head[items]tail` on one line when it fits, else one item per line."""
     flat = f"{head}[{', '.join(items)}]{tail}"
@@ -77,7 +89,10 @@ def render(reg: Registry) -> str:
         if "section" in row or "rationale" in row:
             out.append("")
         out.extend(comment(row.get("section"), "//"))
-        out.extend(comment(row.get("rationale"), "//"))
+        if "deprecated" in row:
+            out.extend(_deprecated_doc(row.get("rationale")))
+        else:
+            out.extend(comment(row.get("rationale"), "//"))
         value = row["ts_alias"]["name"] if "ts_alias" in row else _literal(row["key"])
         out.append(f"export const {row['const']} = {value};")
 

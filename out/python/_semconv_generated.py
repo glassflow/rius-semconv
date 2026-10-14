@@ -81,11 +81,16 @@ GEN_AI_MAIN_AGENT_NAME = "gen_ai.main_agent.name"
 
 # The stable identifier of the agent this process is, and the identity of
 # the conventions' gen_ai.main_agent entity: no id, no entity. It is the
-# configured main-agent id when one is set, otherwise the resolved agent
-# name as is. The name is stable across restarts and readable, which a
-# generated id would not be; the conventions say it MUST NOT come from an
-# in-memory or process-local id. Renaming the agent changes a derived id,
-# so the SDKs log a one-time hint that a stable id can be set. With neither
+# configured main-agent id when one is set (the SDK setting, or a
+# gen_ai.main_agent.id the operator already put on the resource),
+# otherwise the resolved agent name as is. The name is stable across
+# restarts and readable, which a generated id would not be; the
+# conventions say it MUST NOT come from an in-memory or process-local id.
+# A name-derived id meets that MUST but not the conventions' SHOULD that
+# the id be the provider-assigned identifier of the agent resource (a
+# Bedrock ARN, a GCP Agent Registry id): set main_agent_id to one when
+# there is one. Renaming the agent changes a derived id, so the SDKs log a
+# one-time hint that a stable id can be set. With neither
 # an id nor a usable name (empty, or the unknown_service placeholder), no
 # gen_ai.main_agent.* key is emitted at all.
 #
