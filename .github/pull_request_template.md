@@ -1,7 +1,8 @@
 <!--
 The title is the squash commit on main, and release-please reads its type:
-feat: adds to the registry, fix: corrects a row's meaning, feat!: changes or
-removes a wire value, test:/chore:/docs: for everything else. See
+feat: adds to the registry, feat(deprecate): deprecates a key, fix: corrects
+a row's meaning, feat!: breaks a consumer (a wire value changed in place, a
+deprecated constant dropped), test:/chore:/docs: for everything else. See
 CONTRIBUTING.md.
 -->
 
