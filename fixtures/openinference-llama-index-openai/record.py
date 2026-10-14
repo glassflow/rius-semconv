@@ -48,6 +48,7 @@ PACKAGES = [
     "openinference-instrumentation",
     "openinference-semantic-conventions",
     "llama-index-core",
+    "llama-index-instrumentation",
     "llama-index-llms-openai",
     "openai",
     "httpx",
