@@ -19,6 +19,25 @@
 {% endfor %}
 {% endif %}
 {% endmacro %}
+{#- A deprecated constant's rationale as JSDoc ending in an @deprecated tag, so
+    editors strike the constant through. The rationale's opening
+    `Deprecated: ...` line, which names the successor, becomes the tag. -#}
+{% macro deprecated_doc(text) %}
+{% set ns = namespace(lines=(text.rstrip("\n").split("\n") if text else []), tag="@deprecated") %}
+{% if ns.lines and ns.lines[0].startswith("Deprecated: ") %}
+{% set ns.tag = ns.tag ~ " " ~ ns.lines[0][12:] %}
+{% set ns.lines = ns.lines[1:] %}
+{% endif %}
+/**
+{% for line in ns.lines %}
+{{ (" * " ~ line).rstrip() }}
+{% endfor %}
+{% if ns.lines %}
+ *
+{% endif %}
+ * {{ ns.tag }}
+ */
+{% endmacro %}
 {% macro lit(value) %}"{{ value | replace("\\", "\\\\") | replace('"', '\\"') }}"{% endmacro %}
 {% macro prop(key) %}{% if key | regex_replace("^[A-Za-z_$][A-Za-z0-9_$]*$", "") == "" %}{{ key }}{% else %}{{ lit(key) }}{% endif %}{% endmacro %}
 {% macro ref_or_literal(key) %}{% if key in ctx.const_for_key %}{{ ctx.const_for_key[key] }}{% else %}{{ lit(key) }}{% endif %}{% endmacro %}
@@ -63,7 +82,7 @@ import { {{ imp.names | join(", ") }} } from {{ lit(imp.from) }};
 {% if row.section or row.rationale %}
 
 {% endif %}
-{{ comment(row.section, "//", "") }}{{ comment(row.rationale, "//", "") }}export const {{ row.const }} = {% if row.ts_alias %}{{ row.ts_alias.name }}{% else %}{{ lit(row.key) }}{% endif %};
+{{ comment(row.section, "//", "") }}{% if row.deprecated %}{{ deprecated_doc(row.rationale) }}{% else %}{{ comment(row.rationale, "//", "") }}{% endif %}export const {{ row.const }} = {% if row.ts_alias %}{{ row.ts_alias.name }}{% else %}{{ lit(row.key) }}{% endif %};
 {% endfor %}
 
 {{ comment(mp.doc, "//", "") }}export const {{ mp.const }}: Readonly<Record<string, string>> = {

@@ -11,9 +11,6 @@ convention names gets a key here.
 | -- | -- | -- | -- | -- |
 | <a id="rius-aggregated-usage"></a>`rius.aggregated_usage.<key>` | ![Development](https://img.shields.io/badge/-development-blue) | int | A whole agent run's token usage, moved off gen_ai.usage.\* so per-call usage is not counted twice; the suffix is the gen_ai.usage.\* suffix. [1] | `115`; `42` |
 | <a id="rius-context-sizes"></a>`rius.context.sizes` | ![Development](https://img.shields.io/badge/-development-blue) | any | Byte sizes of each part of a generation's context (tool definitions, input and output messages), as compact JSON. [2] | `{"version":1,"input_messages":[{"role":"system","parts":[{"type":"text","bytes":19}]},{"role":"user","parts":[{"type":"text","bytes":18}]}],"output_messages":[{"role":"assistant","parts":[{"type":"text","bytes":6}]}]}` |
-| <a id="rius-main-agent-description"></a>`rius.main_agent.description` | ![Development](https://img.shields.io/badge/-development-blue) | string | What the agent this process is does, in free text. [3] | `Answers weather questions for a named city.` |
-| <a id="rius-main-agent-id"></a>`rius.main_agent.id` | ![Development](https://img.shields.io/badge/-development-blue) | string | Stable identifier of the agent this process is, unchanged across restarts and deployments. [4] | `support-triage-prod`; `8f14e45f-ceea-467a-9575-4c0d6f6c1b9e` |
-| <a id="rius-main-agent-name"></a>`rius.main_agent.name` | ![Development](https://img.shields.io/badge/-development-blue) | string | Name of the agent this process is, stamped once on the resource. [5] | `weather-agent`; `support-triage` |
 | <a id="rius-main-agent-version"></a>`rius.main_agent.version` | ![Development](https://img.shields.io/badge/-development-blue) | string | Version of the agent definition (prompt, tools and policy) this process runs, independent of service.version. [6] | `7`; `2026-10-01` |
 | <a id="rius-parent-foreign"></a>`rius.parent.foreign` | ![Development](https://img.shields.io/badge/-development-blue) | boolean | The span's parent is local to this process but was never received by Rius, so the trace arrives without it. [7] | `true` |
 | <a id="rius-request"></a>`rius.request.<key>` | ![Development](https://img.shields.io/badge/-development-blue) | any | A request parameter the GenAI conventions do not define, keyed by the parameter's name as the caller spelled it. [8] | `flex`; `true`; `{"type":"json_object"}` |
@@ -21,6 +18,14 @@ convention names gets a key here.
 | <a id="rius-sdk-global-provider"></a>`rius.sdk.global_provider` | ![Development](https://img.shields.io/badge/-development-blue) | string | The tracer provider that already held the OpenTelemetry global when Rius initialized, as foreign:&lt;class&gt;. [10] | `foreign:opentelemetry.sdk.trace.TracerProvider`; `foreign:NodeTracerProvider` |
 | <a id="rius-span-pending"></a>`rius.span.pending` | ![Development](https://img.shields.io/badge/-development-blue) | boolean | Marks the content-free snapshot of a span that is exported when the span starts, before the real span ends. [11] | `true` |
 | <a id="rius-workspace"></a>`rius.workspace` | ![Development](https://img.shields.io/badge/-development-blue) | string | Alias of the workspace a span is exported to when one process sends to several; stripped before the span leaves the process. [12] | `acme`; `customer-eu` |
+
+## Deprecated
+
+| Key | Type | Replaced by | Description |
+| -- | -- | -- | -- |
+| <a id="rius-main-agent-description"></a>`rius.main_agent.description` | string | uncategorized | What the agent this process is does, in free text. [3] Moved to gen_ai.main_agent.description, which the OpenTelemetry GenAI conventions now define for the same fact. The SDKs stamp both through the deprecation window; readers take gen_ai.main_agent.description first. |
+| <a id="rius-main-agent-id"></a>`rius.main_agent.id` | string | uncategorized | Stable identifier of the agent this process is, unchanged across restarts and deployments. [4] Moved to gen_ai.main_agent.id, which the OpenTelemetry GenAI conventions now define for the same fact. The SDKs stamp both through the deprecation window; readers take gen_ai.main_agent.id first. This key only ever carried a configured id, while gen_ai.main_agent.id falls back to the agent name when none is configured. |
+| <a id="rius-main-agent-name"></a>`rius.main_agent.name` | string | uncategorized | Name of the agent this process is, stamped once on the resource. [5] Moved to gen_ai.main_agent.name, which the OpenTelemetry GenAI conventions now define for the same fact. The SDKs stamp both through the deprecation window; readers take gen_ai.main_agent.name first. |
 
 ## Notes
 
@@ -61,23 +66,15 @@ masking and capture_content=False — that is its whole point when the
 messages are truncated or stripped) and from PENDING_IDENTITY_ATTRIBUTES
 (content is unknown at span start, so a pending snapshot never has it).
 
-**[3] `rius.main_agent.description`:** The OpenTelemetry GenAI conventions now define `gen_ai.main_agent.description`
-for the same fact. A move to it is planned; until then this key is
-emitted and is not deprecated.
+**[3] `rius.main_agent.description`:** Deprecated: moved to gen_ai.main_agent.description.
 
-**[4] `rius.main_agent.id`:** The SAME stability constraint the conventions put on gen_ai.agent.id,
-adopted rather than loosened because we own the namespace: a transient
-in-memory or process-local id here would mint a new "agent" every restart and
-make the key useless for grouping. Taking the constraint now is what keeps
-that future rename mechanical instead of a data-quality problem.
+**[4] `rius.main_agent.id`:** Deprecated: moved to gen_ai.main_agent.id.
+Took the same stability constraint the conventions put on gen_ai.agent.id:
+a transient in-memory or process-local id here would mint a new "agent"
+every restart and make the key useless for grouping.
 
-The OpenTelemetry GenAI conventions now define `gen_ai.main_agent.id`
-for the same fact. A move to it is planned; until then this key is
-emitted and is not deprecated.
-
-**[5] `rius.main_agent.name`:** The OpenTelemetry GenAI conventions now define `gen_ai.main_agent.name`
-for the same fact. A move to it is planned; until then this key is
-emitted and is not deprecated.
+**[5] `rius.main_agent.name`:** Deprecated: moved to gen_ai.main_agent.name.
+Named the agent this process is before the conventions had a key for it.
 
 **[6] `rius.main_agent.version`:** The version of the agent DEFINITION — its prompt, tools and policy — which is
 deliberately NOT service.version. A service can sit at 2.3.1 while its

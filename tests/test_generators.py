@@ -77,6 +77,11 @@ def test_no_ticket_ids_in_output(base_data, lang):
 def test_python_constants(py_module):
     assert py_module["TRACER_NAME"] == "rius"
     assert py_module["GEN_AI_AGENT_VERSION"] == "gen_ai.agent.version"
+    assert py_module["GEN_AI_MAIN_AGENT_ID"] == "gen_ai.main_agent.id"
+    assert py_module["GEN_AI_MAIN_AGENT_NAME"] == "gen_ai.main_agent.name"
+    assert py_module["GEN_AI_MAIN_AGENT_DESCRIPTION"] == "gen_ai.main_agent.description"
+    # Deprecated, but still generated through the deprecation window.
+    assert py_module["RIUS_MAIN_AGENT_NAME"] == "rius.main_agent.name"
     assert py_module["EXCEPTION_EVENT"] == "exception"
     assert py_module["RIUS_REQUEST_PREFIX"] == "rius.request."
     assert "SERVICE_NAME" not in py_module  # Go-only
@@ -155,6 +160,23 @@ def test_typescript_aliases_upstream_constant(base_data):
     source = committed(Registry(base_data), "typescript")
     assert 'import { ATTR_SERVICE_VERSION } from "@opentelemetry/semantic-conventions";' in source
     assert "export const SERVICE_VERSION = ATTR_SERVICE_VERSION;" in source
+
+
+def test_typescript_marks_a_deprecated_constant_with_a_jsdoc_tag(base_data):
+    # A line comment gives editors nothing to strike through; @deprecated does.
+    source = committed(Registry(base_data), "typescript")
+    block = source.split('export const RIUS_MAIN_AGENT_NAME = "rius.main_agent.name";')[0]
+    doc = block[block.rindex("/**") :]
+    assert " * @deprecated moved to gen_ai.main_agent.name.\n */\n" in doc
+    assert "Deprecated:" not in doc
+    assert " * Named the agent this process is" in doc
+
+
+def test_typescript_keeps_line_comments_on_a_current_constant(base_data):
+    source = committed(Registry(base_data), "typescript")
+    block = source.split('export const GEN_AI_MAIN_AGENT_ID = "gen_ai.main_agent.id";')[0]
+    assert not block.rstrip().endswith("*/")
+    assert "@deprecated" not in block.split("\n\n")[-1]
 
 
 def test_typescript_is_biome_clean_when_biome_is_available(base_data, tmp_path):

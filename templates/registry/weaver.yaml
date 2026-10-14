@@ -9,7 +9,8 @@
 #                  references comes back from its `rius` annotation, the rest
 #                  are whole in the params file's `layout`
 #   rows           the rows generated for `lang`, a skipped row's section
-#                  heading moved to the next emitted row
+#                  heading moved to the next emitted row; a deprecated row
+#                  carries Weaver's `deprecated` next to its annotation
 #   const_for_key  wire key -> the constant it is emitted as, for `lang`
 #   go_names       constant -> its Go name (the row's `go`, else PascalCase
 #                  with the initialisms below)
@@ -34,7 +35,8 @@ templates:
       def initialisms: {"ID": "ID", "GEN": "Gen", "AI": "AI", "MCP": "MCP", "LLM": "LLM",
         "URL": "URL", "SDK": "SDK", "TTL": "TTL"};
       ( [ .registry.attributes[], .registry.attribute_groups[].attributes[], .registry.events[] ]
-        | map(.annotations.rius // empty | select(.const != null))
+        | map(select(.annotations.rius.const != null)
+              | .annotations.rius + (if .deprecated then {deprecated: .deprecated} else {} end))
         | map({key: .const, value: .}) | from_entries ) as $by
       | [ $params.layout[]
           | if .key then . else ($by[.const] // error("no definition for \(.const)")) end ] as $all

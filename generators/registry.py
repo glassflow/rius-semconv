@@ -532,6 +532,11 @@ def _lint_weaver_row(r: dict, label: str, keys: set) -> list[str]:
         upstream = r["upstream_equivalent"]
         if not isinstance(upstream, str) or upstream.startswith("rius."):
             errors.append(f"{label}: upstream_equivalent must name an upstream key")
+        if "deprecated" in r:
+            errors.append(
+                f"{label}: a deprecated row takes no upstream_equivalent; "
+                "its deprecation note names the upstream key"
+            )
     return errors
 
 

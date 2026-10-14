@@ -157,6 +157,10 @@ A deprecation is written in the rows of `registry/attributes.yaml`:
      ...
    ```
 
+   The generated Go keeps that line as its `// Deprecated:` paragraph, and the
+   generated TypeScript turns it into a JSDoc `@deprecated` tag, so both
+   languages' editors mark the constant.
+
 3. **Add the replacement row**, if there is one, and say in its `rationale`
    which key it replaces, so a reader of either row finds the other.
 4. **Title the pull request `feat(deprecate): ...`** (see

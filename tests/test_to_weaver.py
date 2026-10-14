@@ -6,6 +6,8 @@ the others pin the mapping decisions on the real registry.
 
 from __future__ import annotations
 
+import copy
+
 import pytest
 import yaml
 
@@ -71,10 +73,40 @@ def test_a_rename_is_kept_deprecated_and_excluded_from_code_generation(own):
     assert old["annotations"]["code_generation"] == {"exclude": True}
 
 
-def test_an_upstream_equivalent_is_noted_not_deprecated(own):
-    main_agent = attribute(own, "rius.main_agent.id")
-    assert "gen_ai.main_agent.id" in main_agent["note"]
+def test_an_upstream_equivalent_is_noted_not_deprecated(base_data):
+    data = copy.deepcopy(base_data)
+    version = next(
+        r for r in data["attributes"]["attributes"] if r["const"] == "RIUS_MAIN_AGENT_VERSION"
+    )
+    version["upstream_equivalent"] = "gen_ai.main_agent.version"
+    own = yaml.safe_load(to_weaver.render(data)[to_weaver.MODEL / "rius" / "registry.yaml"])
+    main_agent = attribute(own, "rius.main_agent.version")
+    assert "gen_ai.main_agent.version" in main_agent["note"]
     assert "deprecated" not in main_agent
+
+
+@pytest.mark.parametrize("field", ["id", "name", "description"])
+def test_a_key_moved_into_the_genai_registry_is_deprecated_naming_its_successor(own, field):
+    ours = attribute(own, f"rius.main_agent.{field}")
+    assert ours["deprecated"]["reason"] == "uncategorized"
+    assert "renamed_to" not in ours["deprecated"]
+    assert f"gen_ai.main_agent.{field}" in ours["deprecated"]["note"]
+    # The "planned move, not deprecated" line is for upstream_equivalent only.
+    assert "is not deprecated" not in ours["note"]
+
+
+def test_the_main_agent_version_has_no_upstream_twin_and_stays(own):
+    assert "deprecated" not in attribute(own, "rius.main_agent.version")
+
+
+def test_the_upstream_main_agent_keys_are_referenced_not_defined(files, own):
+    groups = files["model/rius/upstream.yaml"]["attribute_groups"]
+    (upstream,) = [g for g in groups if g["id"] == "rius.upstream"]
+    refs = {a["ref"] for a in upstream["attributes"]}
+    defined = {a["key"] for a in own["attributes"]}
+    for field in ("id", "name", "description"):
+        assert f"gen_ai.main_agent.{field}" in refs
+        assert f"gen_ai.main_agent.{field}" not in defined
 
 
 def test_the_rius_event_is_an_event(own):
@@ -209,3 +241,12 @@ def test_gen_ai_usage_inputs_stay_in_the_sidecar(params):
     names = {e.get("key") or e.get("prefix") for e in params["normalizer_inputs"]}
     assert "gen_ai.usage.prompt_tokens" in names
     assert "gen_ai.aggregated_usage." in names
+
+
+def test_the_main_agent_id_is_emitted_whenever_the_entity_is(files):
+    groups = files["model/rius/upstream.yaml"]["attribute_groups"]
+    (upstream,) = [g for g in groups if g["id"] == "rius.upstream"]
+    (main_agent_id,) = [a for a in upstream["attributes"] if a["ref"] == "gen_ai.main_agent.id"]
+    assert main_agent_id["requirement_level"] == {
+        "conditionally_required": "always, whenever the main-agent entity is emitted"
+    }
