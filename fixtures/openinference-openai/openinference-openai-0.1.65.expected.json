@@ -124,7 +124,7 @@
               {
                 "key": "gen_ai.usage.input_tokens",
                 "value": {
-                  "stringValue": "42"
+                  "intValue": "42"
                 }
               },
               {
