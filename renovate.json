@@ -23,7 +23,7 @@
       ]
     },
     {
-      "description": "The core semantic conventions in model/manifest.yaml (registry_path and schema_url)",
+      "description": "The core semantic conventions in model/manifest.yaml (registry_path; tools/follow_pins.py moves the schema_url)",
       "customType": "regex",
       "managerFilePatterns": ["/^model/manifest\\.yaml$/"],
       "matchStrings": [
@@ -49,7 +49,7 @@
       "description": "Every bump also moves files derived from the pins",
       "matchManagers": ["custom.regex"],
       "prBodyNotes": [
-        "The `renovate-followup` workflow commits the files derived from the pins (Weaver checksums, the manifest's `schema_url`s, `model/`, `out/`, `docs/registry/`) to this branch. If it fails because its secret is missing, run `python tools/follow_pins.py` on the branch and commit the result."
+        "The `renovate-followup` workflow commits the files derived from the pins (Weaver checksums, the manifest's `schema_url`s, `model/`, `out/`, `docs/registry/`) to this branch. If it fails, rerun it once its secret is set: a commit made by hand on this branch stops Renovate updating it (CONTRIBUTING.md, \"Dependency bumps\")."
       ]
     },
     {

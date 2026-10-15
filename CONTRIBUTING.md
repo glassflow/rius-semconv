@@ -303,22 +303,29 @@ new pins`. CI then runs on that commit. Review the regenerated diff with the
 bump: a new upstream commit can change the keys we reference, not only the
 links.
 
-The workflow pushes with the `RENOVATE_FOLLOWUP_TOKEN` repository secret: a
+The workflow runs the branch's code in one job with no secrets, and commits
+the result in a second job that runs none of it: that job applies the change
+only if it touches `versions.env`, `model/`, `out/` and `docs/registry/`, as
+plain files. It pushes with the `RENOVATE_FOLLOWUP_TOKEN` repository secret: a
 fine-grained personal access token, or a GitHub App token, with **Contents:
 read and write** on this repository only. A push made with the workflow's own
 `GITHUB_TOKEN` would not run CI on the new commit. Without the secret the
-workflow regenerates, and fails if anything changed. Then run the same thing
-on the branch yourself:
+workflow regenerates, and fails if anything changed.
+
+If it fails, prefer rerunning it (the workflow's **Run workflow** button, with
+the branch name) once the secret is set, or let Renovate recreate the pull
+request. Renovate keeps updating a branch only while every commit on it is its
+own or the workflow's (`gitIgnoredAuthors` in `renovate.json`): after a commit
+of yours it stops rebasing the branch and leaves it to you. If you do commit
+the result by hand:
 
 ```
+git fetch origin
 git switch renovate/<branch>
-python tools/follow_pins.py
+python tools/follow_pins.py --base origin/main
 git add -A && git commit -s -m "chore(deps): regenerate for the new pins"
 git push
 ```
-
-To rerun it on a branch, use the workflow's **Run workflow** button with the
-branch name.
 
 ## Commits and pull requests
 

@@ -26,9 +26,14 @@ REGISTRY_PATH = re.compile(r"(https://github\.com/[^@]+)@([^\[]+)\[model\]")
 
 
 def read_env(path: pathlib.Path) -> dict[str, str]:
+    """A versions.env file, parsed by parse_env."""
+    return parse_env(path.read_text())
+
+
+def parse_env(text: str) -> dict[str, str]:
     """KEY=VALUE lines; comments and blank lines skipped."""
     env = {}
-    for line in path.read_text().splitlines():
+    for line in text.splitlines():
         line = line.strip()
         if line and not line.startswith("#"):
             key, _, value = line.partition("=")
