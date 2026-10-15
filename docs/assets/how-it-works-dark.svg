@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="286" viewBox="0 0 1000 286" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+<title>How rius-semconv works</title>
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#f9c078"/></marker></defs>
+<rect x="10" y="10" width="178" height="96" rx="10" fill="#2b1600" stroke="#5c4428" stroke-width="1.5"/>
+<text x="26" y="40" font-size="16" font-weight="600" fill="#fcfcfc">registry/</text>
+<text x="26" y="62" font-size="13" fill="#c9b9a3">YAML, the file you edit:</text>
+<text x="26" y="80" font-size="13" fill="#c9b9a3">attributes, allowlists,</text>
+<text x="26" y="98" font-size="13" fill="#c9b9a3">span kinds, usage keys</text>
+<rect x="276" y="10" width="178" height="96" rx="10" fill="#2b1600" stroke="#5c4428" stroke-width="1.5"/>
+<text x="292" y="40" font-size="16" font-weight="600" fill="#fcfcfc">model/</text>
+<text x="292" y="62" font-size="13" fill="#c9b9a3">the Weaver registry,</text>
+<text x="292" y="80" font-size="13" fill="#c9b9a3">with refs to the pinned</text>
+<text x="292" y="98" font-size="13" fill="#c9b9a3">OTel conventions</text>
+<rect x="542" y="10" width="178" height="96" rx="10" fill="#2b1600" stroke="#5c4428" stroke-width="1.5"/>
+<text x="558" y="40" font-size="16" font-weight="600" fill="#fcfcfc">out/</text>
+<text x="558" y="62" font-size="13" fill="#c9b9a3">generated constants:</text>
+<text x="558" y="80" font-size="13" fill="#c9b9a3">Python, TypeScript</text>
+<text x="558" y="98" font-size="13" fill="#c9b9a3">and Go</text>
+<rect x="808" y="10" width="178" height="96" rx="10" fill="#2b1600" stroke="#5c4428" stroke-width="1.5"/>
+<text x="824" y="40" font-size="16" font-weight="600" fill="#fcfcfc">Consumers</text>
+<text x="824" y="62" font-size="13" fill="#c9b9a3">rius-sdk-python</text>
+<text x="824" y="80" font-size="13" fill="#c9b9a3">rius-sdk-typescript</text>
+<text x="824" y="98" font-size="13" fill="#c9b9a3">Rius backend (Go)</text>
+<rect x="542" y="152" width="178" height="78" rx="10" fill="#2b1600" stroke="#5c4428" stroke-width="1.5"/>
+<text x="558" y="182" font-size="16" font-weight="600" fill="#fcfcfc">docs/registry/</text>
+<text x="558" y="204" font-size="13" fill="#c9b9a3">attribute reference,</text>
+<text x="558" y="222" font-size="13" fill="#c9b9a3">a page per namespace</text>
+<rect x="808" y="152" width="178" height="78" rx="10" fill="#2b1600" stroke="#5c4428" stroke-width="1.5"/>
+<text x="824" y="182" font-size="16" font-weight="600" fill="#fcfcfc">Schema files</text>
+<text x="824" y="204" font-size="13" fill="#c9b9a3">docs.glassflow.ai/rius/</text>
+<text x="824" y="222" font-size="13" fill="#c9b9a3">schemas/&lt;version&gt;</text>
+<line x1="188" y1="58" x2="274" y2="58" stroke="#f9c078" stroke-width="2" marker-end="url(#a)"/>
+<text x="232" y="50" font-size="12" fill="#c9b9a3" text-anchor="middle">to_weaver.py</text>
+<line x1="454" y1="58" x2="540" y2="58" stroke="#f9c078" stroke-width="2" marker-end="url(#a)"/>
+<text x="498" y="36" font-size="12" fill="#c9b9a3" text-anchor="middle">weaver</text>
+<text x="498" y="50" font-size="12" fill="#c9b9a3" text-anchor="middle">generate</text>
+<line x1="720" y1="58" x2="806" y2="58" stroke="#f9c078" stroke-width="2" marker-end="url(#a)"/>
+<text x="764" y="36" font-size="12" fill="#c9b9a3" text-anchor="middle">vendored</text>
+<text x="764" y="50" font-size="12" fill="#c9b9a3" text-anchor="middle">per release</text>
+<path d="M414,106 L414,191 L540,191" fill="none" stroke="#f9c078" stroke-width="2" marker-end="url(#a)"/>
+<text x="478" y="183" font-size="12" fill="#c9b9a3" text-anchor="middle">weaver generate</text>
+<path d="M326,106 L326,264 L897,264 L897,232" fill="none" stroke="#f9c078" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#a)"/>
+<text x="611" y="256" font-size="12" fill="#c9b9a3" text-anchor="middle">published on each release</text>
+</svg>

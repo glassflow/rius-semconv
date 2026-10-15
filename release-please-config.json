@@ -23,7 +23,7 @@
         { "type": "build", "section": "Build System", "hidden": true },
         { "type": "ci", "section": "Continuous Integration", "hidden": true }
       ],
-      "extra-files": ["model/manifest.yaml"]
+      "extra-files": ["model/manifest.yaml", "README.md"]
     }
   }
 }
