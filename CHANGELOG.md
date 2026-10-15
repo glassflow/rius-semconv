@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0](https://github.com/glassflow/rius-semconv/compare/v1.3.0...v1.4.0) (2026-10-15)
+
+
+### Features
+
+* classify @ai-sdk/otel's decide, speech and transcription operations as LLM, and record them ([#59](https://github.com/glassflow/rius-semconv/issues/59)) ([9923175](https://github.com/glassflow/rius-semconv/commit/9923175d13b46dcf138ab44fbf83fa4785a37792))
+
 ## [1.3.0](https://github.com/glassflow/rius-semconv/compare/v1.2.0...v1.3.0) (2026-10-14)
 
 
