@@ -43,6 +43,7 @@ Generated from [rius-semconv](https://github.com/glassflow/rius-semconv) {{ ctx.
 {%- endmacro %}
 {% macro described(a) -%}
 {{ cell(a.brief) }}{% if a.footnote %} [{{ a.footnote }}]{% endif %}
+{%- for f in a.formers or [] %} Former spelling: <a id="{{ anchor(f) }}"></a>`{{ f }}`.{% endfor %}
 {%- endmacro %}
 {% macro members(a, ctx) -%}
 {% if a.members %}

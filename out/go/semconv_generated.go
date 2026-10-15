@@ -309,14 +309,15 @@ const (
 	RiusContextSizes = "rius.context.sizes"
 
 	// --- Span event names ---
-	// First streamed token/chunk arrived: the exact timestamp the backend reads to
-	// derive TTFT (event time minus span start). The GenAI conventions express the
-	// same signal as the derived span attribute
-	// gen_ai.response.time_to_first_chunk, which record_first_token emits
-	// alongside this event; the event stays because it is what the backend
-	// keys on, and an absolute timestamp is not recoverable from the duration
-	// once the span is stored. The name follows the gen_ai.* style (precedent
-	// Langfuse's completion_start_time); no convention defines an event for this.
+	// Deprecated: replaced by the gen_ai.response.time_to_first_chunk span attribute.
+	// First streamed token/chunk arrived. The standard signal is the span
+	// attribute gen_ai.response.time_to_first_chunk, which the SDKs emit. The
+	// Rius backend keeps gen_ai.first_token as the name of the event it
+	// stores, and synthesizes that event at ingest: from
+	// gen_ai.response.time_to_first_chunk (at span start plus the duration,
+	// never after the span's end), and by renaming the OpenInference and
+	// Vercel AI SDK first-chunk events. Producers need not send it. The
+	// constant stays, deprecated, until a major release.
 	GenAIFirstTokenEvent = "gen_ai.first_token"
 
 	// --- Pending (partial) spans ---
