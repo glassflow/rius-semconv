@@ -71,6 +71,8 @@ def set_checksums(versions: str, printed: str) -> str:
         raise ValueError(f"unexpected checksum lines: {bad}")
     printed_names = sorted(CHECKSUM_LINE.fullmatch(line).group(1) for line in lines)
     pinned_names = sorted(re.findall(r"(?m)^(WEAVER_SHA256_[A-Z0-9_]+)=", versions))
+    if not pinned_names:
+        raise ValueError("versions.env pins no WEAVER_SHA256_* checksums: nothing to check")
     if printed_names != pinned_names:
         raise ValueError(f"checksums printed for {printed_names}, versions.env pins {pinned_names}")
     for line in lines:

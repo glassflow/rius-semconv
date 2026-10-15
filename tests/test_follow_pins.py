@@ -51,6 +51,15 @@ def test_checksums_refuse_what_versions_env_cannot_take(out):
         follow_pins.set_checksums(VERSIONS, out)
 
 
+def test_checksums_refuse_a_versions_env_without_checksums():
+    # Nothing pinned and nothing printed would otherwise match and pass.
+    versions = "".join(
+        line for line in VERSIONS.splitlines(keepends=True) if not line.startswith("WEAVER_SHA256_")
+    )
+    with pytest.raises(ValueError, match="pins no WEAVER_SHA256_"):
+        follow_pins.set_checksums(versions, "")
+
+
 def test_schema_urls_move_with_the_pins_and_keep_the_comments():
     updated = follow_pins.set_schema_url(
         MANIFEST, check_weaver_pins.CORE_REPO, "https://opentelemetry.io/schemas/9.9.9"

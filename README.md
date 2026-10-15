@@ -508,6 +508,11 @@ SDKs' hand-written files directly, for review.
   against the registry.
 - **`parity.yml`** (no secrets): runs `check_parity.py` against each SDK's
   `main` on every pull request, on pushes to `main`, daily, and on demand.
+- **`renovate-followup.yml`**: regenerates the files that follow from the
+  pins on Renovate's pull requests and pushes the result with an
+  installation token of a GitHub App installed on this repository only
+  (Contents: Read and write), from the `RENOVATE_FOLLOWUP_APP_CLIENT_ID` and
+  `RENOVATE_FOLLOWUP_APP_KEY` secrets (CONTRIBUTING.md, "Dependency bumps").
 - **`release.yml`**: keeps the registry's release pull request up to date
   on pushes to `main` (see [Versioning](#versioning-and-stability)).
 

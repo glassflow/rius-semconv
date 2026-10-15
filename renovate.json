@@ -49,7 +49,7 @@
       "description": "Every bump also moves files derived from the pins",
       "matchManagers": ["custom.regex"],
       "prBodyNotes": [
-        "The `renovate-followup` workflow commits the files derived from the pins (Weaver checksums, the manifest's `schema_url`s, `model/`, `out/`, `docs/registry/`) to this branch. If it fails, rerun it once its secret is set: a commit made by hand on this branch stops Renovate updating it (CONTRIBUTING.md, \"Dependency bumps\")."
+        "The `renovate-followup` workflow commits the files derived from the pins (Weaver checksums, the manifest's `schema_url`s, `model/`, `out/`, `docs/registry/`) to this branch. If it fails, rerun it once its GitHub App secrets (`RENOVATE_FOLLOWUP_APP_CLIENT_ID`, `RENOVATE_FOLLOWUP_APP_KEY`) are set: a commit made by hand on this branch stops Renovate updating it (CONTRIBUTING.md, \"Dependency bumps\")."
       ]
     },
     {
