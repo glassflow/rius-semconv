@@ -12,8 +12,7 @@ same result.
 
 <p>
   <a href="https://docs.glassflow.ai/rius"><b>Docs</b></a> ·
-  <a href="https://docs.glassflow.ai/rius/schemas/1.4.0">Schemas</a> · <!-- x-release-please-version -->
-  <a href="docs/registry/README.md">Registry</a> ·
+  <a href="docs/registry/README.md">Attribute registry</a> ·
   <a href="CHANGELOG.md">Changelog</a> ·
   <a href="https://github.com/glassflow/rius-semconv/issues">Issues</a>
 </p>
@@ -24,11 +23,6 @@ same result.
 [![OpenTelemetry Weaver](https://img.shields.io/badge/OpenTelemetry-Weaver-425cc7?style=flat-square&logo=opentelemetry&logoColor=white)](https://github.com/open-telemetry/weaver)
 [![OTel semconv](https://img.shields.io/badge/OTel_semconv-v1.44.0-425cc7?style=flat-square)](versions.env)
 ![Generates Python, TypeScript and Go](https://img.shields.io/badge/generates-Python_%C2%B7_TypeScript_%C2%B7_Go-6b7280?style=flat-square)
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/how-it-works-dark.svg">
-  <img alt="tools/to_weaver.py writes the Weaver registry in model/ from the YAML in registry/. weaver generate renders it into constants for Python, TypeScript and Go in out/, which the Python SDK, the TypeScript SDK and the Rius backend vendor per release, and into the attribute reference in docs/registry/. Each release also publishes the schema files at docs.glassflow.ai/rius/schemas." src="docs/assets/how-it-works-light.svg" width="100%">
-</picture>
 
 ## Who it is for
 
