@@ -306,14 +306,19 @@ links.
 The workflow runs the branch's code in one job with no secrets, and commits
 the result in a second job that runs none of it: that job applies the change
 only if it touches `versions.env`, `model/`, `out/` and `docs/registry/`, as
-plain files. It pushes with the `RENOVATE_FOLLOWUP_TOKEN` repository secret: a
-fine-grained personal access token, or a GitHub App token, with **Contents:
-read and write** on this repository only. A push made with the workflow's own
-`GITHUB_TOKEN` would not run CI on the new commit. Without the secret the
+plain files. It pushes with an installation token of a GitHub App, made in
+that job from two repository secrets: `RENOVATE_FOLLOWUP_APP_ID` (the App's
+ID) and `RENOVATE_FOLLOWUP_APP_KEY` (a private key of the App, the whole
+`.pem`). The App is installed on this repository only, with the repository
+permission **Contents: Read and write** and nothing else, and its webhook
+turned off. The token lasts at most an hour and is revoked when the job ends,
+and it does not act as an admin user, so a leaked one cannot get round the
+branch protection on `main`. A push made with the workflow's own
+`GITHUB_TOKEN` would not run CI on the new commit. Without the secrets the
 workflow regenerates, and fails if anything changed.
 
 If it fails, prefer rerunning it (the workflow's **Run workflow** button, with
-the branch name) once the secret is set, or let Renovate recreate the pull
+the branch name) once the secrets are set, or let Renovate recreate the pull
 request. Renovate keeps updating a branch only while every commit on it is its
 own or the workflow's (`gitIgnoredAuthors` in `renovate.json`): after a commit
 of yours it stops rebasing the branch and leaves it to you. If you do commit
