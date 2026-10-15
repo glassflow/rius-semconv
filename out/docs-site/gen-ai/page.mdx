@@ -1,0 +1,29 @@
+{/* Generated from rius-semconv 1.4.0 by `python -m generators.registry_docs`. Do not edit: change registry/ in github.com/glassflow/rius-semconv. x-release-please-version */}
+
+# `gen_ai` namespace
+
+`gen_ai` is not a Rius namespace. Rius defines only the keys below
+in it, each under a documented namespace exception; every other
+`gen_ai` key Rius uses is upstream's (see [upstream keys](/rius/interoperability/registry/upstream)).
+
+Generated from [rius-semconv](https://github.com/glassflow/rius-semconv) 1.4.0, the Rius attribute registry, and updated on each of its releases. {/* x-release-please-version */}
+
+## Events
+
+| Name | Stability | Description |
+| -- | -- | -- |
+| <a id="gen-ai-first-token"></a>`gen_ai.first_token` | Development | The first streamed token or chunk of a generation arrived. [1] |
+
+## Notes
+
+**[1] `gen_ai.first_token`:** First streamed token/chunk arrived: the exact timestamp the backend reads to
+derive TTFT (event time minus span start). The GenAI conventions express the
+same signal as the derived span attribute
+gen_ai.response.time_to_first_chunk, which record_first_token emits
+alongside this event; the event stays because it is what the backend
+keys on, and an absolute timestamp is not recoverable from the duration
+once the span is stored. The name follows the gen_ai.\* style (precedent
+Langfuse's completion_start_time); no convention defines an event for this.
+
+Namespace exception: Predates the rule, and a rename is a wire change the backend keys on. No
+convention defines an event for the first streamed token.

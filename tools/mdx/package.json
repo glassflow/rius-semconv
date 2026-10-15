@@ -1,0 +1,11 @@
+{
+  "name": "rius-semconv-mdx-check",
+  "private": true,
+  "description": "Compiles out/docs-site/ the way the docs site does. Pinned to the versions glassflow-docs resolves (through nextra).",
+  "type": "module",
+  "dependencies": {
+    "@mdx-js/mdx": "3.1.1",
+    "remark-frontmatter": "5.0.0",
+    "remark-gfm": "4.0.1"
+  }
+}

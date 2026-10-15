@@ -4,6 +4,14 @@
 # `python -m generators.registry_docs`, which passes the upstream pins as
 # params (semconv_version, genai_ref) for the links into upstream registries.
 #
+# Each page renders twice from the same context: as Markdown for this
+# repository (`site: false`, docs/registry/<page>.md), and as a Nextra page
+# for the docs site (`site: true`, site/<slug>/page.mdx, which registry_docs
+# writes to out/docs-site/), plus the site's _meta.tsx. A site context also
+# carries the release (`version`, from version.txt) and the URL the pages
+# are served under (`base`). Prose is escaped for both: `<`, `>`, `*`, `{` and
+# `}` outside code spans.
+#
 # The filters split the resolved registry by provenance: a definition from
 # model/rius/ is ours and documented in full; a ref into a dependency is
 # upstream's and only linked; a definition from model/inputs/ is a key another
@@ -14,14 +22,18 @@
 #   type      the value type; a template's element type, an enum's value type
 #   members   an enum's members, else null
 #   footnote  the number of its note on the page, else null
+#   replacement  on a deprecated key: {key, page} of the key that replaces it
+#             (Weaver's renamed_to, else the row's replaced_by, which is
+#             always upstream's), else null
 templates:
   - template: namespace.md.j2
     application_mode: each
-    file_name: "{{ ctx.namespace }}.md"
+    file_name: "{{ ctx.file }}"
     filter: >
       def md: if type == "string" then
           split("`") | to_entries
           | map(if .key % 2 == 0 then .value | gsub("<"; "&lt;") | gsub(">"; "&gt;") | gsub("\\*"; "\\*")
+                | gsub("\\{"; "\\{") | gsub("\\}"; "\\}")
                 else .value end)
           | join("`") | sub("\\s+$"; "")
         else . end;
@@ -39,7 +51,14 @@ templates:
           elif (.type // "" | tostring | startswith("template[")) then
             {name: "\(.key).<key>", type: (.type | ltrimstr("template[") | rtrimstr("]")), members: null}
           else {members: null} end)
-        | {name: (.name // .key)} + .;
+        | {name: (.name // .key)} + .
+        | if .deprecated then . + {replacement: (
+              if .deprecated.renamed_to then
+                {key: .deprecated.renamed_to, page: (.deprecated.renamed_to | split(".")[0])}
+              elif .annotations.rius.replaced_by then
+                {key: .annotations.rius.replaced_by, page: "upstream"}
+              else null end)}
+          else . end;
       def number_notes: [foreach .[] as $a (0; if $a.footnote_text then . + 1 else . end;
           $a + {footnote: (if $a.footnote_text then . else null end)})];
       def owned_pages:
@@ -56,14 +75,18 @@ templates:
         | map(. + { attributes: [.rows[] | select(.kind == "attribute" and (.deprecated | not))],
                     events: [.rows[] | select(.kind == "event" and (.deprecated | not))],
                     deprecated: [.rows[] | select(.deprecated)] });
-      owned_pages
+      owned_pages | map(
+        (. + {site: false, file: "\(.namespace).md"}),
+        (. + {site: true, file: "site/\(.namespace | gsub("_"; "-"))/page.mdx",
+              version: $params.version, base: $params.docs_base}))
   - template: upstream.md.j2
-    application_mode: single
-    file_name: upstream.md
+    application_mode: each
+    file_name: "{{ ctx.file }}"
     filter: >
       def md: if type == "string" then
           split("`") | to_entries
           | map(if .key % 2 == 0 then .value | gsub("<"; "&lt;") | gsub(">"; "&gt;") | gsub("\\*"; "\\*")
+                | gsub("\\{"; "\\{") | gsub("\\}"; "\\}")
                 else .value end)
           | join("`") | sub("\\s+$"; "")
         else . end;
@@ -98,13 +121,17 @@ templates:
       | {groups: (group_by(.key | split(".")[0])
                   | map({namespace: (.[0].key | split(".")[0]), attributes: .})),
          semconv_version: $params.semconv_version, genai_ref: $params.genai_ref}
+      | [(. + {site: false, file: "upstream.md"}),
+         (. + {site: true, file: "site/upstream/page.mdx",
+               version: $params.version, base: $params.docs_base})]
   - template: inputs.md.j2
-    application_mode: single
-    file_name: normalizer-inputs.md
+    application_mode: each
+    file_name: "{{ ctx.file }}"
     filter: >
       def md: if type == "string" then
           split("`") | to_entries
           | map(if .key % 2 == 0 then .value | gsub("<"; "&lt;") | gsub(">"; "&gt;") | gsub("\\*"; "\\*")
+                | gsub("\\{"; "\\{") | gsub("\\}"; "\\}")
                 else .value end)
           | join("`") | sub("\\s+$"; "")
         else . end;
@@ -136,9 +163,12 @@ templates:
           {key: $a.key, n: (if $a.note then . else null end)})] as $numbers
       | ($numbers | map(select(.n)) | map({key: .key, value: .n}) | from_entries) as $n
       | {groups: [$groups[] | .attributes |= map(. + {footnote: $n[.key]})]}
+      | [(. + {site: false, file: "normalizer-inputs.md"}),
+         (. + {site: true, file: "site/normalizer-inputs/page.mdx",
+               version: $params.version, base: $params.docs_base})]
   - template: index.md.j2
-    application_mode: single
-    file_name: README.md
+    application_mode: each
+    file_name: "{{ ctx.file }}"
     filter: >
       def ours: (.provenance.path // "") | test("(^|/)model/rius/[^/]+$");
       { namespaces: ([ (.registry.attributes[] | select(ours) | .key),
@@ -151,3 +181,15 @@ templates:
         inputs: ([.registry.attribute_groups[]
                   | select(.id == "rius.openinference" or (.id | startswith("rius.normalizer_input.")))
                   | .attributes[]] | length) }
+      | [(. + {site: false, file: "README.md"}),
+         (. + {site: true, file: "site/page.mdx",
+               version: $params.version, base: $params.docs_base})]
+  # The docs site's navigation for the pages above, in the index's order.
+  - template: meta.tsx.j2
+    application_mode: single
+    file_name: site/_meta.tsx
+    filter: >
+      def ours: (.provenance.path // "") | test("(^|/)model/rius/[^/]+$");
+      { namespaces: ([ (.registry.attributes[] | select(ours) | .key),
+                       (.registry.events[] | select(ours) | .name) ]
+                     | map(split(".")[0]) | unique) }

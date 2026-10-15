@@ -47,6 +47,16 @@ jobs:
       - name: Tests
         run: python -m pytest -q -rs
 
+      # out/docs-site/ is what glassflow-docs serves as the attribute registry
+      # pages. Compiled with the MDX compiler and remark plugins the docs
+      # site's Nextra build uses (pinned in tools/mdx/package.json), so a page
+      # that would break that build fails here. That the pages are current is
+      # the weaver job's registry_docs --check.
+      - name: The docs-site pages compile as MDX
+        run: |
+          npm ci --prefix tools/mdx
+          node tools/mdx/check.mjs
+
   # Checks that model/ is what tools/to_weaver.py writes from registry/, then
   # checks and resolves the Weaver registry under model/ against the upstream
   # registries pinned in versions.env and model/manifest.yaml, runs the policies
@@ -126,10 +136,10 @@ jobs:
           RIUS_REQUIRE_WEAVER: "1"
         run: python -m pytest -q -rs tests/test_generators.py
 
-      - name: docs/registry/ is current
+      - name: docs/registry/ and out/docs-site/ are current
         run: |
           if ! python -m generators.registry_docs --check; then
-            echo "::error::docs/registry/ is stale. Run 'python -m generators.registry_docs' and commit the result."
+            echo "::error::docs/registry/ or out/docs-site/ is stale. Run 'python -m generators.registry_docs' and commit the result."
             exit 1
           fi
 

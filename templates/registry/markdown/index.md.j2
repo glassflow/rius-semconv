@@ -1,15 +1,33 @@
 {% import "macros.j2" as m %}
-{{ m.header() }}
+{% if ctx.site %}
+---
+asIndexPage: true
+---
 
+{% endif %}
+{{ m.header(ctx) }}
+
+{% if ctx.site %}
+# Attribute registry
+
+Every attribute key, event and value the Rius SDKs and the Rius platform
+agree on, generated from the Weaver registry in
+[rius-semconv](https://github.com/glassflow/rius-semconv). One page per
+namespace Rius defines keys in, then the keys it takes from elsewhere. For
+which attributes to set and what the platform does with them, start from the
+[span attribute reference](/rius/interoperability/attributes).
+{{ m.generated(ctx) }}
+{% else %}
 # Attribute reference
 
 Generated from the Weaver registry under [model/](../../model). One page per
 namespace Rius defines keys in, then the keys it takes from elsewhere.
 
+{% endif %}
 | Page | Keys | What it holds |
 | -- | -- | -- |
 {% for n in ctx.namespaces %}
-| [`{{ n.namespace }}`]({{ n.namespace }}.md) | {{ n.count }} | {% if n.namespace == "rius" %}The namespace Rius owns.{% else %}Rius keys outside `rius.*`, by namespace exception or deprecated.{% endif %} |
+| [`{{ n.namespace }}`]({{ m.page(ctx, n.namespace) }}) | {{ n.count }} | {% if n.namespace == "rius" %}The namespace Rius owns.{% else %}Rius keys outside `rius.*`, by namespace exception or deprecated.{% endif %} |
 {% endfor %}
-| [Upstream keys](upstream.md) | {{ ctx.upstream }} | OpenTelemetry keys the SDKs emit or read, linked to their upstream definitions. |
-| [Keys other producers write](normalizer-inputs.md) | {{ ctx.inputs }} | OpenInference, OpenLLMetry, Vercel AI SDK and pydantic-ai keys the SDKs emit or the normalizers read. |
+| [Upstream keys]({{ m.page(ctx, "upstream") }}) | {{ ctx.upstream }} | OpenTelemetry keys the SDKs emit or read, linked to their upstream definitions. |
+| [Keys other producers write]({{ m.page(ctx, "normalizer-inputs") }}) | {{ ctx.inputs }} | OpenInference, OpenLLMetry, Vercel AI SDK and pydantic-ai keys the SDKs emit or the normalizers read. |

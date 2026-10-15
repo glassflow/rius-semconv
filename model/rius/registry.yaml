@@ -52,6 +52,7 @@ attributes:
       rationale: |
         Deprecated: moved to gen_ai.main_agent.name.
         Named the agent this process is before the conventions had a key for it.
+      replaced_by: gen_ai.main_agent.name
 - key: rius.main_agent.id
   type: string
   brief: Stable identifier of the agent this process is, unchanged across restarts and deployments.
@@ -88,6 +89,7 @@ attributes:
         Took the same stability constraint the conventions put on gen_ai.agent.id:
         a transient in-memory or process-local id here would mint a new "agent"
         every restart and make the key useless for grouping.
+      replaced_by: gen_ai.main_agent.id
 - key: rius.main_agent.description
   type: string
   brief: What the agent this process is does, in free text.
@@ -115,6 +117,7 @@ attributes:
       - native
       rationale: |
         Deprecated: moved to gen_ai.main_agent.description.
+      replaced_by: gen_ai.main_agent.description
 - key: rius.main_agent.version
   type: string
   brief: Version of the agent definition (prompt, tools and policy) this process runs, independent of service.version.

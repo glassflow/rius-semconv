@@ -1,0 +1,26 @@
+{/* Generated from rius-semconv 1.4.0 by `python -m generators.registry_docs`. Do not edit: change registry/ in github.com/glassflow/rius-semconv. x-release-please-version */}
+
+# `mcp` namespace
+
+`mcp` is not a Rius namespace. Rius defines only the keys below
+in it, each under a documented namespace exception; every other
+`mcp` key Rius uses is upstream's (see [upstream keys](/rius/interoperability/registry/upstream)).
+
+Generated from [rius-semconv](https://github.com/glassflow/rius-semconv) 1.4.0, the Rius attribute registry, and updated on each of its releases. {/* x-release-please-version */}
+
+## Attributes
+
+| Key | Stability | Type | Description | Examples |
+| -- | -- | -- | -- | -- |
+| <a id="mcp-result-type"></a>`mcp.result_type` | Development | string | Result type of an MCP tools/call round that ended with an interim result instead of a final one. [1] | `input_required` |
+
+## Notes
+
+**[1] `mcp.result_type`:** MCP spec 2026-07-28: a tools/call round can end with an interim
+"input_required" result (MRTR) instead of a final one. Set ONLY on interim
+rounds. NOT an OTel semconv attribute, unlike the two above: the key
+borrows the mcp SDK's own `mcp.*` spelling for its result-type field, and
+no convention defines it. Kept as-is because the backend reads it.
+
+Namespace exception: Predates the rule. The key borrows the mcp SDK's own `mcp.*` spelling for
+its result-type field, and the backend reads it under this name.

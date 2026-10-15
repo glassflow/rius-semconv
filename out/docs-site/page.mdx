@@ -1,0 +1,25 @@
+---
+asIndexPage: true
+---
+
+{/* Generated from rius-semconv 1.4.0 by `python -m generators.registry_docs`. Do not edit: change registry/ in github.com/glassflow/rius-semconv. x-release-please-version */}
+
+# Attribute registry
+
+Every attribute key, event and value the Rius SDKs and the Rius platform
+agree on, generated from the Weaver registry in
+[rius-semconv](https://github.com/glassflow/rius-semconv). One page per
+namespace Rius defines keys in, then the keys it takes from elsewhere. For
+which attributes to set and what the platform does with them, start from the
+[span attribute reference](/rius/interoperability/attributes).
+
+Generated from [rius-semconv](https://github.com/glassflow/rius-semconv) 1.4.0, the Rius attribute registry, and updated on each of its releases. {/* x-release-please-version */}
+
+| Page | Keys | What it holds |
+| -- | -- | -- |
+| [`gen_ai`](/rius/interoperability/registry/gen-ai) | 1 | Rius keys outside `rius.*`, by namespace exception or deprecated. |
+| [`glassflow`](/rius/interoperability/registry/glassflow) | 1 | Rius keys outside `rius.*`, by namespace exception or deprecated. |
+| [`mcp`](/rius/interoperability/registry/mcp) | 1 | Rius keys outside `rius.*`, by namespace exception or deprecated. |
+| [`rius`](/rius/interoperability/registry/rius) | 12 | The namespace Rius owns. |
+| [Upstream keys](/rius/interoperability/registry/upstream) | 57 | OpenTelemetry keys the SDKs emit or read, linked to their upstream definitions. |
+| [Keys other producers write](/rius/interoperability/registry/normalizer-inputs) | 34 | OpenInference, OpenLLMetry, Vercel AI SDK and pydantic-ai keys the SDKs emit or the normalizers read. |

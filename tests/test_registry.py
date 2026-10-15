@@ -316,6 +316,20 @@ def test_a_rename_must_point_at_an_attribute_row(data):
     assert_flags(data, "renamed_to rius.nope is not an attribute row")
 
 
+def _deprecated(data, const):
+    return row(data, const)["deprecated"]
+
+
+def test_a_replacement_outside_this_registry_must_be_an_upstream_row(data):
+    _deprecated(data, "RIUS_MAIN_AGENT_NAME")["replaced_by"] = "gen_ai.nope"
+    assert_flags(data, "replaced_by gen_ai.nope is not an upstream attribute row")
+
+
+def test_a_replacement_only_goes_with_reason_uncategorized(data):
+    retired(data, "glassflow.span.pending")["deprecated"]["replaced_by"] = "gen_ai.main_agent.name"
+    assert_flags(data, "replaced_by only goes with reason uncategorized")
+
+
 def test_a_deprecation_needs_a_note(data):
     del retired(data, "glassflow.span.pending")["deprecated"]["note"]
     assert_flags(data, "deprecated needs a note")

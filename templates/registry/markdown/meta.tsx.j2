@@ -1,0 +1,9 @@
+{#- The docs site's navigation, in the order the index lists the pages. -#}
+// Generated from rius-semconv by `python -m generators.registry_docs`. Do not edit.
+export default {
+{% for n in ctx.namespaces %}
+    '{{ n | replace("_", "-") }}': '{{ n }}',
+{% endfor %}
+    'upstream': 'Upstream keys',
+    'normalizer-inputs': 'Keys other producers write'
+}

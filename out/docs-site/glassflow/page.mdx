@@ -1,0 +1,20 @@
+{/* Generated from rius-semconv 1.4.0 by `python -m generators.registry_docs`. Do not edit: change registry/ in github.com/glassflow/rius-semconv. x-release-please-version */}
+
+# `glassflow` namespace
+
+Rius no longer defines keys in `glassflow`. The deprecated keys
+below are kept so a reader of older spans can tell what they were.
+
+Generated from [rius-semconv](https://github.com/glassflow/rius-semconv) 1.4.0, the Rius attribute registry, and updated on each of its releases. {/* x-release-please-version */}
+
+## Deprecated
+
+| Key | Type | Replaced by | Description |
+| -- | -- | -- | -- |
+| <a id="glassflow-span-pending"></a>`glassflow.span.pending` | boolean | [`rius.span.pending`](/rius/interoperability/registry/rius#rius-span-pending) | Former spelling of rius.span.pending. [1] Renamed when the vendor keys moved under rius.\*. Both SDKs emit rius.span.pending from 1.0.0; a backend reads both spellings for as long as older SDK versions are in the field. |
+
+## Notes
+
+**[1] `glassflow.span.pending`:** Marked the content-free snapshot exported at span start, as
+rius.span.pending does now. Kept so a reader of older spans can tell
+what the key was.

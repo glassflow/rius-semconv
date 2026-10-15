@@ -93,6 +93,9 @@ def test_a_key_moved_into_the_genai_registry_is_deprecated_naming_its_successor(
     assert f"gen_ai.main_agent.{field}" in ours["deprecated"]["note"]
     # The "planned move, not deprecated" line is for upstream_equivalent only.
     assert "is not deprecated" not in ours["note"]
+    # Weaver's field cannot name it, so the docs read it from the annotation.
+    assert "replaced_by" not in ours["deprecated"]
+    assert ours["annotations"]["rius"]["replaced_by"] == f"gen_ai.main_agent.{field}"
 
 
 def test_the_main_agent_version_has_no_upstream_twin_and_stays(own):

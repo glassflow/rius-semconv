@@ -187,6 +187,19 @@ that moves into a convention we depend on (for example a `rius.*` key that
 OpenTelemetry later defines under `gen_ai.*`) uses `reason: uncategorized`
 with a `note` naming the new key, not `renamed`: Weaver's compatibility
 check rejects a `renamed_to` that points into a dependency's registry.
+Name the new key in `replaced_by` as well, so the generated reference can
+show and link it:
+
+```yaml
+  deprecated:
+    reason: uncategorized
+    replaced_by: gen_ai.main_agent.name
+    note: Moved to gen_ai.main_agent.name, which the GenAI conventions now define.
+```
+
+`replaced_by` must be an upstream row of `registry/attributes.yaml`. It is not
+part of Weaver's `deprecated` field, so `tools/to_weaver.py` carries it in the
+`rius` annotation instead.
 
 ### How it is enforced
 
@@ -280,7 +293,17 @@ python -m pytest
 python tools/check_weaver_pins.py
 python tools/to_weaver.py --check
 PATH="$PWD/.weaver/bin:$PATH" python tools/weaver_check.py
+PATH="$PWD/.weaver/bin:$PATH" python -m generators.registry_docs --check
+npm ci --prefix tools/mdx && node tools/mdx/check.mjs
 ```
+
+`generators.registry_docs` writes the attribute reference twice: as Markdown
+under `docs/registry/`, and as the docs site's pages under `out/docs-site/`,
+which glassflow-docs copies from each release tag to
+docs.glassflow.ai/rius/interoperability/registry. `tools/mdx/check.mjs`
+compiles those pages with the MDX compiler and remark plugins the docs site
+uses, pinned in `tools/mdx/package.json` to the versions glassflow-docs
+resolves; move the pins when the docs site moves.
 
 A separate workflow compares `out/` with what each consumer ships. It needs
 a secret that pull requests from forks do not get, so on a fork it skips the
