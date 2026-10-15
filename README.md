@@ -78,24 +78,25 @@ out of date.
 
 ## Which upstream versions it tracks
 
-`versions.env` pins every upstream registry, and `model/manifest.yaml` names
-the same pins as Weaver dependencies:
+`versions.env` pins every upstream registry and is the record of which
+version or commit each one is at; `model/manifest.yaml` names the same pins as
+Weaver dependencies, and `tools/check_weaver_pins.py` keeps the two equal:
 
-- **OpenTelemetry semantic conventions (core)** `v1.44.0`: the general
-  attributes (`service.*`, `error.type`, the `exception` event,
-  `telemetry.*`, `session.id`, `user.id`).
-- **OpenTelemetry GenAI conventions** at commit `4e8a281`
-  (`SEMCONV_GENAI_REF`): `gen_ai.*` and `mcp.*`. They are in Development
-  status and
+- **OpenTelemetry semantic conventions (core)** (`SEMCONV_VERSION`, a release
+  tag): the general attributes (`service.*`, `error.type`, the `exception`
+  event, `telemetry.*`, `session.id`, `user.id`).
+- **OpenTelemetry GenAI conventions** (`SEMCONV_GENAI_REF`): `gen_ai.*` and
+  `mcp.*`. They are in Development status and
   [semantic-conventions-genai](https://github.com/open-telemetry/semantic-conventions-genai)
   cuts no releases, so the pin is a commit on `main`. The request-parameter
   table in `registry/model_parameters.yaml` was verified against commit
   `8ffdf56` (2026-09-22).
-- **OTel Weaver** `v0.27.0`, which checks and resolves the registry.
-- **OTel Weaver policy packs** at commit `b524723` (`WEAVER_PACKAGES_REF`):
-  the shared `stability` and `backwards-compatibility` policies from
+- **OTel Weaver** (`WEAVER_VERSION`, a release tag), which checks and
+  resolves the registry.
+- **OTel Weaver policy packs** (`WEAVER_PACKAGES_REF`): the shared `stability`
+  and `backwards-compatibility` policies from
   [opentelemetry-weaver-packages](https://github.com/open-telemetry/opentelemetry-weaver-packages),
-  which cuts no releases either.
+  which cuts no releases either, so the pin is a commit.
 - **OpenInference.** The span kinds and the flattened `llm.*` keys its
   instrumentors emit. It publishes no Weaver registry, so nothing is pinned;
   the recordings pin every instrumentor to an exact version (each family's
@@ -117,8 +118,7 @@ names the registry's `schema_url`
 the version in `version.txt`) and its dependencies. Renovate (`renovate.json`)
 opens a pull request when a pin in `versions.env` moves, and a workflow
 commits the files that follow from it (CONTRIBUTING.md, "Dependency bumps").
-The schema files are
-not served at that URL yet.
+The schema files are not served at that URL yet.
 
 ## How consumers use it
 
