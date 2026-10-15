@@ -197,3 +197,16 @@ def test_stale_reports_a_changed_a_missing_and_a_leftover_page(docs, monkeypatch
 def test_write_replaces_the_pages_and_drops_leftovers(docs):
     registry_docs.write({"a.md": "two\n"}, docs)
     assert {p.name: p.read_text() for p in docs.iterdir()} == {"a.md": "two\n"}
+
+
+def test_anchors_are_unique_on_every_page():
+    # anchor() maps "." and "_" alike to "-", so two keys differing only
+    # there would share an anchor, and a deep link would land on the wrong row.
+    rendered = {
+        **pages(),
+        **{f"out/docs-site/{k or '.'}/page.mdx": t for k, t in site_pages().items()},
+    }
+    for name, text in rendered.items():
+        ids = re.findall(r'<a id="([^"]+)"></a>', text)
+        dupes = sorted({i for i in ids if ids.count(i) > 1})
+        assert not dupes, (name, dupes)
