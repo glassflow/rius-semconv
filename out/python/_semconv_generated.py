@@ -179,9 +179,11 @@ GEN_AI_OUTPUT_TYPE = "gen_ai.output.type"
 GEN_AI_REQUEST_STREAM = "gen_ai.request.stream"
 
 # The whole time-to-first-chunk signal: no first-token event is written
-# beside it, and the backend derives the gen_ai.first_token event it
-# stores from this value, at span start plus the duration. Seconds since
-# the span's start. Natively, record_first_token sets it. The
+# beside it. For a span with no first-chunk event, the backend
+# synthesizes the gen_ai.first_token event it stores from this value, at
+# span start plus the duration and never after the span's end; a
+# recorded first-chunk event keeps its own time. Seconds since the
+# span's start. Natively, record_first_token sets it. The
 # normalizers fill it, never overwriting a value the span carries: from
 # the conventions' metric spelling
 # gen_ai.client.operation.time_to_first_chunk (pydantic-ai,
