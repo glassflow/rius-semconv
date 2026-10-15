@@ -9,7 +9,7 @@ below are kept so a reader of older spans can tell what they were.
 
 | Key | Type | Replaced by | Description |
 | -- | -- | -- | -- |
-| <a id="gen-ai-first-token"></a>`gen_ai.first_token` | event | [`gen_ai.response.time_to_first_chunk`](upstream.md#gen-ai-response-time-to-first-chunk) | The first streamed token or chunk of a generation arrived. [1] The conventions carry this signal as the span attribute gen_ai.response.time_to_first_chunk, which the SDKs emit. The Rius backend synthesizes the event at ingest, at span start plus that duration, so producers need not send it. |
+| <a id="gen-ai-first-token"></a>`gen_ai.first_token` | event | [`gen_ai.response.time_to_first_chunk`](upstream.md#gen-ai-response-time-to-first-chunk) | The first streamed token or chunk of a generation arrived. [1] The conventions carry this signal as the span attribute gen_ai.response.time_to_first_chunk, which the SDKs emit. For a span with no first-chunk event, the Rius backend synthesizes the event it stores at ingest, at span start plus that duration and never after the span's end; a recorded first-chunk event keeps its own time. Producers need not send it. |
 
 ## Notes
 
@@ -17,11 +17,13 @@ below are kept so a reader of older spans can tell what they were.
 First streamed token/chunk arrived. The standard signal is the span
 attribute gen_ai.response.time_to_first_chunk, which the SDKs emit. The
 Rius backend keeps gen_ai.first_token as the name of the event it
-stores, and synthesizes that event at ingest: from
-gen_ai.response.time_to_first_chunk (at span start plus the duration,
-never after the span's end), and by renaming the OpenInference and
-Vercel AI SDK first-chunk events. Producers need not send it. The
-constant stays, deprecated, until a major release.
+stores. A recorded first-chunk event (OpenInference's or the Vercel AI
+SDK's) is renamed to it and keeps its own time. For a span with none,
+the backend synthesizes the event from
+gen_ai.response.time_to_first_chunk, at span start plus the duration
+and never after the span's end; that clamp applies only to an event it
+creates. Producers need not send it. The constant stays, deprecated,
+until a major release.
 
 Namespace exception: Predates the rule. No convention defines an event for the first
 streamed token.
