@@ -4,6 +4,7 @@
   "enabledManagers": ["custom.regex"],
   "semanticCommits": "enabled",
   "semanticCommitType": "chore",
+  "gitIgnoredAuthors": ["41898282+github-actions[bot]@users.noreply.github.com"],
   "customManagers": [
     {
       "description": "Weaver and the core semantic conventions in versions.env",
@@ -45,17 +46,10 @@
   ],
   "packageRules": [
     {
-      "description": "Weaver bumps also need the release's checksums in versions.env",
-      "matchDepNames": ["open-telemetry/weaver"],
+      "description": "Every bump also moves files derived from the pins",
+      "matchManagers": ["custom.regex"],
       "prBodyNotes": [
-        "Run `tools/install_weaver.sh --print-checksums` and paste its output over the `WEAVER_SHA256_*` lines in `versions.env`; CI fails the checksum until then."
-      ]
-    },
-    {
-      "description": "A core bump also moves the dependency's schema_url in model/manifest.yaml",
-      "matchDepNames": ["open-telemetry/semantic-conventions"],
-      "prBodyNotes": [
-        "Update the core dependency's `schema_url` in `model/manifest.yaml` to the new version; `tools/check_weaver_pins.py` fails until then."
+        "The `renovate-followup` workflow commits the files derived from the pins (Weaver checksums, the manifest's `schema_url`s, `model/`, `out/`, `docs/registry/`) to this branch. If it fails because its secret is missing, run `python tools/follow_pins.py` on the branch and commit the result."
       ]
     },
     {

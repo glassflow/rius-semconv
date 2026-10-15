@@ -115,7 +115,9 @@ entries. `model/manifest.yaml` is the Weaver manifest, maintained by hand: it
 names the registry's `schema_url`
 (`https://docs.glassflow.ai/rius/schemas/<version>`, the last segment being
 the version in `version.txt`) and its dependencies. Renovate (`renovate.json`)
-opens a pull request when a pin in `versions.env` moves. The schema files are
+opens a pull request when a pin in `versions.env` moves, and a workflow
+commits the files that follow from it (CONTRIBUTING.md, "Dependency bumps").
+The schema files are
 not served at that URL yet.
 
 ## How consumers use it
@@ -270,6 +272,7 @@ tools/
   review_expected.py       what a normalizer did to each span, for the hand review
   install_weaver.sh        install the Weaver release pinned in versions.env, checksum-verified
   check_weaver_pins.py     model/manifest.yaml pins what versions.env and version.txt say
+  follow_pins.py           after a pin moves: Weaver checksums, schema_urls, regenerate
   to_weaver.py             write model/ and templates/params.yaml from registry/
   check_weaver_types.py    every referenced upstream key has the type its row says
   weaver_check.py          weaver registry check with the policies, against the last release

@@ -288,6 +288,38 @@ comparison and reports "Parity NOT checked". That is expected; a maintainer
 checks parity before merging. A consumer that has not yet picked up a new
 constant is reported as a gap, which is the signal working, not a failure.
 
+## Dependency bumps
+
+[Renovate](renovate.json) opens a pull request when a pin moves: the Weaver
+release, the core semantic conventions tag, the GenAI conventions commit or
+the Weaver policy packs commit, in `versions.env` and `model/manifest.yaml`.
+Other files derive from those pins, so the `renovate-followup` workflow
+(`.github/workflows/renovate-followup.yml`) runs `python tools/follow_pins.py`
+on each of Renovate's branches. It fills in the new Weaver release's
+`WEAVER_SHA256_*` checksums, moves the dependencies' `schema_url`s in the
+manifest, regenerates `model/`, `out/` and `docs/registry/` with the pinned
+Weaver, and commits anything that changed as `chore(deps): regenerate for the
+new pins`. CI then runs on that commit. Review the regenerated diff with the
+bump: a new upstream commit can change the keys we reference, not only the
+links.
+
+The workflow pushes with the `RENOVATE_FOLLOWUP_TOKEN` repository secret: a
+fine-grained personal access token, or a GitHub App token, with **Contents:
+read and write** on this repository only. A push made with the workflow's own
+`GITHUB_TOKEN` would not run CI on the new commit. Without the secret the
+workflow regenerates, and fails if anything changed. Then run the same thing
+on the branch yourself:
+
+```
+git switch renovate/<branch>
+python tools/follow_pins.py
+git add -A && git commit -s -m "chore(deps): regenerate for the new pins"
+git push
+```
+
+To rerun it on a branch, use the workflow's **Run workflow** button with the
+branch name.
+
 ## Commits and pull requests
 
 - **Sign off every commit** (see [Developer Certificate of Origin](#developer-certificate-of-origin)).
