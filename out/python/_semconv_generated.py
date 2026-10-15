@@ -177,6 +177,22 @@ GEN_AI_OUTPUT_TYPE = "gen_ai.output.type"
 # record_first_token: a first chunk arriving is what proves the request
 # streamed, and the SDK has no earlier hook for it.
 GEN_AI_REQUEST_STREAM = "gen_ai.request.stream"
+
+# The whole time-to-first-chunk signal: no first-token event is written
+# beside it, and the backend derives the gen_ai.first_token event it
+# stores from this value, at span start plus the duration. Seconds since
+# the span's start. Natively, record_first_token sets it. The
+# normalizers fill it, never overwriting a value the span carries: from
+# the conventions' metric spelling
+# gen_ai.client.operation.time_to_first_chunk (pydantic-ai,
+# @ai-sdk/otel) or the Vercel AI SDK's ai.response.msToFirstChunk, and
+# otherwise from a producer's first-chunk marker event (OpenInference's
+# "First Token Stream Event", the Vercel AI SDK's ai.stream.firstChunk)
+# as the first marker's time minus the span's start, never negative.
+# That marker is left on the span as recorded, and its time is not
+# clamped to the span's end: LlamaIndex ends its stream_chat span before
+# the first chunk arrives, and the backend keeps a recorded marker's
+# time as it is.
 GEN_AI_RESPONSE_TIME_TO_FIRST_CHUNK = "gen_ai.response.time_to_first_chunk"
 
 # Sampling parameters. Produced from a generation's model parameters through
