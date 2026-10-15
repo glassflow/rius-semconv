@@ -307,9 +307,9 @@ The workflow runs the branch's code in one job with no secrets, and commits
 the result in a second job that runs none of it: that job applies the change
 only if it touches `versions.env`, `model/`, `out/` and `docs/registry/`, as
 plain files. It pushes with an installation token of a GitHub App, made in
-that job from two repository secrets: `RENOVATE_FOLLOWUP_APP_ID` (the App's
-ID) and `RENOVATE_FOLLOWUP_APP_KEY` (a private key of the App, the whole
-`.pem`). The App is installed on this repository only, with the repository
+that job from two repository secrets: `RENOVATE_FOLLOWUP_APP_CLIENT_ID` (the
+App's Client ID, `Iv23...`) and `RENOVATE_FOLLOWUP_APP_KEY` (a private key of
+the App, the whole `.pem`). The App is installed on this repository only, with the repository
 permission **Contents: Read and write** and nothing else, and its webhook
 turned off. The token lasts at most an hour and is revoked when the job ends,
 and it does not act as an admin user, so a leaked one cannot get round the

@@ -8,7 +8,7 @@
 # as a patch; `push` runs none of it, checks the patch touches only generated
 # paths, and commits and pushes it with a short-lived installation token of a
 # GitHub App installed on this repository only (Contents: read and write),
-# made from the RENOVATE_FOLLOWUP_APP_ID and RENOVATE_FOLLOWUP_APP_KEY
+# made from the RENOVATE_FOLLOWUP_APP_CLIENT_ID and RENOVATE_FOLLOWUP_APP_KEY
 # secrets. A push made with GITHUB_TOKEN would not trigger CI on the new
 # commit. Without the secrets it only reports, and fails when the branch
 # needs regenerating.
@@ -119,10 +119,10 @@ jobs:
         id: app
         if: steps.patch.outputs.changed
         env:
-          APP_ID: ${{ secrets.RENOVATE_FOLLOWUP_APP_ID }}
+          CLIENT_ID: ${{ secrets.RENOVATE_FOLLOWUP_APP_CLIENT_ID }}
           APP_KEY: ${{ secrets.RENOVATE_FOLLOWUP_APP_KEY }}
         run: |
-          if [[ -n "$APP_ID" && -n "$APP_KEY" ]]; then
+          if [[ -n "$CLIENT_ID" && -n "$APP_KEY" ]]; then
             echo "present=true" >> "$GITHUB_OUTPUT"
           else
             echo "present=false" >> "$GITHUB_OUTPUT"
@@ -134,7 +134,7 @@ jobs:
         id: token
         if: steps.app.outputs.present == 'true'
         with:
-          app-id: ${{ secrets.RENOVATE_FOLLOWUP_APP_ID }}
+          client-id: ${{ secrets.RENOVATE_FOLLOWUP_APP_CLIENT_ID }}
           private-key: ${{ secrets.RENOVATE_FOLLOWUP_APP_KEY }}
           owner: ${{ github.repository_owner }}
           repositories: rius-semconv
@@ -167,7 +167,7 @@ jobs:
             exit 1
           fi
           if [[ -z "$TOKEN" ]]; then
-            echo "::error::This branch needs regenerating and the RENOVATE_FOLLOWUP_APP_ID and RENOVATE_FOLLOWUP_APP_KEY secrets are not set, so it cannot be pushed. Run 'python tools/follow_pins.py' on the branch and commit the result (see CONTRIBUTING.md, \"Dependency bumps\")."
+            echo "::error::This branch needs regenerating and the RENOVATE_FOLLOWUP_APP_CLIENT_ID and RENOVATE_FOLLOWUP_APP_KEY secrets are not set, so it cannot be pushed. Run 'python tools/follow_pins.py' on the branch and commit the result (see CONTRIBUTING.md, \"Dependency bumps\")."
             exit 1
           fi
           # renovate.json lists this author in gitIgnoredAuthors, so Renovate
