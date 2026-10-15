@@ -23,7 +23,7 @@ import {
 } from "@opentelemetry/sdk-trace-base";
 import * as ai from "ai";
 import { RECORDER_RESOURCE, ScriptedProvider, deterministicClock, recordAll } from "../_recording.mjs";
-import { vercelObjectScenarios, vercelScenarios } from "../_vercel.mjs";
+import { vercelDecideAudioScenarios, vercelObjectScenarios, vercelScenarios } from "../_vercel.mjs";
 
 deterministicClock();
 // What every Node app's provider registers: without an active-context manager
@@ -43,6 +43,7 @@ const script = new ScriptedProvider();
 const scenarios = {
   ...vercelScenarios({ ai, createOpenAI, script, telemetry: {} }),
   ...vercelObjectScenarios({ ai, createOpenAI, script, telemetry: {} }),
+  ...vercelDecideAudioScenarios({ ai, createOpenAI, script, telemetry: {} }),
 };
 
 await recordAll(scenarios, exporter, script, PACKAGES, import.meta.url, process.argv.slice(2));
