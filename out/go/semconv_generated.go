@@ -92,14 +92,16 @@ const (
 	// rius.main_agent.description.
 	GenAIMainAgentDescription = "gen_ai.main_agent.description"
 
-	// Deprecated: moved to gen_ai.main_agent.name.
 	// Named the agent this process is before the conventions had a key for it.
+	//
+	// Deprecated: moved to gen_ai.main_agent.name.
 	RiusMainAgentName = "rius.main_agent.name"
 
-	// Deprecated: moved to gen_ai.main_agent.id.
 	// Took the same stability constraint the conventions put on gen_ai.agent.id:
 	// a transient in-memory or process-local id here would mint a new "agent"
 	// every restart and make the key useless for grouping.
+	//
+	// Deprecated: moved to gen_ai.main_agent.id.
 	RiusMainAgentID = "rius.main_agent.id"
 
 	// Deprecated: moved to gen_ai.main_agent.description.
@@ -279,12 +281,13 @@ const (
 	ExceptionEvent = "exception"
 	ExceptionType  = "exception.type"
 
-	// Deprecated: obsoleted, nothing replaces it; interim rounds stay identifiable by mcp.method.name.
 	// MCP spec 2026-07-28: a tools/call round can end with an interim
 	// "input_required" result (MRTR) instead of a final one. Early Rius SDKs
 	// set it ONLY on interim rounds. NOT an OTel semconv attribute, unlike the
 	// two above: the key borrows the mcp SDK's own `mcp.*` spelling for its
 	// result-type field, and no convention defines it. Nothing ever read it.
+	//
+	// Deprecated: obsoleted, nothing replaces it; interim rounds stay identifiable by mcp.method.name.
 	MCPResultType      = "mcp.result_type"
 	GenAIRequestPrefix = "gen_ai.request."
 
@@ -325,15 +328,18 @@ const (
 	RiusContextSizes = "rius.context.sizes"
 
 	// --- Span event names ---
-	// Deprecated: replaced by the gen_ai.response.time_to_first_chunk span attribute.
 	// First streamed token/chunk arrived. The standard signal is the span
 	// attribute gen_ai.response.time_to_first_chunk, which the SDKs emit. The
 	// Rius backend keeps gen_ai.first_token as the name of the event it
-	// stores, and synthesizes that event at ingest: from
-	// gen_ai.response.time_to_first_chunk (at span start plus the duration,
-	// never after the span's end), and by renaming the OpenInference and
-	// Vercel AI SDK first-chunk events. Producers need not send it. The
-	// constant stays, deprecated, until a major release.
+	// stores. A recorded first-chunk event (OpenInference's or the Vercel AI
+	// SDK's) is renamed to it and keeps its own time. For a span with none,
+	// the backend synthesizes the event from
+	// gen_ai.response.time_to_first_chunk, at span start plus the duration
+	// and never after the span's end; that clamp applies only to an event it
+	// creates. Producers need not send it. The constant stays, deprecated,
+	// until a major release.
+	//
+	// Deprecated: replaced by the gen_ai.response.time_to_first_chunk span attribute.
 	GenAIFirstTokenEvent = "gen_ai.first_token"
 
 	// --- Pending (partial) spans ---

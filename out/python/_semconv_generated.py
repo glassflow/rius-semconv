@@ -366,11 +366,13 @@ RIUS_CONTEXT_SIZES = "rius.context.sizes"
 # First streamed token/chunk arrived. The standard signal is the span
 # attribute gen_ai.response.time_to_first_chunk, which the SDKs emit. The
 # Rius backend keeps gen_ai.first_token as the name of the event it
-# stores, and synthesizes that event at ingest: from
-# gen_ai.response.time_to_first_chunk (at span start plus the duration,
-# never after the span's end), and by renaming the OpenInference and
-# Vercel AI SDK first-chunk events. Producers need not send it. The
-# constant stays, deprecated, until a major release.
+# stores. A recorded first-chunk event (OpenInference's or the Vercel AI
+# SDK's) is renamed to it and keeps its own time. For a span with none,
+# the backend synthesizes the event from
+# gen_ai.response.time_to_first_chunk, at span start plus the duration
+# and never after the span's end; that clamp applies only to an event it
+# creates. Producers need not send it. The constant stays, deprecated,
+# until a major release.
 GEN_AI_FIRST_TOKEN_EVENT = "gen_ai.first_token"
 
 # --- Pending (partial) spans ---
