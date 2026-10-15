@@ -68,7 +68,7 @@ pending_identity:
     - ref: MCP_METHOD_NAME
       note: |
         Protocol identity, not content: a still-running MCP call must be
-        distinguishable from a local tool in the live view — the one place
+        distinguishable from a local tool in the live view, the one place
         setting the marker at creation pays off.
     - ref: MCP_PROTOCOL_VERSION
     - ref: SESSION_ID
@@ -186,8 +186,8 @@ content:
     - ref: LLM_INVOCATION_PARAMETERS
       note: |
         The OpenInference request-parameters bag, whole. Its membership is
-        open and provider-defined — litellm and langchain put the request's
-        tools array in it, and providers are free to add anything else —
+        open and provider-defined (litellm and langchain put the request's
+        tools array in it, and providers are free to add anything else),
         so a per-member blocklist is always one provider behind. It is only
         safe to treat the whole bag as content because normalization runs
         BEFORE masking and has already promoted every member the rule table

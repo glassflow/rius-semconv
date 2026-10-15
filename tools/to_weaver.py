@@ -100,6 +100,10 @@ def dump(doc: Any) -> str:
 
 def annotation(row: dict) -> dict:
     out = {k: v for k, v in row.items() if k not in WEAVER_COLUMNS}
+    # Weaver's deprecated field has no place for an upstream replacement
+    # (renamed_to must be a key of this registry), so the docs read it here.
+    if replaced := (row.get("deprecated") or {}).get("replaced_by"):
+        out["replaced_by"] = replaced
     if row.get("type") == "json":
         out["wire_type"] = "json"
     return out

@@ -19,7 +19,7 @@ doc: |
   we recognise to the canonical attribute key. Verified against
   open-telemetry/semantic-conventions-genai at commit
   8ffdf568e1b4391a99adb081db16e8102e36918e (2026-09-22),
-  model/gen-ai/registry.yaml — the repo cuts no releases, so a commit is the
+  model/gen-ai/registry.yaml. The repo cuts no releases, so a commit is the
   only citable pin. Each canonical key appears under its own bare spelling
   plus the provider spellings that mean the SAME parameter; anything absent
   here is a caller parameter and goes to RIUS_REQUEST_PREFIX verbatim.
@@ -31,12 +31,12 @@ doc: |
 
 groups:
   - target: gen_ai.request.model
-    note: model — the request's model; also settable as its own argument.
+    note: "model: the request's model; also settable as its own argument."
     spellings: [model]
 
   - target: gen_ai.request.max_tokens
     note: |
-      max_tokens — OpenAI Chat Completions `max_tokens`, its successor
+      max_tokens: OpenAI Chat Completions `max_tokens`, its successor
       `max_completion_tokens`, the Responses API's `max_output_tokens`, and
       Google's `maxOutputTokens`.
     spellings:
@@ -49,7 +49,7 @@ groups:
 
   - target: gen_ai.request.choice.count
     note: |
-      choice.count — "the target number of candidate completions to return":
+      choice.count ("the target number of candidate completions to return"):
       OpenAI `n`, Google `candidateCount`, Cohere `num_generations`.
     spellings:
       - choice.count
@@ -62,12 +62,12 @@ groups:
     spellings: [temperature]
 
   - target: gen_ai.request.top_p
-    note: top_p — Google `topP`, Cohere `p`.
+    note: "top_p: Google `topP`, Cohere `p`."
     spellings: [top_p, topP, p]
 
   - target: gen_ai.request.top_k
     note: |
-      top_k — the registry's own note names Anthropic `top_k`, Cohere `k` and
+      top_k: the registry's own note names Anthropic `top_k`, Cohere `k` and
       Google `topK`, and says OpenAI's `top_logprobs` MUST NOT be reported
       here (it shapes the response, not the sampling). So top_logprobs is
       deliberately absent and lands in rius.request.*.
@@ -75,7 +75,7 @@ groups:
 
   - target: gen_ai.request.stop_sequences
     note: |
-      stop_sequences — OpenAI `stop`, Google `stopSequences`. `stop` is listed
+      stop_sequences: OpenAI `stop`, Google `stopSequences`. `stop` is listed
       FIRST because the llm.invocation_parameters rule prefers it, and both
       paths must keep the same spelling when a request carries two.
     spellings: [stop, stop_sequences, stopSequences]
@@ -88,7 +88,7 @@ groups:
 
   - target: gen_ai.request.encoding_formats
     note: |
-      encoding_formats — plural in the registry; OpenAI's embeddings endpoint
+      encoding_formats: plural in the registry; OpenAI's embeddings endpoint
       sends the singular `encoding_format`, and the registry's note says some
       systems call these "embedding types" (Cohere `embedding_types`).
     spellings:
@@ -105,7 +105,7 @@ groups:
 
   - target: gen_ai.request.reasoning.level
     note: |
-      reasoning.level — "the exact string value sent to the provider";
+      reasoning.level ("the exact string value sent to the provider"):
       OpenAI sends it as `reasoning_effort`.
     spellings:
       - reasoning.level
@@ -115,7 +115,7 @@ groups:
 
   - target: gen_ai.request.previous_response.id
     note: |
-      previous_response.id — the registry names OpenAI's
+      previous_response.id: the registry names OpenAI's
       `previous_response_id` and Google's `previous_interaction_id`.
     spellings:
       - previous_response.id
@@ -125,7 +125,7 @@ groups:
 
   - target: gen_ai.request.stream_cursor
     note: |
-      stream_cursor — the registry names OpenAI's `starting_after` and
+      stream_cursor: the registry names OpenAI's `starting_after` and
       Google's `last_event_id`.
     spellings:
       - stream_cursor

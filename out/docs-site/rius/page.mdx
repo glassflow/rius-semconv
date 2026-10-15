@@ -1,0 +1,129 @@
+{/* GENERATED FILE, do not edit by hand.
+    Regenerate with: python -m generators.registry_docs in glassflow/rius-semconv; each release copies it here.
+    Source of truth: registry/ in glassflow/rius-semconv (rius-semconv 1.4.0). x-release-please-version */}
+
+# `rius` namespace
+
+The `rius` namespace is the one this registry owns: a fact no OpenTelemetry
+convention names gets a key here.
+
+Generated from [rius-semconv](https://github.com/glassflow/rius-semconv) 1.4.0, the Rius attribute registry, and updated on each of its releases. {/* x-release-please-version */}
+
+## Attributes
+
+| Key | Stability | Type | Description | Examples |
+| -- | -- | -- | -- | -- |
+| <a id="rius-aggregated-usage"></a>`rius.aggregated_usage.<key>` | Development | int | A whole agent run's token usage, moved off gen_ai.usage.\* so per-call usage is not counted twice; the suffix is the gen_ai.usage.\* suffix. [1] | `115`; `42` |
+| <a id="rius-context-sizes"></a>`rius.context.sizes` | Development | any | Byte sizes of each part of a generation's context (tool definitions, input and output messages), as compact JSON. [2] | `{"version":1,"input_messages":[{"role":"system","parts":[{"type":"text","bytes":19}]},{"role":"user","parts":[{"type":"text","bytes":18}]}],"output_messages":[{"role":"assistant","parts":[{"type":"text","bytes":6}]}]}` |
+| <a id="rius-main-agent-version"></a>`rius.main_agent.version` | Development | string | Version of the agent definition (prompt, tools and policy) this process runs, independent of service.version. [6] | `7`; `2026-10-01` |
+| <a id="rius-parent-foreign"></a>`rius.parent.foreign` | Development | boolean | The span's parent is local to this process but was never received by Rius, so the trace arrives without it. [7] | `true` |
+| <a id="rius-request"></a>`rius.request.<key>` | Development | any | A request parameter the GenAI conventions do not define, keyed by the parameter's name as the caller spelled it. [8] | `flex`; `true`; `{"type":"json_object"}` |
+| <a id="rius-request-tool-choice"></a>`rius.request.tool_choice` | Development | string | How the request constrained tool use: a mode string, or the provider's forced-call object as compact JSON. [9] | `auto`; `required`; `{"type":"function","function":{"name":"get_weather"}}` |
+| <a id="rius-sdk-global-provider"></a>`rius.sdk.global_provider` | Development | string | The tracer provider that already held the OpenTelemetry global when Rius initialized, as foreign:&lt;class&gt;. [10] | `foreign:opentelemetry.sdk.trace.TracerProvider`; `foreign:NodeTracerProvider` |
+| <a id="rius-span-pending"></a>`rius.span.pending` | Development | boolean | Marks the content-free snapshot of a span that is exported when the span starts, before the real span ends. [11] | `true` |
+| <a id="rius-workspace"></a>`rius.workspace` | Development | string | Alias of the workspace a span is exported to when one process sends to several; stripped before the span leaves the process. [12] | `acme`; `customer-eu` |
+
+## Deprecated
+
+| Key | Type | Replaced by | Description |
+| -- | -- | -- | -- |
+| <a id="rius-main-agent-description"></a>`rius.main_agent.description` | string | [`gen_ai.main_agent.description`](/rius/interoperability/registry/upstream#gen-ai-main-agent-description) | What the agent this process is does, in free text. [3] Moved to gen_ai.main_agent.description, which the OpenTelemetry GenAI conventions now define for the same fact. The SDKs stamp both through the deprecation window; readers take gen_ai.main_agent.description first. |
+| <a id="rius-main-agent-id"></a>`rius.main_agent.id` | string | [`gen_ai.main_agent.id`](/rius/interoperability/registry/upstream#gen-ai-main-agent-id) | Stable identifier of the agent this process is, unchanged across restarts and deployments. [4] Moved to gen_ai.main_agent.id, which the OpenTelemetry GenAI conventions now define for the same fact. The SDKs stamp both through the deprecation window; readers take gen_ai.main_agent.id first. This key only ever carried a configured id, while gen_ai.main_agent.id falls back to the agent name when none is configured. |
+| <a id="rius-main-agent-name"></a>`rius.main_agent.name` | string | [`gen_ai.main_agent.name`](/rius/interoperability/registry/upstream#gen-ai-main-agent-name) | Name of the agent this process is, stamped once on the resource. [5] Moved to gen_ai.main_agent.name, which the OpenTelemetry GenAI conventions now define for the same fact. The SDKs stamp both through the deprecation window; readers take gen_ai.main_agent.name first. |
+
+## Notes
+
+**[1] `rius.aggregated_usage.<key>`:** Where a whole agent run's token usage goes when the same producer also
+reports each model call's usage on that call's own span:
+gen_ai.usage.&lt;suffix&gt; becomes rius.aggregated_usage.&lt;suffix&gt;, on the
+in-process (INTERNAL) invoke_agent span only. Left under gen_ai.usage.\*,
+the run's tokens are counted once per call span and once more on the
+agent span by any backend that sums usage across spans.
+
+Applied only to producers KNOWN to repeat the usage on per-call spans,
+because a span on its own cannot say whether its usage is an aggregate
+or the only record. CLIENT invoke_agent spans keep their usage: a remote
+agent's model calls are not in the trace.
+
+The same move covers a wrapper span that repeats ONE call's usage: a
+LiteLLM completion span whose child, the openai instrumentor's
+ChatCompletion span, records the call. The child keeps gen_ai.usage.\*,
+since it is the call itself. Decided from end order (a child ends
+before its parent), so a LiteLLM span with no such child keeps its usage.
+
+Our namespace, not pydantic-ai's gen_ai.aggregated_usage.\*: the GenAI
+conventions define no aggregate yet (semantic-conventions-genai#19), and
+one could be defined later with different semantics (sub-agents included
+or not). A backend reads both spellings, for display only; totals read
+gen_ai.usage.\* alone.
+
+**[2] `rius.context.sizes`:** Per-part byte sizes of a generation's context, as compact JSON with
+readable keys: tool_definitions (name, bytes), input_messages and
+output_messages (literal role, parts typed text / tool_call /
+tool_call_response with bytes and tool name), cache_marker, and a folded
+summary of older input.
+A Rius vendor attribute, NOT a convention:
+the backend reads it to attribute gen_ai.usage.input_tokens across the
+context, and no convention describes context composition. Deliberately
+absent from CONTENT_ATTRIBUTES (it is sizes, not content, and must survive
+masking and capture_content=False; that is its whole point when the
+messages are truncated or stripped) and from PENDING_IDENTITY_ATTRIBUTES
+(content is unknown at span start, so a pending snapshot never has it).
+
+**[3] `rius.main_agent.description`:** Deprecated: moved to gen_ai.main_agent.description.
+
+**[4] `rius.main_agent.id`:** Deprecated: moved to gen_ai.main_agent.id.
+Took the same stability constraint the conventions put on gen_ai.agent.id:
+a transient in-memory or process-local id here would mint a new "agent"
+every restart and make the key useless for grouping.
+
+**[5] `rius.main_agent.name`:** Deprecated: moved to gen_ai.main_agent.name.
+Named the agent this process is before the conventions had a key for it.
+
+**[6] `rius.main_agent.version`:** The version of the agent DEFINITION (its prompt, tools and policy), which is
+deliberately NOT service.version. A service can sit at 2.3.1 while its
+agent definition is at 7, and the two move independently; deriving either
+from the other produces confidently wrong data on every deployment where
+they disagree, which is most of them.
+
+**[7] `rius.parent.foreign`:** On a span: its parent is local to this process, yet rius never received
+it, so the trace arrives without that parent. Remote parents are never
+flagged.
+
+**[8] `rius.request.<key>`:** Where a request parameter the GenAI registry does NOT define goes. Our own
+namespace rather than gen_ai.request.&lt;key&gt;, per OTel's naming guidance: an
+existing semantic-convention namespace must not be used as a prefix for
+application-specific attributes, because the convention is free to define
+that exact key later and mean something else. The GenAI conventions offer
+no catch-all of their own, so we own one.
+
+Masking: rius.request.\* follows gen_ai.request.\* exactly. Today neither is
+in CONTENT_ATTRIBUTES, so both export in clear. The TIE is the rule, not
+the current value: if request parameters ever become maskable, both
+namespaces change together, and neither may join the content allowlist
+alone.
+
+**[9] `rius.request.tool_choice`:** How the request constrained tool use: a mode string ("auto", "required")
+or, for a forced call, the provider's object as compact JSON. The GenAI
+conventions define no tool_choice, so it lives in our namespace. Context
+attribution reads it to price the tool-use preamble, which is why the
+normalizer lifts it out of the OpenInference request bag (content) into
+here (not content).
+
+**[10] `rius.sdk.global_provider`:** On the resource: foreign:&lt;module.Class&gt; when another provider already
+held the OpenTelemetry global at init(). Absent when rius registered the
+global.
+
+**[11] `rius.span.pending`:** Marks the content-free snapshot exported at span START; the backend maps it
+to Finished=0 and the real span replaces it at end. This key knowingly bends
+the convention-native rule (no vendor namespace): OpenTelemetry has NO
+pending-span mechanism to align with (spec #3732/#4646, semconv #2133, all
+open, none planned), and the only shipping precedent (Logfire's
+logfire.span_type) is equally vendor-namespaced. Spelled glassflow.span.pending
+before the vendor keys moved under rius.\*; the backend reads both spellings
+for as long as pre-rename SDK versions are in the field.
+
+**[12] `rius.workspace`:** Process-local routing marker for multi-workspace export. Stamped at span
+start so pending snapshots route too, and ALWAYS stripped by the routing
+exporter before spans leave the process: the destination's API key is what
+tells the backend which workspace a span belongs to.

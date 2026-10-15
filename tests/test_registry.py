@@ -120,6 +120,18 @@ def test_rius_key_outside_rius_namespace_needs_an_exception(data):
     assert_flags(data, "RIUS_CONTEXT_SIZES: origin rius outside rius.*")
 
 
+def test_em_dashes_are_forbidden_in_prose(data):
+    # Every rationale and note is published on the docs site.
+    row(data, "SESSION_ID")["rationale"] += "Grouping \u2014 the whole point.\n"
+    data["model_parameters"]["groups"][0]["note"] += " \u2014 or not."
+    errors = [e for e in lint(data) if "em dash in the registry" in e]
+    i = data["attributes"]["attributes"].index(row(data, "SESSION_ID"))
+    assert [e.split(":")[0] for e in errors] == [
+        f"registry.attributes.attributes[{i}].rationale",
+        "registry.model_parameters.groups[0].note",
+    ], errors
+
+
 def test_ticket_ids_are_forbidden_in_prose(data):
     row(data, "SESSION_ID")["rationale"] += "Settled in RIUS-917.\n"
     assert_flags(data, "ticket id RIUS-917")
@@ -314,6 +326,20 @@ def test_examples_must_have_the_row_type(data, const, example):
 def test_a_rename_must_point_at_an_attribute_row(data):
     retired(data, "glassflow.span.pending")["deprecated"]["renamed_to"] = "rius.nope"
     assert_flags(data, "renamed_to rius.nope is not an attribute row")
+
+
+def _deprecated(data, const):
+    return row(data, const)["deprecated"]
+
+
+def test_a_replacement_outside_this_registry_must_be_an_upstream_row(data):
+    _deprecated(data, "RIUS_MAIN_AGENT_NAME")["replaced_by"] = "gen_ai.nope"
+    assert_flags(data, "replaced_by gen_ai.nope is not an upstream attribute row")
+
+
+def test_a_replacement_only_goes_with_reason_uncategorized(data):
+    retired(data, "glassflow.span.pending")["deprecated"]["replaced_by"] = "gen_ai.main_agent.name"
+    assert_flags(data, "replaced_by only goes with reason uncategorized")
 
 
 def test_a_deprecation_needs_a_note(data):

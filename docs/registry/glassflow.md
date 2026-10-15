@@ -9,7 +9,7 @@ below are kept so a reader of older spans can tell what they were.
 
 | Key | Type | Replaced by | Description |
 | -- | -- | -- | -- |
-| <a id="glassflow-span-pending"></a>`glassflow.span.pending` | boolean | `rius.span.pending` | Former spelling of rius.span.pending. [1] Renamed when the vendor keys moved under rius.\*. Both SDKs emit rius.span.pending from 1.0.0; a backend reads both spellings for as long as older SDK versions are in the field. |
+| <a id="glassflow-span-pending"></a>`glassflow.span.pending` | boolean | [`rius.span.pending`](rius.md#rius-span-pending) | Former spelling of rius.span.pending. [1] Renamed when the vendor keys moved under rius.\*. Both SDKs emit rius.span.pending from 1.0.0; a backend reads both spellings for as long as older SDK versions are in the field. |
 
 ## Notes
 

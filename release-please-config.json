@@ -23,7 +23,16 @@
         { "type": "build", "section": "Build System", "hidden": true },
         { "type": "ci", "section": "Continuous Integration", "hidden": true }
       ],
-      "extra-files": ["model/manifest.yaml"]
+      "extra-files": [
+        "model/manifest.yaml",
+        "out/docs-site/gen-ai/page.mdx",
+        "out/docs-site/glassflow/page.mdx",
+        "out/docs-site/mcp/page.mdx",
+        "out/docs-site/normalizer-inputs/page.mdx",
+        "out/docs-site/page.mdx",
+        "out/docs-site/rius/page.mdx",
+        "out/docs-site/upstream/page.mdx"
+      ]
     }
   }
 }

@@ -66,7 +66,7 @@ attribute_groups:
           OTel standard version of the deployed service. Metadata about the process,
           not about any one span. Stamped only when a version is actually known: there
           is deliberately no placeholder default, because a fake one merges every
-          deployment into a single bucket — the same mistake `unknown_service` makes
+          deployment into a single bucket, the same mistake `unknown_service` makes
           for service.name.
   - ref: telemetry.distro.name
     requirement_level: required
@@ -167,7 +167,7 @@ attribute_groups:
           conventions give an AWS Bedrock agent ARN and a GCP Agent Registry id as the
           examples, and say it is NOT RECOMMENDED to record in-memory agent instance
           ids here, because those are transient. So an in-process agent leaves it
-          unset and there is no configured default to fall back to — a name is the
+          unset and there is no configured default to fall back to: a name is the
           only identity such an agent has. Adopted rather than deferred because the
           callers who do run hosted agents have nowhere else to put the id.
   - ref: gen_ai.agent.version
@@ -186,7 +186,7 @@ attribute_groups:
         fill:
         - native
         rationale: |
-          The version of the agent an AGENT span INVOKED — the same callee
+          The version of the agent an AGENT span INVOKED: the same callee
           gen_ai.agent.name and gen_ai.agent.id describe on that span, never
           the process's own version and never service.version. Registry type is a
           plain string and the conventions' own examples are "1.0.0" and "2025-05-01",
@@ -424,7 +424,7 @@ attribute_groups:
           The provider's own identifier for the completion ("chatcmpl-123"),
           Recommended on an inference span. Metadata: it exists only once the provider
           has answered, so it is a post-call setter and never reaches a pending
-          snapshot. Not content — an opaque id says nothing about what was said — so
+          snapshot. Not content (an opaque id says nothing about what was said), so
           it survives capture_content=False.
   - ref: gen_ai.output.type
     requirement_level:
@@ -648,7 +648,7 @@ attribute_groups:
         - native
         - openinference
         rationale: |
-          "The target number of candidate completions to return" — OpenAI's `n`.
+          "The target number of candidate completions to return": OpenAI's `n`.
   - ref: gen_ai.request.encoding_formats
     requirement_level: recommended
     annotations:
@@ -901,7 +901,7 @@ attribute_groups:
         fill:
         - native
         rationale: |
-          The identifier of the tool call this execution answers — the id the MODEL
+          The identifier of the tool call this execution answers: the id the MODEL
           minted on its tool-call message, which is what joins a tool span back to the
           generation that asked for it. Identity, set at span creation, so it needs an
           allowlist entry. Never derived: only the caller holds the model's
@@ -948,7 +948,7 @@ attribute_groups:
         rationale: |
           The request's tool/function definitions, serialized verbatim (provider
           shapes differ; the backend reads names and sizes from either). Content,
-          not identity — listed in CONTENT_ATTRIBUTES.
+          not identity, so it is listed in CONTENT_ATTRIBUTES.
   - ref: gen_ai.tool.call.arguments
     requirement_level: opt_in
     annotations:
@@ -1092,7 +1092,7 @@ attribute_groups:
         fill:
         - native
         rationale: |
-          The version the initialize handshake negotiated — not the one we asked for.
+          The version the initialize handshake negotiated, not the one we asked for.
   - ref: error.type
     requirement_level:
       conditionally_required: on error

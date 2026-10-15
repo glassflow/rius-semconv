@@ -195,6 +195,10 @@ class Registry:
             elif isinstance(node, str):
                 for ticket in TICKET.findall(node):
                     errors.append(f"{path}: ticket id {ticket} in the registry; write the reason")
+                # The prose is published on the docs site, whose style has no
+                # em dashes: use a period, comma, colon or parentheses.
+                if "\u2014" in node:
+                    errors.append(f"{path}: em dash in the registry; use a period, comma or colon")
 
         walk(self.data, "registry")
         return errors
@@ -255,8 +259,9 @@ class Registry:
         stability, deprecated, upstream_equivalent, and the retired rows."""
         errors: list[str] = []
         keys = {r.get("key") for r in self.attributes if r.get("symbol") == "attribute"}
+        upstream = {r.get("key") for r in self.attributes if referenced(r)}
         for i, r in enumerate(self.attributes):
-            errors += _lint_weaver_row(r, r.get("const", f"attributes[{i}]"), keys)
+            errors += _lint_weaver_row(r, r.get("const", f"attributes[{i}]"), keys, upstream)
         for i, r in enumerate(self.retired):
             label = r.get("key", f"retired[{i}]")
             for field in ("key", "type", "origin", "deprecated"):
@@ -267,7 +272,7 @@ class Registry:
             if r.get("key") in keys:
                 errors.append(f"retired {label}: still a row in attributes; keep it in one place")
             errors += _enum(r, "origin", ORIGINS, f"retired {label}")
-            errors += _lint_weaver_row(r, f"retired {label}", keys)
+            errors += _lint_weaver_row(r, f"retired {label}", keys, upstream)
         for i, r in enumerate(self.passthrough):
             label = f"passthrough {r.get('key', i)}"
             if r.get("key") in keys:
@@ -471,7 +476,7 @@ class Registry:
         return usage_keys.lint(self.usage_keys, keys, prefixes)
 
 
-def _lint_weaver_row(r: dict, label: str, keys: set) -> list[str]:
+def _lint_weaver_row(r: dict, label: str, keys: set, upstream: set) -> list[str]:
     errors: list[str] = []
     symbol = r.get("symbol")
     own = defined_here(r)
@@ -528,6 +533,13 @@ def _lint_weaver_row(r: dict, label: str, keys: set) -> list[str]:
                     )
             elif "renamed_to" in d:
                 errors.append(f"{label}: renamed_to only goes with reason renamed")
+            if "replaced_by" in d:
+                if d.get("reason") != "uncategorized":
+                    errors.append(f"{label}: replaced_by only goes with reason uncategorized")
+                elif d["replaced_by"] not in upstream:
+                    errors.append(
+                        f"{label}: replaced_by {d['replaced_by']} is not an upstream attribute row"
+                    )
     if "upstream_equivalent" in r:
         upstream = r["upstream_equivalent"]
         if not isinstance(upstream, str) or upstream.startswith("rius."):

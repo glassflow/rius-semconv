@@ -19,7 +19,7 @@ const (
 	// OTel standard version of the deployed service. Metadata about the process,
 	// not about any one span. Stamped only when a version is actually known: there
 	// is deliberately no placeholder default, because a fake one merges every
-	// deployment into a single bucket — the same mistake `unknown_service` makes
+	// deployment into a single bucket, the same mistake `unknown_service` makes
 	// for service.name.
 	ServiceVersion = "service.version"
 
@@ -34,12 +34,12 @@ const (
 	// conventions give an AWS Bedrock agent ARN and a GCP Agent Registry id as the
 	// examples, and say it is NOT RECOMMENDED to record in-memory agent instance
 	// ids here, because those are transient. So an in-process agent leaves it
-	// unset and there is no configured default to fall back to — a name is the
+	// unset and there is no configured default to fall back to: a name is the
 	// only identity such an agent has. Adopted rather than deferred because the
 	// callers who do run hosted agents have nowhere else to put the id.
 	GenAIAgentID = "gen_ai.agent.id"
 
-	// The version of the agent an AGENT span INVOKED — the same callee
+	// The version of the agent an AGENT span INVOKED: the same callee
 	// gen_ai.agent.name and gen_ai.agent.id describe on that span, never
 	// the process's own version and never service.version. Registry type is a
 	// plain string and the conventions' own examples are "1.0.0" and "2025-05-01",
@@ -105,7 +105,7 @@ const (
 	// Deprecated: moved to gen_ai.main_agent.description.
 	RiusMainAgentDescription = "rius.main_agent.description"
 
-	// The version of the agent DEFINITION — its prompt, tools and policy — which is
+	// The version of the agent DEFINITION (its prompt, tools and policy), which is
 	// deliberately NOT service.version. A service can sit at 2.3.1 while its
 	// agent definition is at 7, and the two move independently; deriving either
 	// from the other produces confidently wrong data on every deployment where
@@ -145,7 +145,7 @@ const (
 	// The provider's own identifier for the completion ("chatcmpl-123"),
 	// Recommended on an inference span. Metadata: it exists only once the provider
 	// has answered, so it is a post-call setter and never reaches a pending
-	// snapshot. Not content — an opaque id says nothing about what was said — so
+	// snapshot. Not content (an opaque id says nothing about what was said), so
 	// it survives capture_content=False.
 	GenAIResponseID = "gen_ai.response.id"
 
@@ -181,7 +181,7 @@ const (
 	GenAIRequestSeed             = "gen_ai.request.seed"
 	GenAIRequestStopSequences    = "gen_ai.request.stop_sequences"
 
-	// "The target number of candidate completions to return" — OpenAI's `n`.
+	// "The target number of candidate completions to return": OpenAI's `n`.
 	GenAIRequestChoiceCount = "gen_ai.request.choice.count"
 
 	// Reached only through model parameters (and so through the request
@@ -203,7 +203,7 @@ const (
 	GenAIResponseFinishReason       = "gen_ai.response.finish_reasons"
 	GenAIToolName                   = "gen_ai.tool.name"
 
-	// The identifier of the tool call this execution answers — the id the MODEL
+	// The identifier of the tool call this execution answers: the id the MODEL
 	// minted on its tool-call message, which is what joins a tool span back to the
 	// generation that asked for it. Identity, set at span creation, so it needs an
 	// allowlist entry. Never derived: only the caller holds the model's
@@ -219,7 +219,7 @@ const (
 
 	// The request's tool/function definitions, serialized verbatim (provider
 	// shapes differ; the backend reads names and sizes from either). Content,
-	// not identity — listed in CONTENT_ATTRIBUTES.
+	// not identity, so it is listed in CONTENT_ATTRIBUTES.
 	GenAIToolDefinitions = "gen_ai.tool.definitions"
 
 	// The index, collection or knowledge base a retrieval ran against. Identity,
@@ -247,7 +247,7 @@ const (
 	MCPMethodName      = "mcp.method.name"
 	MCPMethodToolsCall = "tools/call"
 
-	// The version the initialize handshake negotiated — not the one we asked for.
+	// The version the initialize handshake negotiated, not the one we asked for.
 	MCPProtocolVersion = "mcp.protocol.version"
 
 	// OTel general error.type: on an MCP tools/call it is "tool_error" when the
@@ -280,7 +280,7 @@ const (
 	//
 	// Masking: rius.request.* follows gen_ai.request.* exactly. Today neither is
 	// in CONTENT_ATTRIBUTES, so both export in clear. The TIE is the rule, not
-	// the current value — if request parameters ever become maskable, both
+	// the current value: if request parameters ever become maskable, both
 	// namespaces change together, and neither may join the content allowlist
 	// alone.
 	RiusRequestPrefix = "rius.request."
@@ -302,7 +302,7 @@ const (
 	// the backend reads it to attribute gen_ai.usage.input_tokens across the
 	// context, and no convention describes context composition. Deliberately
 	// absent from CONTENT_ATTRIBUTES (it is sizes, not content, and must survive
-	// masking and capture_content=False — that is its whole point when the
+	// masking and capture_content=False; that is its whole point when the
 	// messages are truncated or stripped) and from PENDING_IDENTITY_ATTRIBUTES
 	// (content is unknown at span start, so a pending snapshot never has it).
 	RiusContextSizes = "rius.context.sizes"
@@ -363,7 +363,7 @@ const (
 // we recognise to the canonical attribute key. Verified against
 // open-telemetry/semantic-conventions-genai at commit
 // 8ffdf568e1b4391a99adb081db16e8102e36918e (2026-09-22),
-// model/gen-ai/registry.yaml — the repo cuts no releases, so a commit is the
+// model/gen-ai/registry.yaml. The repo cuts no releases, so a commit is the
 // only citable pin. Each canonical key appears under its own bare spelling
 // plus the provider spellings that mean the SAME parameter; anything absent
 // here is a caller parameter and goes to RIUS_REQUEST_PREFIX verbatim.
@@ -373,9 +373,9 @@ const (
 // consumer de-duplicate, and the point of a convention is that there is one
 // place to look.
 var GenAIRequestParameters = map[string]string{
-	// model — the request's model; also settable as its own argument.
+	// model: the request's model; also settable as its own argument.
 	"model": GenAIRequestModel,
-	// max_tokens — OpenAI Chat Completions `max_tokens`, its successor
+	// max_tokens: OpenAI Chat Completions `max_tokens`, its successor
 	// `max_completion_tokens`, the Responses API's `max_output_tokens`, and
 	// Google's `maxOutputTokens`.
 	"max_tokens":            GenAIRequestMaxTokens,
@@ -384,7 +384,7 @@ var GenAIRequestParameters = map[string]string{
 	"maxCompletionTokens":   GenAIRequestMaxTokens,
 	"max_output_tokens":     GenAIRequestMaxTokens,
 	"maxOutputTokens":       GenAIRequestMaxTokens,
-	// choice.count — "the target number of candidate completions to return":
+	// choice.count ("the target number of candidate completions to return"):
 	// OpenAI `n`, Google `candidateCount`, Cohere `num_generations`.
 	"choice.count":    GenAIRequestChoiceCount,
 	"n":               GenAIRequestChoiceCount,
@@ -392,18 +392,18 @@ var GenAIRequestParameters = map[string]string{
 	"candidateCount":  GenAIRequestChoiceCount,
 	"num_generations": GenAIRequestChoiceCount,
 	"temperature":     GenAIRequestTemperature,
-	// top_p — Google `topP`, Cohere `p`.
+	// top_p: Google `topP`, Cohere `p`.
 	"top_p": GenAIRequestTopP,
 	"topP":  GenAIRequestTopP,
 	"p":     GenAIRequestTopP,
-	// top_k — the registry's own note names Anthropic `top_k`, Cohere `k` and
+	// top_k: the registry's own note names Anthropic `top_k`, Cohere `k` and
 	// Google `topK`, and says OpenAI's `top_logprobs` MUST NOT be reported
 	// here (it shapes the response, not the sampling). So top_logprobs is
 	// deliberately absent and lands in rius.request.*.
 	"top_k": GenAIRequestTopK,
 	"topK":  GenAIRequestTopK,
 	"k":     GenAIRequestTopK,
-	// stop_sequences — OpenAI `stop`, Google `stopSequences`. `stop` is listed
+	// stop_sequences: OpenAI `stop`, Google `stopSequences`. `stop` is listed
 	// FIRST because the llm.invocation_parameters rule prefers it, and both
 	// paths must keep the same spelling when a request carries two.
 	"stop":              GenAIRequestStopSequences,
@@ -413,7 +413,7 @@ var GenAIRequestParameters = map[string]string{
 	"frequencyPenalty":  GenAIRequestFrequencyPenalty,
 	"presence_penalty":  GenAIRequestPresencePenalty,
 	"presencePenalty":   GenAIRequestPresencePenalty,
-	// encoding_formats — plural in the registry; OpenAI's embeddings endpoint
+	// encoding_formats: plural in the registry; OpenAI's embeddings endpoint
 	// sends the singular `encoding_format`, and the registry's note says some
 	// systems call these "embedding types" (Cohere `embedding_types`).
 	"encoding_formats": GenAIRequestEncodingFormats,
@@ -422,19 +422,19 @@ var GenAIRequestParameters = map[string]string{
 	"embedding_types":  GenAIRequestEncodingFormats,
 	"seed":             GenAIRequestSeed,
 	"stream":           GenAIRequestStream,
-	// reasoning.level — "the exact string value sent to the provider";
+	// reasoning.level ("the exact string value sent to the provider"):
 	// OpenAI sends it as `reasoning_effort`.
 	"reasoning.level":  GenAIRequestReasoningLevel,
 	"reasoning_level":  GenAIRequestReasoningLevel,
 	"reasoning_effort": GenAIRequestReasoningLevel,
 	"reasoningEffort":  GenAIRequestReasoningLevel,
-	// previous_response.id — the registry names OpenAI's
+	// previous_response.id: the registry names OpenAI's
 	// `previous_response_id` and Google's `previous_interaction_id`.
 	"previous_response.id":    GenAIRequestPreviousResponseID,
 	"previous_response_id":    GenAIRequestPreviousResponseID,
 	"previousResponseId":      GenAIRequestPreviousResponseID,
 	"previous_interaction_id": GenAIRequestPreviousResponseID,
-	// stream_cursor — the registry names OpenAI's `starting_after` and
+	// stream_cursor: the registry names OpenAI's `starting_after` and
 	// Google's `last_event_id`.
 	"stream_cursor":  GenAIRequestStreamCursor,
 	"starting_after": GenAIRequestStreamCursor,
@@ -482,7 +482,7 @@ var PendingIdentityAttributes = map[string]struct{}{
 	// question once it knows which agent is stuck.
 	GenAIAgentVersion: {},
 	// Protocol identity, not content: a still-running MCP call must be
-	// distinguishable from a local tool in the live view — the one place
+	// distinguishable from a local tool in the live view, the one place
 	// setting the marker at creation pays off.
 	MCPMethodName:      {},
 	MCPProtocolVersion: {},
@@ -676,8 +676,8 @@ var ContentAttributes = map[string]struct{}{
 	"ai.schema":             {},
 	"ai.schema.description": {},
 	// The OpenInference request-parameters bag, whole. Its membership is
-	// open and provider-defined — litellm and langchain put the request's
-	// tools array in it, and providers are free to add anything else —
+	// open and provider-defined (litellm and langchain put the request's
+	// tools array in it, and providers are free to add anything else),
 	// so a per-member blocklist is always one provider behind. It is only
 	// safe to treat the whole bag as content because normalization runs
 	// BEFORE masking and has already promoted every member the rule table

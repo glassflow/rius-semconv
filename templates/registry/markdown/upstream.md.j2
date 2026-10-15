@@ -1,5 +1,5 @@
 {% import "macros.j2" as m %}
-{{ m.header() }}
+{{ m.header(ctx) }}
 
 # Upstream keys
 
@@ -10,14 +10,14 @@ and the GenAI semantic conventions at
 Their definitions, types and stability are upstream's: each key links to it.
 What is ours is the requirement level Rius gives the key and the note on how
 Rius uses it.
-{% for g in ctx.groups %}
+{{ m.generated(ctx) }}{% for g in ctx.groups %}
 
 ## `{{ g.namespace }}`
 
 | Key | Type | Requirement level | Defined in | How Rius uses it |
 | -- | -- | -- | -- | -- |
 {% for a in g.attributes %}
-| [`{{ a.key }}`]({{ a.url }}) | {{ a.type }} | {{ a.level }} | {{ a.registry }} | {% if a.passthrough %}Stored, not emitted.{% elif a.planned %}Planned, not emitted yet.{% else %}Emitted.{% endif %}{% if a.footnote %} [{{ a.footnote }}]{% endif %} |
+| <a id="{{ m.anchor(a.key) }}"></a>[`{{ a.key }}`]({{ a.url }}) | {{ a.type }} | {{ a.level }} | {{ a.registry }} | {% if a.passthrough %}Stored, not emitted.{% elif a.planned %}Planned, not emitted yet.{% else %}Emitted.{% endif %}{% if a.footnote %} [{{ a.footnote }}]{% endif %} |
 {% endfor %}
 {% endfor %}
 {% for g in ctx.groups %}{% for a in g.attributes if a.footnote %}

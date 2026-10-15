@@ -23,9 +23,9 @@ convention names gets a key here.
 
 | Key | Type | Replaced by | Description |
 | -- | -- | -- | -- |
-| <a id="rius-main-agent-description"></a>`rius.main_agent.description` | string | uncategorized | What the agent this process is does, in free text. [3] Moved to gen_ai.main_agent.description, which the OpenTelemetry GenAI conventions now define for the same fact. The SDKs stamp both through the deprecation window; readers take gen_ai.main_agent.description first. |
-| <a id="rius-main-agent-id"></a>`rius.main_agent.id` | string | uncategorized | Stable identifier of the agent this process is, unchanged across restarts and deployments. [4] Moved to gen_ai.main_agent.id, which the OpenTelemetry GenAI conventions now define for the same fact. The SDKs stamp both through the deprecation window; readers take gen_ai.main_agent.id first. This key only ever carried a configured id, while gen_ai.main_agent.id falls back to the agent name when none is configured. |
-| <a id="rius-main-agent-name"></a>`rius.main_agent.name` | string | uncategorized | Name of the agent this process is, stamped once on the resource. [5] Moved to gen_ai.main_agent.name, which the OpenTelemetry GenAI conventions now define for the same fact. The SDKs stamp both through the deprecation window; readers take gen_ai.main_agent.name first. |
+| <a id="rius-main-agent-description"></a>`rius.main_agent.description` | string | [`gen_ai.main_agent.description`](upstream.md#gen-ai-main-agent-description) | What the agent this process is does, in free text. [3] Moved to gen_ai.main_agent.description, which the OpenTelemetry GenAI conventions now define for the same fact. The SDKs stamp both through the deprecation window; readers take gen_ai.main_agent.description first. |
+| <a id="rius-main-agent-id"></a>`rius.main_agent.id` | string | [`gen_ai.main_agent.id`](upstream.md#gen-ai-main-agent-id) | Stable identifier of the agent this process is, unchanged across restarts and deployments. [4] Moved to gen_ai.main_agent.id, which the OpenTelemetry GenAI conventions now define for the same fact. The SDKs stamp both through the deprecation window; readers take gen_ai.main_agent.id first. This key only ever carried a configured id, while gen_ai.main_agent.id falls back to the agent name when none is configured. |
+| <a id="rius-main-agent-name"></a>`rius.main_agent.name` | string | [`gen_ai.main_agent.name`](upstream.md#gen-ai-main-agent-name) | Name of the agent this process is, stamped once on the resource. [5] Moved to gen_ai.main_agent.name, which the OpenTelemetry GenAI conventions now define for the same fact. The SDKs stamp both through the deprecation window; readers take gen_ai.main_agent.name first. |
 
 ## Notes
 
@@ -62,7 +62,7 @@ A Rius vendor attribute, NOT a convention:
 the backend reads it to attribute gen_ai.usage.input_tokens across the
 context, and no convention describes context composition. Deliberately
 absent from CONTENT_ATTRIBUTES (it is sizes, not content, and must survive
-masking and capture_content=False — that is its whole point when the
+masking and capture_content=False; that is its whole point when the
 messages are truncated or stripped) and from PENDING_IDENTITY_ATTRIBUTES
 (content is unknown at span start, so a pending snapshot never has it).
 
@@ -76,7 +76,7 @@ every restart and make the key useless for grouping.
 **[5] `rius.main_agent.name`:** Deprecated: moved to gen_ai.main_agent.name.
 Named the agent this process is before the conventions had a key for it.
 
-**[6] `rius.main_agent.version`:** The version of the agent DEFINITION — its prompt, tools and policy — which is
+**[6] `rius.main_agent.version`:** The version of the agent DEFINITION (its prompt, tools and policy), which is
 deliberately NOT service.version. A service can sit at 2.3.1 while its
 agent definition is at 7, and the two move independently; deriving either
 from the other produces confidently wrong data on every deployment where
@@ -95,7 +95,7 @@ no catch-all of their own, so we own one.
 
 Masking: rius.request.\* follows gen_ai.request.\* exactly. Today neither is
 in CONTENT_ATTRIBUTES, so both export in clear. The TIE is the rule, not
-the current value — if request parameters ever become maskable, both
+the current value: if request parameters ever become maskable, both
 namespaces change together, and neither may join the content allowlist
 alone.
 

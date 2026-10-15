@@ -1,7 +1,7 @@
 {% import "macros.j2" as m %}
-{{ m.header() }}
+{{ m.header(ctx) }}
 
-# `{{ ctx.namespace }}`
+# `{{ ctx.namespace }}`{{ " namespace" if ctx.site else "" }}
 
 {% if ctx.owned %}
 The `rius` namespace is the one this registry owns: a fact no OpenTelemetry
@@ -9,21 +9,21 @@ convention names gets a key here.
 {% elif ctx.attributes or ctx.events %}
 `{{ ctx.namespace }}` is not a Rius namespace. Rius defines only the keys below
 in it, each under a documented namespace exception; every other
-`{{ ctx.namespace }}` key Rius uses is upstream's (see [upstream keys](upstream.md)).
+`{{ ctx.namespace }}` key Rius uses is upstream's (see [upstream keys]({{ m.page(ctx, "upstream") }})).
 {% else %}
 Rius no longer defines keys in `{{ ctx.namespace }}`. The deprecated keys
 below are kept so a reader of older spans can tell what they were.
 {% endif %}
-{% if ctx.attributes %}
+{{ m.generated(ctx) }}{% if ctx.attributes %}
 
 ## Attributes
 
 | Key | Stability | Type | Description | Examples |
 | -- | -- | -- | -- | -- |
 {% for a in ctx.attributes %}
-| <a id="{{ a.key | replace(".", "-") | replace("_", "-") | lower }}"></a>`{{ a.name }}` | {{ m.badge(a.stability) }} | {{ a.type }} | {{ m.described(a) }} | {{ m.examples(a.examples) }} |
+| <a id="{{ m.anchor(a.key) }}"></a>`{{ a.name }}` | {{ m.badge(a.stability, ctx) }} | {{ a.type }} | {{ m.described(a) }} | {{ m.examples(a.examples) }} |
 {% endfor %}
-{% for a in ctx.attributes %}{{ m.members(a) }}{% endfor %}
+{% for a in ctx.attributes %}{{ m.members(a, ctx) }}{% endfor %}
 {% endif %}
 {% if ctx.events %}
 
@@ -32,7 +32,7 @@ below are kept so a reader of older spans can tell what they were.
 | Name | Stability | Description |
 | -- | -- | -- |
 {% for e in ctx.events %}
-| <a id="{{ e.key | replace(".", "-") | replace("_", "-") | lower }}"></a>`{{ e.name }}` | {{ m.badge(e.stability) }} | {{ m.described(e) }} |
+| <a id="{{ m.anchor(e.key) }}"></a>`{{ e.name }}` | {{ m.badge(e.stability, ctx) }} | {{ m.described(e) }} |
 {% endfor %}
 {% endif %}
 {% if ctx.deprecated %}
@@ -42,7 +42,7 @@ below are kept so a reader of older spans can tell what they were.
 | Key | Type | Replaced by | Description |
 | -- | -- | -- | -- |
 {% for a in ctx.deprecated %}
-| <a id="{{ a.key | replace(".", "-") | replace("_", "-") | lower }}"></a>`{{ a.name }}` | {{ a.type }} | {% if a.deprecated.renamed_to %}`{{ a.deprecated.renamed_to }}`{% else %}{{ m.cell(a.deprecated.reason) }}{% endif %} | {{ m.described(a) }}{% if a.deprecated.note %} {{ m.cell(a.deprecated.note) }}{% endif %} |
+| <a id="{{ m.anchor(a.key) }}"></a>`{{ a.name }}` | {{ a.type }} | {% if a.replacement %}[`{{ a.replacement.key }}`]({{ m.page(ctx, a.replacement.page) }}#{{ m.anchor(a.replacement.key) }}){% else %}Nothing ({{ m.cell(a.deprecated.reason) }}){% endif %} | {{ m.described(a) }}{% if a.deprecated.note %} {{ m.cell(a.deprecated.note) }}{% endif %} |
 {% endfor %}
 {% endif %}
 {% for a in ctx.rows if a.footnote %}
