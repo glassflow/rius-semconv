@@ -273,11 +273,15 @@ export const ERROR_TYPE_TOOL_ERROR = "tool_error";
 export const EXCEPTION_EVENT = "exception";
 export const EXCEPTION_TYPE = "exception.type";
 
-// MCP spec 2026-07-28: a tools/call round can end with an interim
-// "input_required" result (MRTR) instead of a final one. Set ONLY on interim
-// rounds. NOT an OTel semconv attribute, unlike the two above: the key
-// borrows the mcp SDK's own `mcp.*` spelling for its result-type field, and
-// no convention defines it. Kept as-is because the backend reads it.
+/**
+ * MCP spec 2026-07-28: a tools/call round can end with an interim
+ * "input_required" result (MRTR) instead of a final one. Early Rius SDKs
+ * set it ONLY on interim rounds. NOT an OTel semconv attribute, unlike the
+ * two above: the key borrows the mcp SDK's own `mcp.*` spelling for its
+ * result-type field, and no convention defines it. Nothing ever read it.
+ *
+ * @deprecated obsoleted, nothing replaces it; interim rounds stay identifiable by mcp.method.name.
+ */
 export const MCP_RESULT_TYPE = "mcp.result_type";
 export const GEN_AI_REQUEST_PREFIX = "gen_ai.request.";
 

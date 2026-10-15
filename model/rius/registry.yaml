@@ -181,14 +181,22 @@ attributes:
   type: string
   brief: Result type of an MCP tools/call round that ended with an interim result instead of a final one.
   note: |
+    Deprecated: obsoleted, nothing replaces it; interim rounds stay identifiable by mcp.method.name.
     MCP spec 2026-07-28: a tools/call round can end with an interim
-    "input_required" result (MRTR) instead of a final one. Set ONLY on interim
-    rounds. NOT an OTel semconv attribute, unlike the two above: the key
-    borrows the mcp SDK's own `mcp.*` spelling for its result-type field, and
-    no convention defines it. Kept as-is because the backend reads it.
+    "input_required" result (MRTR) instead of a final one. Early Rius SDKs
+    set it ONLY on interim rounds. NOT an OTel semconv attribute, unlike the
+    two above: the key borrows the mcp SDK's own `mcp.*` spelling for its
+    result-type field, and no convention defines it. Nothing ever read it.
   stability: development
   examples:
   - input_required
+  deprecated:
+    reason: obsoleted
+    note: |
+      Emitted by early Rius SDKs on interim MCP tools/call rounds and never
+      read by any backend. No convention defines it, and an interim round
+      stays identifiable without it, as a tool span carrying
+      mcp.method.name.
   annotations:
     rius:
       const: MCP_RESULT_TYPE
@@ -197,7 +205,7 @@ attributes:
       origin: rius
       namespace_exception: |
         Predates the rule. The key borrows the mcp SDK's own `mcp.*` spelling for
-        its result-type field, and the backend reads it under this name.
+        its result-type field.
       kinds:
       - TOOL
       category: identity
@@ -210,11 +218,12 @@ attributes:
         Set when an interim round ENDS, so it is never known at span start and a
         pending snapshot has nothing to carry.
       rationale: |
+        Deprecated: obsoleted, nothing replaces it; interim rounds stay identifiable by mcp.method.name.
         MCP spec 2026-07-28: a tools/call round can end with an interim
-        "input_required" result (MRTR) instead of a final one. Set ONLY on interim
-        rounds. NOT an OTel semconv attribute, unlike the two above: the key
-        borrows the mcp SDK's own `mcp.*` spelling for its result-type field, and
-        no convention defines it. Kept as-is because the backend reads it.
+        "input_required" result (MRTR) instead of a final one. Early Rius SDKs
+        set it ONLY on interim rounds. NOT an OTel semconv attribute, unlike the
+        two above: the key borrows the mcp SDK's own `mcp.*` spelling for its
+        result-type field, and no convention defines it. Nothing ever read it.
 - key: rius.request
   type: template[any]
   brief: A request parameter the GenAI conventions do not define, keyed by the parameter's name as the caller spelled it.

@@ -55,7 +55,8 @@ from it: never edit `out/` by hand.
    `glassflow.*` keys, and an `origin: rius` key outside `rius.*` needs a
    written `namespace_exception`. Only two keys have one, and they are the
    only keys this registry defines in a convention's namespace: the
-   `mcp.result_type` attribute and the `gen_ai.first_token` event name. Every
+   `mcp.result_type` attribute (deprecated, since nothing reads it) and the
+   `gen_ai.first_token` event name. Every
    other key in those namespaces is referenced from the upstream registry,
    never defined here.
 3. **Add or change the row** in `registry/attributes.yaml`. The file's header

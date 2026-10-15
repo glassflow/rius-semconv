@@ -56,9 +56,9 @@ parameter spellings to convention keys.
 **It owns one namespace, `rius.*`.** It defines no key in `gen_ai.*`,
 `otel.*` or any other OpenTelemetry namespace (`error.*`, `service.*`,
 `mcp.*`, `session.*`, `user.*`, ...), with two documented exceptions: the
-`mcp.result_type` attribute and the `gen_ai.first_token` event name, which
-predate the rule, carry a `namespace_exception` saying why, and are defined
-as Rius keys. Every other key in those namespaces is *referenced*. Each row records the upstream key, type and requirement level as
+`mcp.result_type` attribute (deprecated, since nothing reads it) and the
+`gen_ai.first_token` event name, which predate the rule, carry a
+`namespace_exception` saying why, and are defined as Rius keys. Every other key in those namespaces is *referenced*. Each row records the upstream key, type and requirement level as
 published (`origin: otel`, or `upstream:` on a row whose key OpenTelemetry
 defines although OpenInference uses it too, such as `session.id`), and in the
 Weaver registry the key is a `ref` to the pinned upstream definition, so its

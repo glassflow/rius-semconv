@@ -263,11 +263,12 @@ const (
 	ExceptionEvent = "exception"
 	ExceptionType  = "exception.type"
 
+	// Deprecated: obsoleted, nothing replaces it; interim rounds stay identifiable by mcp.method.name.
 	// MCP spec 2026-07-28: a tools/call round can end with an interim
-	// "input_required" result (MRTR) instead of a final one. Set ONLY on interim
-	// rounds. NOT an OTel semconv attribute, unlike the two above: the key
-	// borrows the mcp SDK's own `mcp.*` spelling for its result-type field, and
-	// no convention defines it. Kept as-is because the backend reads it.
+	// "input_required" result (MRTR) instead of a final one. Early Rius SDKs
+	// set it ONLY on interim rounds. NOT an OTel semconv attribute, unlike the
+	// two above: the key borrows the mcp SDK's own `mcp.*` spelling for its
+	// result-type field, and no convention defines it. Nothing ever read it.
 	MCPResultType      = "mcp.result_type"
 	GenAIRequestPrefix = "gen_ai.request."
 
