@@ -117,7 +117,7 @@ exception class when the call itself raised.
 conventions give an AWS Bedrock agent ARN and a GCP Agent Registry id as the
 examples, and say it is NOT RECOMMENDED to record in-memory agent instance
 ids here, because those are transient. So an in-process agent leaves it
-unset and there is no configured default to fall back to — a name is the
+unset and there is no configured default to fall back to: a name is the
 only identity such an agent has. Adopted rather than deferred because the
 callers who do run hosted agents have nowhere else to put the id.
 
@@ -127,7 +127,7 @@ falls through to service.name per span, and a process whose agent name
 differs from its service name has its agents view and its trace list
 disagreeing about what it is called.
 
-**[4] `gen_ai.agent.version`:** The version of the agent an AGENT span INVOKED — the same callee
+**[4] `gen_ai.agent.version`:** The version of the agent an AGENT span INVOKED: the same callee
 gen_ai.agent.name and gen_ai.agent.id describe on that span, never
 the process's own version and never service.version. Registry type is a
 plain string and the conventions' own examples are "1.0.0" and "2025-05-01",
@@ -179,7 +179,7 @@ entry. Recorded verbatim rather than validated against the enum: the
 conventions are free to extend it, and a value we do not recognise is still
 the caller's truth. Not content, for the reason the response id is not.
 
-**[11] `gen_ai.request.choice.count`:** "The target number of candidate completions to return" — OpenAI's `n`.
+**[11] `gen_ai.request.choice.count`:** "The target number of candidate completions to return": OpenAI's `n`.
 
 **[12] `gen_ai.request.encoding_formats`:** Reached only through model parameters (and so through the request
 parameter table), named because the normalizer's per-key type guard is
@@ -200,7 +200,7 @@ and types are the GenAI registry's.
 **[15] `gen_ai.response.id`:** The provider's own identifier for the completion ("chatcmpl-123"),
 Recommended on an inference span. Metadata: it exists only once the provider
 has answered, so it is a post-call setter and never reaches a pending
-snapshot. Not content — an opaque id says nothing about what was said — so
+snapshot. Not content (an opaque id says nothing about what was said), so
 it survives capture_content=False.
 
 **[16] `gen_ai.retrieval.documents`:** What the retriever RETURNED, as the conventions define it: a JSON array of
@@ -224,7 +224,7 @@ from the Vercel AI SDK's ai.toolCall.args, as an inline literal with no
 semconv constant, which is why the row is planned rather than shipped.
 Content, listed in CONTENT_ATTRIBUTES by key.
 
-**[20] `gen_ai.tool.call.id`:** The identifier of the tool call this execution answers — the id the MODEL
+**[20] `gen_ai.tool.call.id`:** The identifier of the tool call this execution answers: the id the MODEL
 minted on its tool-call message, which is what joins a tool span back to the
 generation that asked for it. Identity, set at span creation, so it needs an
 allowlist entry. Never derived: only the caller holds the model's
@@ -237,7 +237,7 @@ CONTENT_ATTRIBUTES by key.
 
 **[22] `gen_ai.tool.definitions`:** The request's tool/function definitions, serialized verbatim (provider
 shapes differ; the backend reads names and sizes from either). Content,
-not identity — listed in CONTENT_ATTRIBUTES.
+not identity, so it is listed in CONTENT_ATTRIBUTES.
 
 **[23] `gen_ai.tool.type`:** What KIND of tool ran, the conventions' own examples being "function"
 (client-side), "extension" (agent-side) and "datastore". Identity for the
@@ -252,7 +252,7 @@ stability). mcp.method.name is the REQUIRED attribute of an MCP client span
 and the marker everything downstream keys on: a local TOOL span has the same
 kind, name and I/O shape, so this is what tells the two apart.
 
-**[26] `mcp.protocol.version`:** The version the initialize handshake negotiated — not the one we asked for.
+**[26] `mcp.protocol.version`:** The version the initialize handshake negotiated, not the one we asked for.
 
 **[27] `service.instance.id`:** OTel standard identity of one process lifetime (one uuid per client, minted
 at init). The heartbeat payload's instance_id carries the SAME value, which
@@ -264,7 +264,7 @@ process names no agent.
 **[29] `service.version`:** OTel standard version of the deployed service. Metadata about the process,
 not about any one span. Stamped only when a version is actually known: there
 is deliberately no placeholder default, because a fake one merges every
-deployment into a single bucket — the same mistake `unknown_service` makes
+deployment into a single bucket, the same mistake `unknown_service` makes
 for service.name.
 
 **[30] `session.id`:** The session grouping key. OpenInference's spelling, and the one the sink

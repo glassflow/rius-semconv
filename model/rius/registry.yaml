@@ -122,7 +122,7 @@ attributes:
   type: string
   brief: Version of the agent definition (prompt, tools and policy) this process runs, independent of service.version.
   note: |
-    The version of the agent DEFINITION — its prompt, tools and policy — which is
+    The version of the agent DEFINITION (its prompt, tools and policy), which is
     deliberately NOT service.version. A service can sit at 2.3.1 while its
     agent definition is at 7, and the two move independently; deriving either
     from the other produces confidently wrong data on every deployment where
@@ -143,7 +143,7 @@ attributes:
       fill:
       - native
       rationale: |
-        The version of the agent DEFINITION — its prompt, tools and policy — which is
+        The version of the agent DEFINITION (its prompt, tools and policy), which is
         deliberately NOT service.version. A service can sit at 2.3.1 while its
         agent definition is at 7, and the two move independently; deriving either
         from the other produces confidently wrong data on every deployment where
@@ -228,7 +228,7 @@ attributes:
 
     Masking: rius.request.* follows gen_ai.request.* exactly. Today neither is
     in CONTENT_ATTRIBUTES, so both export in clear. The TIE is the rule, not
-    the current value — if request parameters ever become maskable, both
+    the current value: if request parameters ever become maskable, both
     namespaces change together, and neither may join the content allowlist
     alone.
   stability: development
@@ -253,7 +253,7 @@ attributes:
 
         Masking: rius.request.* follows gen_ai.request.* exactly. Today neither is
         in CONTENT_ATTRIBUTES, so both export in clear. The TIE is the rule, not
-        the current value — if request parameters ever become maskable, both
+        the current value: if request parameters ever become maskable, both
         namespaces change together, and neither may join the content allowlist
         alone.
 - key: rius.request.tool_choice
@@ -376,7 +376,7 @@ attributes:
     the backend reads it to attribute gen_ai.usage.input_tokens across the
     context, and no convention describes context composition. Deliberately
     absent from CONTENT_ATTRIBUTES (it is sizes, not content, and must survive
-    masking and capture_content=False — that is its whole point when the
+    masking and capture_content=False; that is its whole point when the
     messages are truncated or stripped) and from PENDING_IDENTITY_ATTRIBUTES
     (content is unknown at span start, so a pending snapshot never has it).
   stability: development
@@ -405,7 +405,7 @@ attributes:
         the backend reads it to attribute gen_ai.usage.input_tokens across the
         context, and no convention describes context composition. Deliberately
         absent from CONTENT_ATTRIBUTES (it is sizes, not content, and must survive
-        masking and capture_content=False — that is its whole point when the
+        masking and capture_content=False; that is its whole point when the
         messages are truncated or stripped) and from PENDING_IDENTITY_ATTRIBUTES
         (content is unknown at span start, so a pending snapshot never has it).
       wire_type: json

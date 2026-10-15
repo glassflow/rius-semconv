@@ -120,6 +120,18 @@ def test_rius_key_outside_rius_namespace_needs_an_exception(data):
     assert_flags(data, "RIUS_CONTEXT_SIZES: origin rius outside rius.*")
 
 
+def test_em_dashes_are_forbidden_in_prose(data):
+    # Every rationale and note is published on the docs site.
+    row(data, "SESSION_ID")["rationale"] += "Grouping \u2014 the whole point.\n"
+    data["model_parameters"]["groups"][0]["note"] += " \u2014 or not."
+    errors = [e for e in lint(data) if "em dash in the registry" in e]
+    i = data["attributes"]["attributes"].index(row(data, "SESSION_ID"))
+    assert [e.split(":")[0] for e in errors] == [
+        f"registry.attributes.attributes[{i}].rationale",
+        "registry.model_parameters.groups[0].note",
+    ], errors
+
+
 def test_ticket_ids_are_forbidden_in_prose(data):
     row(data, "SESSION_ID")["rationale"] += "Settled in RIUS-917.\n"
     assert_flags(data, "ticket id RIUS-917")

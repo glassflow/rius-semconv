@@ -62,7 +62,7 @@ A Rius vendor attribute, NOT a convention:
 the backend reads it to attribute gen_ai.usage.input_tokens across the
 context, and no convention describes context composition. Deliberately
 absent from CONTENT_ATTRIBUTES (it is sizes, not content, and must survive
-masking and capture_content=False — that is its whole point when the
+masking and capture_content=False; that is its whole point when the
 messages are truncated or stripped) and from PENDING_IDENTITY_ATTRIBUTES
 (content is unknown at span start, so a pending snapshot never has it).
 
@@ -76,7 +76,7 @@ every restart and make the key useless for grouping.
 **[5] `rius.main_agent.name`:** Deprecated: moved to gen_ai.main_agent.name.
 Named the agent this process is before the conventions had a key for it.
 
-**[6] `rius.main_agent.version`:** The version of the agent DEFINITION — its prompt, tools and policy — which is
+**[6] `rius.main_agent.version`:** The version of the agent DEFINITION (its prompt, tools and policy), which is
 deliberately NOT service.version. A service can sit at 2.3.1 while its
 agent definition is at 7, and the two move independently; deriving either
 from the other produces confidently wrong data on every deployment where
@@ -95,7 +95,7 @@ no catch-all of their own, so we own one.
 
 Masking: rius.request.\* follows gen_ai.request.\* exactly. Today neither is
 in CONTENT_ATTRIBUTES, so both export in clear. The TIE is the rule, not
-the current value — if request parameters ever become maskable, both
+the current value: if request parameters ever become maskable, both
 namespaces change together, and neither may join the content allowlist
 alone.
 

@@ -195,6 +195,10 @@ class Registry:
             elif isinstance(node, str):
                 for ticket in TICKET.findall(node):
                     errors.append(f"{path}: ticket id {ticket} in the registry; write the reason")
+                # The prose is published on the docs site, whose style has no
+                # em dashes: use a period, comma, colon or parentheses.
+                if "\u2014" in node:
+                    errors.append(f"{path}: em dash in the registry; use a period, comma or colon")
 
         walk(self.data, "registry")
         return errors
