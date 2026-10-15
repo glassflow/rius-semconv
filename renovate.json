@@ -33,6 +33,16 @@
       "datasourceTemplate": "github-tags"
     },
     {
+      "description": "The core semantic conventions version on the README's badge",
+      "customType": "regex",
+      "managerFilePatterns": ["/^README\\.md$/"],
+      "matchStrings": [
+        "img\\.shields\\.io/badge/OTel_semconv-(?<currentValue>v[0-9.]+)-"
+      ],
+      "depNameTemplate": "open-telemetry/semantic-conventions",
+      "datasourceTemplate": "github-tags"
+    },
+    {
       "description": "The GenAI semantic conventions commit in model/manifest.yaml",
       "customType": "regex",
       "managerFilePatterns": ["/^model/manifest\\.yaml$/"],

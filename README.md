@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/banner.png" alt="Rius by GlassFlow: the attribute contract, defined once" width="100%">
+</p>
+
 # rius-semconv
 
 The attribute contract for [Rius](https://docs.glassflow.ai/rius), GlassFlow's
@@ -5,6 +9,20 @@ observability product for AI agents: every wire string Rius's SDKs and backend
 agree on, defined once as data, with generators for Python, TypeScript and Go,
 and recorded instrumentor spans that every Rius normalizer must turn into the
 same result.
+
+<p>
+  <a href="https://docs.glassflow.ai/rius"><b>Docs</b></a> ·
+  <a href="docs/registry/README.md">Attribute registry</a> ·
+  <a href="CHANGELOG.md">Changelog</a> ·
+  <a href="https://github.com/glassflow/rius-semconv/issues">Issues</a>
+</p>
+
+[![CI](https://img.shields.io/github/actions/workflow/status/glassflow/rius-semconv/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/glassflow/rius-semconv/actions/workflows/ci.yml)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-6b7280?style=flat-square)](LICENSE)
+[![Latest release](https://img.shields.io/github/v/release/glassflow/rius-semconv?style=flat-square&label=release)](https://github.com/glassflow/rius-semconv/releases/latest)
+[![OpenTelemetry Weaver](https://img.shields.io/badge/OpenTelemetry-Weaver-425cc7?style=flat-square&logo=opentelemetry&logoColor=white)](https://github.com/open-telemetry/weaver)
+[![OTel semconv](https://img.shields.io/badge/OTel_semconv-v1.44.0-425cc7?style=flat-square)](versions.env)
+![Generates Python, TypeScript and Go](https://img.shields.io/badge/generates-Python_%C2%B7_TypeScript_%C2%B7_Go-6b7280?style=flat-square)
 
 ## Who it is for
 
@@ -118,7 +136,7 @@ names the registry's `schema_url`
 the version in `version.txt`) and its dependencies. Renovate (`renovate.json`)
 opens a pull request when a pin in `versions.env` moves, and a workflow
 commits the files that follow from it (CONTRIBUTING.md, "Dependency bumps").
-The schema files are not served at that URL yet.
+Each release's schema files are served at that URL, from 1.2.0 on.
 
 ## How consumers use it
 
