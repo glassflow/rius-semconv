@@ -120,34 +120,44 @@ not served at that URL yet.
 
 ## How consumers use it
 
-**Today: value parity.** The two SDKs and the Rius backend still keep their
-own hand-written constants, and `tools/check_parity.py` proves they match the
-registry. It evaluates the generated module and each SDK's file (Python by
-executing it, TypeScript through Node) and fails when a value differs, when
-the registry generates a name the SDK lacks, or when the SDK exports data the
-registry does not cover. For the backend it compares Go constants: every
-shared name must agree, and every backend-only constant must be explained
-(see [Go](#go)). Comments and literal versus constant-reference spellings
-are invisible to it, by design. Order is not: a table whose entries are equal
-but listed in another order fails, because in the request-parameter map the
-first spelling listed wins. The registry is the source of
-truth; parity is what proves the consumers still follow it.
+**Vendored generated files.** Each consumer vendors the generated file for
+its language at a pinned registry release, and imports its constants from it:
 
-**Planned: generated files, then packages.** The next step is for each
-consumer to vendor the generated file for its language, at a pinned registry
-version, and for its CI to regenerate and diff it:
+| Consumer | Vendored as | Release pinned in | Re-pin with |
+| -- | -- | -- | -- |
+| Python SDK | `src/rius/_semconv_generated.py` | the file's header | `TAG=<tag> scripts/sync-semconv.sh` |
+| TypeScript SDK | `src/semconv.generated.ts` | the file's header | `TAG=<tag> scripts/sync-semconv.sh` |
+| Rius backend | `packages/argus-core/semconv/semconv_generated.go` | `RIUS_SEMCONV_TAG` in its Makefile | `make sync-semconv` |
 
-| Consumer | Language | Generated file |
-| -- | -- | -- |
-| Python SDK | Python | `out/python/_semconv_generated.py` |
-| TypeScript SDK | TypeScript | `out/typescript/semconv.generated.ts` |
-| Rius backend | Go | `out/go/semconv_generated.go` |
+Each copy is the release's `out/` file byte for byte, under two comment lines
+naming the release (`# Vendored from rius-semconv v1.3.0 ...`). The SDKs'
+hand-written `semconv.py` and `semconv.ts` re-export it and keep the helper
+functions; the backend's `semconv.go` keeps only the keys the registry does
+not generate (see [Go](#go)). Each consumer's CI fails when its copy differs
+from its pinned release: the Python SDK's `semconv-vendored` workflow, the
+TypeScript SDK's `semconv-parity` workflow (its `vendored` job) and the
+backend's `make semconv-parity`. While this repository is private, those
+checks read it with a token and skip with a warning when they cannot.
 
-`check_parity.py` already handles that case: once a consumer has the
-generated file, it compares it byte for byte, and a difference means the
-consumer pins an older registry version (a warning unless `--strict`).
-Publishing the constants as packages comes after that, as a separate
-decision. Nothing depends on this repository at run time.
+A change reaches a consumer through a release: merge it here, release, then
+re-pin the consumer, which is a reviewable diff of the vendored file.
+
+**Parity.** `tools/check_parity.py` compares each consumer's vendored copy
+with `out/`, byte for byte after the header. A difference means the consumer
+pins an older release, which is allowed, so it is a warning unless
+`--strict`. Beside a current copy, every constant the backend's hand-written
+`semconv.go` still declares must be classified (see [Go](#go)), and none may
+repeat a generated one. A consumer with no vendored copy is checked by value
+instead: the tool evaluates the generated module and the consumer's
+hand-written file (Python by executing it, TypeScript through Node, Go
+constants by name) and fails when a value differs or a name is uncovered.
+Comments and literal versus constant-reference spellings are invisible to
+that check, by design. Order is not: a table whose entries are equal but
+listed in another order fails, because in the request-parameter map the first
+spelling listed wins.
+
+Publishing the constants as packages is a separate decision. Nothing depends
+on this repository at run time.
 
 ## Versioning and stability
 
@@ -411,8 +421,8 @@ TypeScript SDK checkout is available.
 ### The generation boundary: constants, not whole files
 
 The templates emit a **constants-and-tables module**, not a replacement for
-each SDK's hand-written `semconv.py` / `semconv.ts`. Once vendored, the
-hand-written file re-exports the generated module and keeps the helper
+each SDK's hand-written `semconv.py` / `semconv.ts`: the hand-written file
+re-exports the vendored module and keeps the helper
 functions (`kind_attributes`, `compose_span_name`, `request_attribute_key`
 and their TypeScript twins).
 
@@ -480,8 +490,8 @@ The SDKs are read from sibling checkouts (`../rius-sdk-python`,
 `../rius-sdk-typescript`; override with `--python-repo` and
 `--typescript-repo`). The Rius backend has no default location: check it with
 `python tools/check_parity.py go --go-dir <dir>`, where `<dir>` is its semconv
-package directory (the one holding `semconv.go`, and `semconv_generated.go`
-once it vendors it) inside a git checkout. Pick a ref with
+package directory (the one holding `semconv.go` and `semconv_generated.go`)
+inside a git checkout. Pick a ref with
 `--ref`, fetch first with `--fetch`, and add `--cross` to also diff the two
 SDKs' hand-written files directly, for review.
 
