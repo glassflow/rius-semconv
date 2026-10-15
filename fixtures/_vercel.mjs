@@ -239,3 +239,125 @@ export function vercelObjectScenarios({ ai, createOpenAI, script, telemetry }) {
     },
   };
 }
+
+const DECISIONS = "https://api.openai.com/v1/decisions";
+const SPEECH = "https://api.openai.com/v1/audio/speech";
+const TRANSCRIPTIONS = "https://api.openai.com/v1/audio/transcriptions";
+
+/**
+ * A WebSocket for OpenAI's realtime transcription, scripted like the fetch:
+ * it opens, takes the session update and the audio, and on the commit answers
+ * with one transcript delta and the completed transcript. Nothing leaves the
+ * process.
+ */
+class ScriptedTranscriptionSocket {
+  constructor() {
+    this.readyState = 0;
+    this.bufferedAmount = 0;
+    setImmediate(() => {
+      this.readyState = 1;
+      this.onopen?.();
+    });
+  }
+
+  send(data) {
+    if (JSON.parse(data).type !== "input_audio_buffer.commit") return;
+    const message = (body) => this.onmessage?.({ data: JSON.stringify(body) });
+    setImmediate(() => {
+      message({ type: "conversation.item.input_audio_transcription.delta", item_id: "item_rec1", delta: "Paris is" });
+      message({
+        type: "conversation.item.input_audio_transcription.completed",
+        item_id: "item_rec1",
+        transcript: "Paris is the capital of France.",
+      });
+    });
+  }
+
+  close() {
+    this.readyState = 3;
+  }
+}
+
+/**
+ * The calls only v7 traces through @ai-sdk/otel beyond text, objects and
+ * embeddings: the experimental decide, speech, and transcription (one-shot and
+ * streamed). Recorded by ./vercel-ai-otel only, after its other scenarios, so
+ * those stay byte-identical.
+ */
+export function vercelDecideAudioScenarios({ ai, createOpenAI, script, telemetry }) {
+  const openai = createOpenAI({ apiKey: "sk-test", fetch: script.fetch, webSocket: ScriptedTranscriptionSocket });
+
+  return {
+    async decide() {
+      script.answer(
+        DECISIONS,
+        json({
+          model: "gpt-6-luna",
+          usage: { input_tokens: 30, output_tokens: 2, total_tokens: 32 },
+          answers: [{ type: "predicate", name: "resolved", probability: 0.875 }],
+        }),
+      );
+      await ai.experimental_decide({
+        model: openai.decisionModel("gpt-6-luna"),
+        state: "Customer: thanks, the refund arrived.",
+        questions: { resolved: { type: "boolean", instructions: "Was the customer's issue resolved?" } },
+        maxRetries: 0,
+        ...telemetry,
+      });
+    },
+
+    async generate_speech() {
+      script.answer(SPEECH, { status: 200, body: "scripted-mp3", headers: { "content-type": "audio/mpeg" } });
+      await ai.generateSpeech({
+        model: openai.speech("gpt-4o-mini-tts"),
+        text: "Paris is the capital of France.",
+        voice: "alloy",
+        maxRetries: 0,
+        ...telemetry,
+      });
+    },
+
+    async transcribe() {
+      script.answer(
+        TRANSCRIPTIONS,
+        json({
+          text: "Paris is the capital of France.",
+          language: "english",
+          duration: 2.5,
+          usage: {
+            type: "tokens",
+            input_tokens: 14,
+            input_token_details: { text_tokens: 0, audio_tokens: 14 },
+            output_tokens: 8,
+            total_tokens: 22,
+          },
+        }),
+      );
+      await ai.transcribe({
+        model: openai.transcription("gpt-4o-transcribe"),
+        audio: new Uint8Array([0x49, 0x44, 0x33, 0x04, 0x00, 0x00, 0x00, 0x00]),
+        maxRetries: 0,
+        ...telemetry,
+      });
+    },
+
+    async stream_transcribe() {
+      const audio = new ReadableStream({
+        start(controller) {
+          controller.enqueue(new Uint8Array([0, 1, 2, 3]));
+          controller.enqueue(new Uint8Array([4, 5, 6, 7]));
+          controller.close();
+        },
+      });
+      const result = ai.experimental_streamTranscribe({
+        model: openai.transcription("gpt-realtime-whisper"),
+        audio,
+        inputAudioFormat: { type: "audio/pcm", rate: 24000 },
+        ...telemetry,
+      });
+      for await (const _ of result.fullStream) {
+        // drain
+      }
+    },
+  };
+}

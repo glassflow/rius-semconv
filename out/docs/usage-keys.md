@@ -59,6 +59,7 @@ families it produced them for.
 
 | Key | python | typescript | sink | Recorded in | Why |
 | -- | -- | -- | -- | -- | -- |
+| `ai.response.usage` | keeps | keeps | keeps | vercel-ai-otel | @ai-sdk/otel's speech and transcription spans, with its usage option: the provider's usage object whole, as a JSON string, in whatever units the provider bills (tokens, seconds, characters). The integration also writes its numeric leaves on the same span as gen_ai.usage.<key>, which is what is read (input_tokens, output_tokens) or decided above, so parsing this would count the same usage twice. |
 | `ai.usage.completionTokens` | keeps | keeps | keeps | vercel-ai-v5 | v5's output count on generateText and generateObject; as ai.usage.promptTokens. |
 | `ai.usage.inputTokenDetails.noCacheTokens` | keeps | keeps | keeps | vercel-ai-otel, vercel-ai-v6 | The uncached remainder of ai.usage.inputTokens. The conventions record the inclusive input count and the cached part; this is their difference. |
 | `ai.usage.outputTokenDetails.textTokens` | keeps | keeps | keeps | vercel-ai-otel, vercel-ai-v6 | The non-reasoning remainder of ai.usage.outputTokens; the conventions record the inclusive output count and the reasoning part. |
@@ -66,7 +67,9 @@ families it produced them for.
 | `ai.usage.totalTokens` | keeps | keeps | keeps | vercel-ai-v5, vercel-ai-v6 | A total; the conventions define none. |
 | `gen_ai.aggregated_usage.*` | keeps | keeps | keeps | pydantic-ai | pydantic-ai's whole-run total on its agent span, next to each call's usage on the call's own span. Reading it as usage would count the run twice; it stays under its own name, which nothing reads. |
 | `gen_ai.usage.details.audio_tokens` | keeps | keeps | keeps | pydantic-ai | No canonical key; modality splits are not priced separately. |
-| `gen_ai.usage.total_tokens` | keeps | keeps | keeps | openllmetry | Not a convention key: OpenLLMetry's total. No canonical key holds a total, so it stays on the span as an extra. |
+| `gen_ai.usage.input_token_details.audio_tokens` | keeps | keeps | keeps | vercel-ai-otel | @ai-sdk/otel's flattening of a provider's input_token_details on a transcription span (OpenAI's gpt-4o-transcribe). No canonical key is read for it; modality splits are not priced separately. |
+| `gen_ai.usage.input_token_details.text_tokens` | keeps | keeps | keeps | vercel-ai-otel | As input_token_details.audio_tokens, for the text part of the input. |
+| `gen_ai.usage.total_tokens` | keeps | keeps | keeps | openllmetry, vercel-ai-otel | Not a convention key: OpenLLMetry's total. No canonical key holds a total, so it stays on the span as an extra. |
 | `llm.cost.total` | keeps | keeps | keeps | openinference-litellm, openinference-litellm-openai | Cost stays off the wire on purpose: the backend prices from the token counts with its own table, so a producer's figure is never trusted. |
 | `llm.token_count.completion_details.audio` | keeps | keeps | keeps | openinference-js-langchain-openai, openinference-js-openai, openinference-langchain, openinference-langchain-openai, openinference-litellm, openinference-litellm-openai, openinference-llama-index, openinference-llama-index-openai, openinference-openai | No canonical key; modality splits are not priced separately. |
 | `llm.token_count.prompt_details.audio` | keeps | keeps | keeps | openinference-js-langchain-openai, openinference-js-openai, openinference-langchain, openinference-langchain-openai, openinference-litellm, openinference-litellm-openai, openinference-llama-index, openinference-llama-index-openai, openinference-openai | No canonical key; modality splits are not priced separately. |

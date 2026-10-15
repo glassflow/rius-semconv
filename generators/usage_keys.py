@@ -24,7 +24,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 DECISIONS = {"canonical", "mapped", "ignored", "not_usage", "gap"}
-VALUE_TYPES = {"int", "double"}
+VALUE_TYPES = {"int", "double", "string"}
 # The OpenTelemetry namespace the Weaver registry must never define a key in.
 OTEL_PREFIX = "gen_ai."
 #: Decisions that leave a usage key unread: each must say why.

@@ -289,5 +289,10 @@ def test_a_producer_cannot_claim_gen_ai(data):
 
 
 def test_an_unknown_value_type_is_flagged(data):
-    entry(data, "llm.cost.total")["type"] = "string"
+    entry(data, "llm.cost.total")["type"] = "boolean"
     assert any("llm.cost.total: type must be one of" in e for e in lint(data))
+
+
+def test_a_string_value_type_is_accepted(data):
+    entry(data, "llm.cost.total")["type"] = "string"
+    assert not [e for e in lint(data) if "type must be one of" in e]

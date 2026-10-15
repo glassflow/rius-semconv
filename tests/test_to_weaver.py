@@ -237,6 +237,13 @@ def test_every_decided_usage_key_names_its_target(base_data, files):
             assert decision["target"] in a["brief"]
 
 
+def test_a_usage_key_written_as_json_is_a_string(files):
+    # @ai-sdk/otel writes the provider's usage object whole, as a JSON string.
+    doc = files["model/inputs/vercel.yaml"]
+    usage = next(a for a in doc["attributes"] if a["key"] == "ai.response.usage")
+    assert usage["type"] == "string"
+
+
 def test_gen_ai_usage_inputs_stay_in_the_sidecar(params):
     names = {e.get("key") or e.get("prefix") for e in params["normalizer_inputs"]}
     assert "gen_ai.usage.prompt_tokens" in names

@@ -338,6 +338,15 @@ params:
   - key: gen_ai.usage.details.audio_tokens
     decision: ignored
     reason: No canonical key; modality splits are not priced separately.
+  - key: gen_ai.usage.input_token_details.audio_tokens
+    decision: ignored
+    reason: |
+      @ai-sdk/otel's flattening of a provider's input_token_details on a
+      transcription span (OpenAI's gpt-4o-transcribe). No canonical key is
+      read for it; modality splits are not priced separately.
+  - key: gen_ai.usage.input_token_details.text_tokens
+    decision: ignored
+    reason: As input_token_details.audio_tokens, for the text part of the input.
   - prefix: gen_ai.aggregated_usage.
     decision: ignored
     reason: |
@@ -816,6 +825,14 @@ params:
             each step of an agent run (one model call and the tools it asked
             for), a step within the run rather than an agent invocation, so
             CHAIN as well.
+          - LLM also takes four operations @ai-sdk/otel writes that no convention
+            defines, kept as written rather than rewritten to chat or given an
+            invented name: decide (the experimental decision call: an operation
+            span and its model call, both a billed call to a decision model, so
+            LLM rather than CHAIN, which would hide the call), and the AI SDK's
+            own operation ids for speech and transcription (ai.generateSpeech,
+            ai.transcribe, ai.streamTranscribe), each one call to a remote audio
+            model. OpenInference has no audio kind, and LLM is its model call.
       map:
       - - chat
         - LLM
@@ -841,6 +858,14 @@ params:
         - CHAIN
       - - agent_step
         - CHAIN
+      - - decide
+        - LLM
+      - - ai.generateSpeech
+        - LLM
+      - - ai.transcribe
+        - LLM
+      - - ai.streamTranscribe
+        - LLM
     otel_kind_by_kind:
       names:
         python: _OTEL_KIND_BY_KIND

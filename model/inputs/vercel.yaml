@@ -21,6 +21,7 @@ attribute_groups:
   - ref: ai.usage.outputTokenDetails.textTokens
   - ref: ai.usage.totalTokens
   - ref: ai.settings.maxOutputTokens
+  - ref: ai.response.usage
   - ref: ai.response.avgOutputTokensPerSecond
 attributes:
 - key: ai.usage.inputTokens
@@ -220,6 +221,23 @@ attributes:
       direction: read
       normalizer_input:
         decision: not_usage
+- key: ai.response.usage
+  type: string
+  brief: 'Usage figure written by the Vercel AI SDK, left on the span: nothing reads it as usage.'
+  note: |
+    @ai-sdk/otel's speech and transcription spans, with its usage option:
+    the provider's usage object whole, as a JSON string, in whatever units
+    the provider bills (tokens, seconds, characters). The integration also
+    writes its numeric leaves on the same span as gen_ai.usage.<key>, which
+    is what is read (input_tokens, output_tokens) or decided above, so
+    parsing this would count the same usage twice.
+  stability: development
+  annotations:
+    rius:
+      producer: vercel
+      direction: read
+      normalizer_input:
+        decision: ignored
 - key: ai.response.avgOutputTokensPerSecond
   type: double
   brief: Key written by the Vercel AI SDK that names tokens or cost but is not a usage count.

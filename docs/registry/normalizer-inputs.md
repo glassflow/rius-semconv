@@ -64,20 +64,21 @@ usage-key table, those included, is [out/docs/usage-keys.md](../../out/docs/usag
 | Key | Stability | Type | Decision | Description | Examples |
 | -- | -- | -- | -- | -- | -- |
 | <a id="ai-response-avgoutputtokenspersecond"></a>`ai.response.avgOutputTokensPerSecond` | ![Development](https://img.shields.io/badge/-development-blue) | double | not usage | Key written by the Vercel AI SDK that names tokens or cost but is not a usage count. [12] |  |
-| <a id="ai-settings-maxoutputtokens"></a>`ai.settings.maxOutputTokens` | ![Development](https://img.shields.io/badge/-development-blue) | int | not usage | Key written by the Vercel AI SDK that names tokens or cost but is not a usage count. [13] |  |
-| <a id="ai-usage-cachedinputtokens"></a>`ai.usage.cachedInputTokens` | ![Development](https://img.shields.io/badge/-development-blue) | int | mapped to `gen_ai.usage.cache_read.input_tokens` (typescript, sink) | Usage count written by the Vercel AI SDK; the typescript and sink normalizers map it to gen_ai.usage.cache_read.input_tokens. [14] |  |
-| <a id="ai-usage-completiontokens"></a>`ai.usage.completionTokens` | ![Development](https://img.shields.io/badge/-development-blue) | int | ignored | Usage figure written by the Vercel AI SDK, left on the span: nothing reads it as usage. [15] |  |
+| <a id="ai-response-usage"></a>`ai.response.usage` | ![Development](https://img.shields.io/badge/-development-blue) | string | ignored | Usage figure written by the Vercel AI SDK, left on the span: nothing reads it as usage. [13] |  |
+| <a id="ai-settings-maxoutputtokens"></a>`ai.settings.maxOutputTokens` | ![Development](https://img.shields.io/badge/-development-blue) | int | not usage | Key written by the Vercel AI SDK that names tokens or cost but is not a usage count. [14] |  |
+| <a id="ai-usage-cachedinputtokens"></a>`ai.usage.cachedInputTokens` | ![Development](https://img.shields.io/badge/-development-blue) | int | mapped to `gen_ai.usage.cache_read.input_tokens` (typescript, sink) | Usage count written by the Vercel AI SDK; the typescript and sink normalizers map it to gen_ai.usage.cache_read.input_tokens. [15] |  |
+| <a id="ai-usage-completiontokens"></a>`ai.usage.completionTokens` | ![Development](https://img.shields.io/badge/-development-blue) | int | ignored | Usage figure written by the Vercel AI SDK, left on the span: nothing reads it as usage. [16] |  |
 | <a id="ai-usage-inputtokendetails-cachereadtokens"></a>`ai.usage.inputTokenDetails.cacheReadTokens` | ![Development](https://img.shields.io/badge/-development-blue) | int | mapped to `gen_ai.usage.cache_read.input_tokens` (typescript, sink) | Usage count written by the Vercel AI SDK; the typescript and sink normalizers map it to gen_ai.usage.cache_read.input_tokens. |  |
 | <a id="ai-usage-inputtokendetails-cachewritetokens"></a>`ai.usage.inputTokenDetails.cacheWriteTokens` | ![Development](https://img.shields.io/badge/-development-blue) | int | mapped to `gen_ai.usage.cache_write.input_tokens` (typescript, sink) | Usage count written by the Vercel AI SDK; the typescript and sink normalizers map it to gen_ai.usage.cache_write.input_tokens. |  |
-| <a id="ai-usage-inputtokendetails-nocachetokens"></a>`ai.usage.inputTokenDetails.noCacheTokens` | ![Development](https://img.shields.io/badge/-development-blue) | int | ignored | Usage figure written by the Vercel AI SDK, left on the span: nothing reads it as usage. [16] |  |
-| <a id="ai-usage-inputtokens"></a>`ai.usage.inputTokens` | ![Development](https://img.shields.io/badge/-development-blue) | int | mapped to `gen_ai.usage.input_tokens` (typescript, sink) | Usage count written by the Vercel AI SDK; the typescript and sink normalizers map it to gen_ai.usage.input_tokens. [17] |  |
+| <a id="ai-usage-inputtokendetails-nocachetokens"></a>`ai.usage.inputTokenDetails.noCacheTokens` | ![Development](https://img.shields.io/badge/-development-blue) | int | ignored | Usage figure written by the Vercel AI SDK, left on the span: nothing reads it as usage. [17] |  |
+| <a id="ai-usage-inputtokens"></a>`ai.usage.inputTokens` | ![Development](https://img.shields.io/badge/-development-blue) | int | mapped to `gen_ai.usage.input_tokens` (typescript, sink) | Usage count written by the Vercel AI SDK; the typescript and sink normalizers map it to gen_ai.usage.input_tokens. [18] |  |
 | <a id="ai-usage-outputtokendetails-reasoningtokens"></a>`ai.usage.outputTokenDetails.reasoningTokens` | ![Development](https://img.shields.io/badge/-development-blue) | int | mapped to `gen_ai.usage.reasoning.output_tokens` (typescript, sink) | Usage count written by the Vercel AI SDK; the typescript and sink normalizers map it to gen_ai.usage.reasoning.output_tokens. |  |
-| <a id="ai-usage-outputtokendetails-texttokens"></a>`ai.usage.outputTokenDetails.textTokens` | ![Development](https://img.shields.io/badge/-development-blue) | int | ignored | Usage figure written by the Vercel AI SDK, left on the span: nothing reads it as usage. [18] |  |
+| <a id="ai-usage-outputtokendetails-texttokens"></a>`ai.usage.outputTokenDetails.textTokens` | ![Development](https://img.shields.io/badge/-development-blue) | int | ignored | Usage figure written by the Vercel AI SDK, left on the span: nothing reads it as usage. [19] |  |
 | <a id="ai-usage-outputtokens"></a>`ai.usage.outputTokens` | ![Development](https://img.shields.io/badge/-development-blue) | int | mapped to `gen_ai.usage.output_tokens` (typescript, sink) | Usage count written by the Vercel AI SDK; the typescript and sink normalizers map it to gen_ai.usage.output_tokens. |  |
-| <a id="ai-usage-prompttokens"></a>`ai.usage.promptTokens` | ![Development](https://img.shields.io/badge/-development-blue) | int | ignored | Usage figure written by the Vercel AI SDK, left on the span: nothing reads it as usage. [19] |  |
-| <a id="ai-usage-reasoningtokens"></a>`ai.usage.reasoningTokens` | ![Development](https://img.shields.io/badge/-development-blue) | int | mapped to `gen_ai.usage.reasoning.output_tokens` (typescript, sink) | Usage count written by the Vercel AI SDK; the typescript and sink normalizers map it to gen_ai.usage.reasoning.output_tokens. [20] |  |
-| <a id="ai-usage-tokens"></a>`ai.usage.tokens` | ![Development](https://img.shields.io/badge/-development-blue) | int | mapped to `gen_ai.usage.input_tokens` (typescript, sink) | Usage count written by the Vercel AI SDK; the typescript and sink normalizers map it to gen_ai.usage.input_tokens. [21] |  |
-| <a id="ai-usage-totaltokens"></a>`ai.usage.totalTokens` | ![Development](https://img.shields.io/badge/-development-blue) | int | ignored | Usage figure written by the Vercel AI SDK, left on the span: nothing reads it as usage. [22] |  |
+| <a id="ai-usage-prompttokens"></a>`ai.usage.promptTokens` | ![Development](https://img.shields.io/badge/-development-blue) | int | ignored | Usage figure written by the Vercel AI SDK, left on the span: nothing reads it as usage. [20] |  |
+| <a id="ai-usage-reasoningtokens"></a>`ai.usage.reasoningTokens` | ![Development](https://img.shields.io/badge/-development-blue) | int | mapped to `gen_ai.usage.reasoning.output_tokens` (typescript, sink) | Usage count written by the Vercel AI SDK; the typescript and sink normalizers map it to gen_ai.usage.reasoning.output_tokens. [21] |  |
+| <a id="ai-usage-tokens"></a>`ai.usage.tokens` | ![Development](https://img.shields.io/badge/-development-blue) | int | mapped to `gen_ai.usage.input_tokens` (typescript, sink) | Usage count written by the Vercel AI SDK; the typescript and sink normalizers map it to gen_ai.usage.input_tokens. [22] |  |
+| <a id="ai-usage-totaltokens"></a>`ai.usage.totalTokens` | ![Development](https://img.shields.io/badge/-development-blue) | int | ignored | Usage figure written by the Vercel AI SDK, left on the span: nothing reads it as usage. [23] |  |
 
 ## Notes
 
@@ -114,23 +115,30 @@ conversation established, hit ratio, misses), not provider usage.
 
 **[12] `ai.response.avgOutputTokensPerSecond`:** A throughput figure, not a count.
 
-**[13] `ai.settings.maxOutputTokens`:** A request parameter, mapped to gen_ai.request.max_tokens (which the AI
+**[13] `ai.response.usage`:** @ai-sdk/otel's speech and transcription spans, with its usage option:
+the provider's usage object whole, as a JSON string, in whatever units
+the provider bills (tokens, seconds, characters). The integration also
+writes its numeric leaves on the same span as gen_ai.usage.&lt;key&gt;, which
+is what is read (input_tokens, output_tokens) or decided above, so
+parsing this would count the same usage twice.
+
+**[14] `ai.settings.maxOutputTokens`:** A request parameter, mapped to gen_ai.request.max_tokens (which the AI
 SDK also writes itself on a model call).
 
-**[14] `ai.usage.cachedInputTokens`:** v5's cache-read count, still written beside the detailed spelling by
+**[15] `ai.usage.cachedInputTokens`:** v5's cache-read count, still written beside the detailed spelling by
 v6. Without it cached input was priced as uncached.
 
-**[15] `ai.usage.completionTokens`:** v5's output count on generateText and generateObject; as ai.usage.promptTokens.
+**[16] `ai.usage.completionTokens`:** v5's output count on generateText and generateObject; as ai.usage.promptTokens.
 
-**[16] `ai.usage.inputTokenDetails.noCacheTokens`:** The uncached remainder of ai.usage.inputTokens. The conventions record
+**[17] `ai.usage.inputTokenDetails.noCacheTokens`:** The uncached remainder of ai.usage.inputTokens. The conventions record
 the inclusive input count and the cached part; this is their difference.
 
-**[17] `ai.usage.inputTokens`:** Inclusive of the cached tokens, as the canonical key is.
+**[18] `ai.usage.inputTokens`:** Inclusive of the cached tokens, as the canonical key is.
 
-**[18] `ai.usage.outputTokenDetails.textTokens`:** The non-reasoning remainder of ai.usage.outputTokens; the conventions
+**[19] `ai.usage.outputTokenDetails.textTokens`:** The non-reasoning remainder of ai.usage.outputTokens; the conventions
 record the inclusive output count and the reasoning part.
 
-**[19] `ai.usage.promptTokens`:** v5's input count on generateText and generateObject, left unread on
+**[20] `ai.usage.promptTokens`:** v5's input count on generateText and generateObject, left unread on
 purpose. On a model call the AI SDK writes the same value to
 gen_ai.usage.input_tokens itself. On the generateText wrapper v5 takes
 it from the LAST step's response, not the run's total (v5's streams and
@@ -138,8 +146,8 @@ v6 report the total under ai.usage.inputTokens), so mapping it to
 rius.aggregated_usage.\* would put a short total under a key that
 promises the whole run.
 
-**[20] `ai.usage.reasoningTokens`:** v5's reasoning count, still written beside the detailed spelling by v6.
+**[21] `ai.usage.reasoningTokens`:** v5's reasoning count, still written beside the detailed spelling by v6.
 
-**[21] `ai.usage.tokens`:** An embedding call's input count (ai.embed, ai.embedMany and their doEmbed).
+**[22] `ai.usage.tokens`:** An embedding call's input count (ai.embed, ai.embedMany and their doEmbed).
 
-**[22] `ai.usage.totalTokens`:** A total; the conventions define none.
+**[23] `ai.usage.totalTokens`:** A total; the conventions define none.

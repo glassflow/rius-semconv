@@ -849,19 +849,31 @@ var OperationByKind = map[string]string{
 //     each step of an agent run (one model call and the tools it asked
 //     for), a step within the run rather than an agent invocation, so
 //     CHAIN as well.
+//   - LLM also takes four operations @ai-sdk/otel writes that no convention
+//     defines, kept as written rather than rewritten to chat or given an
+//     invented name: decide (the experimental decision call: an operation
+//     span and its model call, both a billed call to a decision model, so
+//     LLM rather than CHAIN, which would hide the call), and the AI SDK's
+//     own operation ids for speech and transcription (ai.generateSpeech,
+//     ai.transcribe, ai.streamTranscribe), each one call to a remote audio
+//     model. OpenInference has no audio kind, and LLM is its model call.
 var KindByOperation = map[string]string{
-	"chat":             SpanKindLLM,
-	"text_completion":  SpanKindLLM,
-	"generate_content": SpanKindLLM,
-	"execute_tool":     SpanKindTool,
-	"embeddings":       SpanKindEmbedding,
-	"invoke_agent":     SpanKindAgent,
-	"create_agent":     SpanKindAgent,
-	"retrieval":        SpanKindRetriever,
-	"rerank":           SpanKindReranker,
-	"invoke_workflow":  SpanKindChain,
-	"plan":             SpanKindChain,
-	"agent_step":       SpanKindChain,
+	"chat":                SpanKindLLM,
+	"text_completion":     SpanKindLLM,
+	"generate_content":    SpanKindLLM,
+	"execute_tool":        SpanKindTool,
+	"embeddings":          SpanKindEmbedding,
+	"invoke_agent":        SpanKindAgent,
+	"create_agent":        SpanKindAgent,
+	"retrieval":           SpanKindRetriever,
+	"rerank":              SpanKindReranker,
+	"invoke_workflow":     SpanKindChain,
+	"plan":                SpanKindChain,
+	"agent_step":          SpanKindChain,
+	"decide":              SpanKindLLM,
+	"ai.generateSpeech":   SpanKindLLM,
+	"ai.transcribe":       SpanKindLLM,
+	"ai.streamTranscribe": SpanKindLLM,
 }
 
 // Which attribute names the target of a span's `{operation} {target}` name,
