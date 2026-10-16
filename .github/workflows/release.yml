@@ -95,6 +95,8 @@ jobs:
   # only PRs are here move to Done when the version is tagged. Needs
   # LINEAR_ACCESS_KEY, the pipeline's access key from Linear (Settings →
   # Releases; a personal API key does not work). Skips while it is unset.
+  # A pipeline's first sync scans only the release commit itself, so the first
+  # recorded release links no issues; every later one covers the full range.
   linear-release:
     needs: release-please
     if: ${{ needs.release-please.outputs.released == 'true' }}
