@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.5.0](https://github.com/glassflow/rius-semconv/compare/v1.4.0...v1.5.0) (2026-10-16)
+
+
+### Deprecations
+
+* **deprecate:** deprecate mcp.result_type and gen_ai.first_token ([#63](https://github.com/glassflow/rius-semconv/issues/63)) ([b80499c](https://github.com/glassflow/rius-semconv/commit/b80499cc5a407b9f12a2f9e01195920db08cbc76))
+
+
+### Bug Fixes
+
+* expect time to first chunk, not a gen_ai.first_token event, from the normalizers ([#66](https://github.com/glassflow/rius-semconv/issues/66)) ([fd1382e](https://github.com/glassflow/rius-semconv/commit/fd1382e93b4762083bafe538d8976776298ac4f7))
+
 ## [1.4.0](https://github.com/glassflow/rius-semconv/compare/v1.3.0...v1.4.0) (2026-10-15)
 
 
