@@ -25,6 +25,10 @@
 #   replacement  on a deprecated key: {key, page} of the key that replaces it
 #             (Weaver's renamed_to, else the row's replaced_by, which is
 #             always upstream's), else null
+#   formers   the retired spellings this key replaced (Weaver's renamed_to on
+#             a row excluded from code generation). A retired spelling gets no
+#             row or page of its own: its successor's row names it and keeps
+#             its anchor, so a link to the old key still resolves.
 templates:
   - template: namespace.md.j2
     application_mode: each
@@ -42,6 +46,7 @@ templates:
         | if .annotations.rius.rationale then .annotations.rius.rationale |= md else . end
         | if (.type | type) == "object" then .type.members |= map(.brief |= md) else . end;
       def ours: (.provenance.path // "") | test("(^|/)model/rius/[^/]+$");
+      def folded: .annotations.code_generation.exclude == true and .deprecated.renamed_to != null;
       def shape: prose | . + (
           if (.type | type) == "object" then
             {members: .type.members,
@@ -62,8 +67,11 @@ templates:
       def number_notes: [foreach .[] as $a (0; if $a.footnote_text then . + 1 else . end;
           $a + {footnote: (if $a.footnote_text then . else null end)})];
       def owned_pages:
-        [ (.registry.attributes[] | select(ours) | . + {kind: "attribute"}),
-          (.registry.events[] | select(ours) | . + {kind: "event", key: .name}) ]
+        ([.registry.attributes[] | select(ours and folded) | {to: .deprecated.renamed_to, key}]
+         | group_by(.to) | map({key: .[0].to, value: map(.key)}) | from_entries) as $formers
+        | [ (.registry.attributes[] | select(ours and (folded | not))
+             | . + {kind: "attribute", formers: ($formers[.key] // [])}),
+          (.registry.events[] | select(ours) | . + {kind: "event", key: .name, formers: []}) ]
         | map(shape | . + {footnote_text: ([.note, (.annotations.rius.namespace_exception | md
               | if . then "Namespace exception: \(.)" else null end)] | map(select(. != null))
               | if length > 0 then join("\n\n") else null end)})
@@ -171,7 +179,8 @@ templates:
     file_name: "{{ ctx.file }}"
     filter: >
       def ours: (.provenance.path // "") | test("(^|/)model/rius/[^/]+$");
-      { namespaces: ([ (.registry.attributes[] | select(ours) | .key),
+      def folded: .annotations.code_generation.exclude == true and .deprecated.renamed_to != null;
+      { namespaces: ([ (.registry.attributes[] | select(ours and (folded | not)) | .key),
                        (.registry.events[] | select(ours) | .name) ]
                      | group_by(split(".")[0])
                      | map({namespace: (.[0] | split(".")[0]), count: length})),
@@ -190,6 +199,7 @@ templates:
     file_name: site/_meta.tsx
     filter: >
       def ours: (.provenance.path // "") | test("(^|/)model/rius/[^/]+$");
-      { namespaces: ([ (.registry.attributes[] | select(ours) | .key),
+      def folded: .annotations.code_generation.exclude == true and .deprecated.renamed_to != null;
+      { namespaces: ([ (.registry.attributes[] | select(ours and (folded | not)) | .key),
                        (.registry.events[] | select(ours) | .name) ]
                      | map(split(".")[0]) | unique) }

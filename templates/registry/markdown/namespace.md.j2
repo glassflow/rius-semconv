@@ -42,7 +42,7 @@ below are kept so a reader of older spans can tell what they were.
 | Key | Type | Replaced by | Description |
 | -- | -- | -- | -- |
 {% for a in ctx.deprecated %}
-| <a id="{{ m.anchor(a.key) }}"></a>`{{ a.name }}` | {{ a.type }} | {% if a.replacement %}[`{{ a.replacement.key }}`]({{ m.page(ctx, a.replacement.page) }}#{{ m.anchor(a.replacement.key) }}){% else %}Nothing ({{ m.cell(a.deprecated.reason) }}){% endif %} | {{ m.described(a) }}{% if a.deprecated.note %} {{ m.cell(a.deprecated.note) }}{% endif %} |
+| <a id="{{ m.anchor(a.key) }}"></a>`{{ a.name }}` | {{ a.type if a.kind == "attribute" else "event" }} | {% if a.replacement %}[`{{ a.replacement.key }}`]({{ m.page(ctx, a.replacement.page) }}#{{ m.anchor(a.replacement.key) }}){% else %}Nothing ({{ m.cell(a.deprecated.reason) }}){% endif %} | {{ m.described(a) }}{% if a.deprecated.note %} {{ m.cell(a.deprecated.note) }}{% endif %} |
 {% endfor %}
 {% endif %}
 {% for a in ctx.rows if a.footnote %}

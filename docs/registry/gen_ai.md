@@ -2,26 +2,28 @@
 
 # `gen_ai`
 
-`gen_ai` is not a Rius namespace. Rius defines only the keys below
-in it, each under a documented namespace exception; every other
-`gen_ai` key Rius uses is upstream's (see [upstream keys](upstream.md)).
+Rius no longer defines keys in `gen_ai`. The deprecated keys
+below are kept so a reader of older spans can tell what they were.
 
-## Events
+## Deprecated
 
-| Name | Stability | Description |
-| -- | -- | -- |
-| <a id="gen-ai-first-token"></a>`gen_ai.first_token` | ![Development](https://img.shields.io/badge/-development-blue) | The first streamed token or chunk of a generation arrived. [1] |
+| Key | Type | Replaced by | Description |
+| -- | -- | -- | -- |
+| <a id="gen-ai-first-token"></a>`gen_ai.first_token` | event | [`gen_ai.response.time_to_first_chunk`](upstream.md#gen-ai-response-time-to-first-chunk) | The first streamed token or chunk of a generation arrived. [1] The conventions carry this signal as the span attribute gen_ai.response.time_to_first_chunk, which the SDKs emit. For a span with no first-chunk event, the Rius backend synthesizes the event it stores at ingest, at span start plus that duration and never after the span's end; a recorded first-chunk event keeps its own time. Producers need not send it. |
 
 ## Notes
 
-**[1] `gen_ai.first_token`:** First streamed token/chunk arrived: the exact timestamp the backend reads to
-derive TTFT (event time minus span start). The GenAI conventions express the
-same signal as the derived span attribute
-gen_ai.response.time_to_first_chunk, which record_first_token emits
-alongside this event; the event stays because it is what the backend
-keys on, and an absolute timestamp is not recoverable from the duration
-once the span is stored. The name follows the gen_ai.\* style (precedent
-Langfuse's completion_start_time); no convention defines an event for this.
+**[1] `gen_ai.first_token`:** Deprecated: replaced by the gen_ai.response.time_to_first_chunk span attribute.
+First streamed token/chunk arrived. The standard signal is the span
+attribute gen_ai.response.time_to_first_chunk, which the SDKs emit. The
+Rius backend keeps gen_ai.first_token as the name of the event it
+stores. A recorded first-chunk event (OpenInference's or the Vercel AI
+SDK's) is renamed to it and keeps its own time. For a span with none,
+the backend synthesizes the event from
+gen_ai.response.time_to_first_chunk, at span start plus the duration
+and never after the span's end; that clamp applies only to an event it
+creates. Producers need not send it. The constant stays, deprecated,
+until a major release.
 
-Namespace exception: Predates the rule, and a rename is a wire change the backend keys on. No
-convention defines an event for the first streamed token.
+Namespace exception: Predates the rule. No convention defines an event for the first
+streamed token.

@@ -55,7 +55,10 @@ from it: never edit `out/` by hand.
    `glassflow.*` keys, and an `origin: rius` key outside `rius.*` needs a
    written `namespace_exception`. Only two keys have one, and they are the
    only keys this registry defines in a convention's namespace: the
-   `mcp.result_type` attribute and the `gen_ai.first_token` event name. Every
+   `mcp.result_type` attribute and the `gen_ai.first_token` event name, and
+   both are deprecated: nothing reads `mcp.result_type`, and the backend
+   derives `gen_ai.first_token` from `gen_ai.response.time_to_first_chunk`.
+   Every
    other key in those namespaces is referenced from the upstream registry,
    never defined here.
 3. **Add or change the row** in `registry/attributes.yaml`. The file's header
@@ -157,9 +160,10 @@ A deprecation is written in the rows of `registry/attributes.yaml`:
      ...
    ```
 
-   The generated Go keeps that line as its `// Deprecated:` paragraph, and the
-   generated TypeScript turns it into a JSDoc `@deprecated` tag, so both
-   languages' editors mark the constant.
+   The generated Go moves that line to a `// Deprecated:` paragraph of its
+   own at the end of the comment, as godoc expects, and the generated
+   TypeScript turns it into a JSDoc `@deprecated` tag, so both languages'
+   editors mark the constant.
 
 3. **Add the replacement row**, if there is one, and say in its `rationale`
    which key it replaces, so a reader of either row finds the other.

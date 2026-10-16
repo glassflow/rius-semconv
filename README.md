@@ -58,7 +58,8 @@ parameter spellings to convention keys.
 `mcp.*`, `session.*`, `user.*`, ...), with two documented exceptions: the
 `mcp.result_type` attribute and the `gen_ai.first_token` event name, which
 predate the rule, carry a `namespace_exception` saying why, and are defined
-as Rius keys. Every other key in those namespaces is *referenced*. Each row records the upstream key, type and requirement level as
+as Rius keys. Both are deprecated: nothing reads `mcp.result_type`, and the
+backend derives `gen_ai.first_token` from `gen_ai.response.time_to_first_chunk`. Every other key in those namespaces is *referenced*. Each row records the upstream key, type and requirement level as
 published (`origin: otel`, or `upstream:` on a row whose key OpenTelemetry
 defines although OpenInference uses it too, such as `session.id`), and in the
 Weaver registry the key is a `ref` to the pinned upstream definition, so its
@@ -85,9 +86,8 @@ description and examples:
 
 | Page | What it holds |
 | -- | -- |
-| [`rius`](docs/registry/rius.md) | The namespace this registry owns. |
-| [`gen_ai`](docs/registry/gen_ai.md), [`mcp`](docs/registry/mcp.md) | The two Rius keys outside `rius.*`, each under its namespace exception. |
-| [`glassflow`](docs/registry/glassflow.md) | Deprecated keys from before the move to `rius.*`. |
+| [`rius`](docs/registry/rius.md) | The namespace this registry owns. A retired spelling, such as `glassflow.span.pending`, is named on the row of the key that replaced it. |
+| [`gen_ai`](docs/registry/gen_ai.md), [`mcp`](docs/registry/mcp.md) | The two Rius keys outside `rius.*`, each under its namespace exception. Both are deprecated. |
 | [Upstream keys](docs/registry/upstream.md) | The OpenTelemetry keys the SDKs emit or read, linked to their definitions in the pinned upstream registries, with the requirement level Rius gives each. |
 | [Keys other producers write](docs/registry/normalizer-inputs.md) | The OpenInference, OpenLLMetry, Vercel AI SDK and pydantic-ai keys the SDKs emit or the normalizers read, with each decision. |
 

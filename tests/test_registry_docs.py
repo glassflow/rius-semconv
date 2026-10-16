@@ -63,9 +63,25 @@ def test_every_key_in_the_registry_is_on_a_page():
 
 def test_a_rius_key_is_documented_on_its_namespace_page():
     for key, defined, template in model_entries():
-        if defined and key.startswith(("rius.", "glassflow.")):
+        if defined and key.startswith("rius."):
             page = pages()[key.split(".")[0] + ".md"]
             assert (f"{key}.<key>" if template else key) in documented(page), key
+
+
+def test_a_retired_spelling_is_shown_on_its_successors_row_not_its_own_page():
+    # A retired key is never generated again, so it gets no namespace page of
+    # its own; its successor's row names it and keeps its anchor, so a link to
+    # the old spelling still lands on the row that replaced it.
+    assert "glassflow.md" not in pages()
+    assert "glassflow" not in site_pages()
+    meta = (SITE / "_meta.tsx").read_text()
+    assert "'glassflow'" not in meta
+    assert "(glassflow.md)" not in pages()["README.md"]
+    assert "/registry/glassflow)" not in site_pages()[""]
+    former = 'Former spelling: <a id="glassflow-span-pending"></a>`glassflow.span.pending`.'
+    for text in (pages()["rius.md"], site_pages()["rius"]):
+        (row,) = [line for line in text.splitlines() if "</a>`rius.span.pending` |" in line]
+        assert former in row, row
 
 
 def test_upstream_keys_link_to_their_definitions_instead_of_restating_them():
@@ -108,7 +124,6 @@ def slug(md_name: str) -> str:
 @pytest.mark.parametrize(
     "page,key,replacement",
     [
-        ("glassflow", "glassflow.span.pending", "[`rius.span.pending`]({}rius#rius-span-pending)"),
         (
             "rius",
             "rius.main_agent.name",

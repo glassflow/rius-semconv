@@ -273,11 +273,15 @@ export const ERROR_TYPE_TOOL_ERROR = "tool_error";
 export const EXCEPTION_EVENT = "exception";
 export const EXCEPTION_TYPE = "exception.type";
 
-// MCP spec 2026-07-28: a tools/call round can end with an interim
-// "input_required" result (MRTR) instead of a final one. Set ONLY on interim
-// rounds. NOT an OTel semconv attribute, unlike the two above: the key
-// borrows the mcp SDK's own `mcp.*` spelling for its result-type field, and
-// no convention defines it. Kept as-is because the backend reads it.
+/**
+ * MCP spec 2026-07-28: a tools/call round can end with an interim
+ * "input_required" result (MRTR) instead of a final one. Early Rius SDKs
+ * set it ONLY on interim rounds. NOT an OTel semconv attribute, unlike the
+ * two above: the key borrows the mcp SDK's own `mcp.*` spelling for its
+ * result-type field, and no convention defines it. Nothing ever read it.
+ *
+ * @deprecated obsoleted, nothing replaces it; interim rounds stay identifiable by mcp.method.name.
+ */
 export const MCP_RESULT_TYPE = "mcp.result_type";
 export const GEN_AI_REQUEST_PREFIX = "gen_ai.request.";
 
@@ -344,14 +348,20 @@ export const RIUS_AGGREGATED_USAGE_PREFIX = "rius.aggregated_usage.";
 export const RIUS_CONTEXT_SIZES = "rius.context.sizes";
 
 // --- Span event names ---
-// First streamed token/chunk arrived: the exact timestamp the backend reads to
-// derive TTFT (event time minus span start). The GenAI conventions express the
-// same signal as the derived span attribute
-// gen_ai.response.time_to_first_chunk, which record_first_token emits
-// alongside this event; the event stays because it is what the backend
-// keys on, and an absolute timestamp is not recoverable from the duration
-// once the span is stored. The name follows the gen_ai.* style (precedent
-// Langfuse's completion_start_time); no convention defines an event for this.
+/**
+ * First streamed token/chunk arrived. The standard signal is the span
+ * attribute gen_ai.response.time_to_first_chunk, which the SDKs emit. The
+ * Rius backend keeps gen_ai.first_token as the name of the event it
+ * stores. A recorded first-chunk event (OpenInference's or the Vercel AI
+ * SDK's) is renamed to it and keeps its own time. For a span with none,
+ * the backend synthesizes the event from
+ * gen_ai.response.time_to_first_chunk, at span start plus the duration
+ * and never after the span's end; that clamp applies only to an event it
+ * creates. Producers need not send it. The constant stays, deprecated,
+ * until a major release.
+ *
+ * @deprecated replaced by the gen_ai.response.time_to_first_chunk span attribute.
+ */
 export const GEN_AI_FIRST_TOKEN_EVENT = "gen_ai.first_token";
 
 // --- Pending (partial) spans ---

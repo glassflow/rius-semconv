@@ -19,6 +19,25 @@
 {% endfor %}
 {% endif %}
 {% endmacro %}
+{#- A deprecated constant's rationale with its opening `Deprecated: ...` line
+    moved to a paragraph of its own at the end, as godoc expects, so editors
+    and linters mark the constant. -#}
+{% macro deprecated_comment(text, indent) %}
+{% set ns = namespace(lines=(text.rstrip("\n").split("\n") if text else []), tag=none) %}
+{% if ns.lines and ns.lines[0].startswith("Deprecated: ") %}
+{% set ns.tag = ns.lines[0] %}
+{% set ns.lines = ns.lines[1:] %}
+{% endif %}
+{% for line in ns.lines %}
+{{ (indent ~ "// " ~ line).rstrip() }}
+{% endfor %}
+{% if ns.tag %}
+{% if ns.lines %}
+{{ indent }}//
+{% endif %}
+{{ indent }}// {{ ns.tag }}
+{% endif %}
+{% endmacro %}
 {% macro lit(value) %}"{{ value | replace("\\", "\\\\") | replace('"', '\\"') }}"{% endmacro %}
 {% macro name_of(const) %}{{ ctx.go_names[const] }}{% endmacro %}
 {% macro kind_const(kind) %}{{ sk.names[lang] }}{% if kind in initialisms %}{{ initialisms[kind] }}{% else %}{{ kind | capitalize }}{% endif %}{% endmacro %}
@@ -50,7 +69,7 @@ const (
 {% if not loop.first and (row.section or row.rationale) %}
 
 {% endif %}
-{{ comment(row.section, "//", "\t") }}{{ comment(row.rationale, "//", "\t") }}	{{ name_of(row.const) }} = {{ lit(row.key) }}
+{{ comment(row.section, "//", "\t") }}{% if row.deprecated %}{{ deprecated_comment(row.rationale, "\t") }}{% else %}{{ comment(row.rationale, "//", "\t") }}{% endif %}	{{ name_of(row.const) }} = {{ lit(row.key) }}
 {% endfor %}
 
 	// Span kind values (openinference.span.kind).

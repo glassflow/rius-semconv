@@ -8,7 +8,6 @@ namespace Rius defines keys in, then the keys it takes from elsewhere.
 | Page | Keys | What it holds |
 | -- | -- | -- |
 | [`gen_ai`](gen_ai.md) | 1 | Rius keys outside `rius.*`, by namespace exception or deprecated. |
-| [`glassflow`](glassflow.md) | 1 | Rius keys outside `rius.*`, by namespace exception or deprecated. |
 | [`mcp`](mcp.md) | 1 | Rius keys outside `rius.*`, by namespace exception or deprecated. |
 | [`rius`](rius.md) | 12 | The namespace Rius owns. |
 | [Upstream keys](upstream.md) | 57 | OpenTelemetry keys the SDKs emit or read, linked to their upstream definitions. |
