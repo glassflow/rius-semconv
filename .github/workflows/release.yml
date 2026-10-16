@@ -2,7 +2,8 @@
 # release when that PR merges. Only registry and generated-output changes count
 # (release-please-config.json excludes fixtures, tests and tools): the
 # recordings are pinned by commit, not by version. Publishes no package: a
-# release only asks glassflow-docs to serve its schema files (dispatch-docs).
+# release asks glassflow-docs to serve its schema files (dispatch-docs),
+# announces itself on Slack (notify) and is recorded in Linear (linear-release).
 name: release
 
 on:
@@ -86,3 +87,43 @@ jobs:
           jq -n --arg tag "$TAG" --arg url "$url" --arg body "$body" \
             '{text: (":books: *rius-semconv \($tag)* is tagged (<\($url)|release notes>)\n\n\($body)")}' \
             | curl -sS --fail-with-body -X POST -H 'Content-Type: application/json' -d @- "$SLACK_WEBHOOK"
+
+  # Record the release in Linear Releases (the "rius-semconv" pipeline), as the
+  # SDK release workflows do. The sync scans the commits since the pipeline's
+  # last recorded release and sends their squash-merge PR numbers to Linear,
+  # which resolves them to the issues those PRs are linked to, so issues whose
+  # only PRs are here move to Done when the version is tagged. Needs
+  # LINEAR_ACCESS_KEY, the pipeline's access key from Linear (Settings →
+  # Releases; a personal API key does not work). Skips while it is unset.
+  # A pipeline's first sync scans only the release commit itself, so the first
+  # recorded release links no issues; every later one covers the full range.
+  linear-release:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.released == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check for a pipeline access key
+        id: key
+        env:
+          LINEAR_ACCESS_KEY: ${{ secrets.LINEAR_ACCESS_KEY }}
+        run: |
+          if [ -z "$LINEAR_ACCESS_KEY" ]; then
+            echo "LINEAR_ACCESS_KEY not configured; skipping the Linear release sync." >> "$GITHUB_STEP_SUMMARY"
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        if: ${{ steps.key.outputs.present == 'true' }}
+        with:
+          fetch-depth: 0 # the sync scans history back to the last recorded release
+      - uses: linear/linear-release-action@30f9ae77461ec29f07fffe0c52edd1909bfbb6f5 # v0.18.1
+        if: ${{ steps.key.outputs.present == 'true' }}
+        with:
+          access_key: ${{ secrets.LINEAR_ACCESS_KEY }}
+          name: ${{ needs.release-please.outputs.tag }}
+          version: ${{ needs.release-please.outputs.tag }}
+          links: |
+            GitHub=https://github.com/glassflow/rius-semconv/releases/tag/${{ needs.release-please.outputs.tag }}
