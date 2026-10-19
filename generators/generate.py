@@ -25,10 +25,10 @@ from concurrent.futures import ThreadPoolExecutor
 
 from tools import to_weaver
 
-from . import usage_keys, weaver
+from . import media_parts, usage_keys, weaver
 from .registry import ROOT, Registry, load_data
 
-TARGETS = (*weaver.LANGS, "docs")
+TARGETS = (*weaver.LANGS, "docs", "media")
 
 
 def render_usage_keys(reg: Registry) -> str:
@@ -70,12 +70,16 @@ def render(reg: Registry, targets: list[str]) -> dict[str, str]:
                 out.update(zip(langs, texts, strict=True))
     if "docs" in targets:
         out["docs"] = render_usage_keys(reg)
+    if "media" in targets:
+        out["media"] = media_parts.render_table(reg.media_parts)
     return {t: out[t] for t in targets}
 
 
 def output_path(out_dir: pathlib.Path, reg: Registry, target: str) -> pathlib.Path:
     if target == "docs":
         return out_dir / "docs" / "usage-keys.md"
+    if target == "media":
+        return out_dir / "docs" / "media-parts.md"
     return out_dir / target / reg.preamble[target]["filename"]
 
 

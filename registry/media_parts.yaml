@@ -1,0 +1,253 @@
+# Media parts: what every producer's image, audio and file content becomes
+# after normalization, and which recordings prove it.
+#
+# After normalization a media part is exactly one of these (see the part
+# shapes below), and inline bytes never survive: a blob is always stripped.
+#
+#   blob  {"type":"blob","modality","mime_type"?,"byte_size"?,"stripped_reason"}
+#         Inline bytes, with no `content`. byte_size is the decoded length,
+#         omitted when the bytes never reached us.
+#   uri   {"type":"uri","modality","mime_type"?,"uri"}
+#         Referenced by URL. A data: URL is never a uri: it becomes a blob.
+#   file  {"type":"file","modality","mime_type"?,"file_id"}
+#         A provider file id.
+#
+# The modality comes from the MIME type when it is known: image/* is image,
+# audio/* audio, video/* video, anything else (PDF, text/*, office formats)
+# document. With no MIME type it comes from the provider's part kind. It is
+# never guessed as image for a non-image MIME type.
+#
+# A part whose type no normalizer recognizes passes through unchanged as a
+# generic part. It is never wrapped in a text part.
+#
+# One row per source shape. tests/test_media_parts.py and the registry linter
+# check the file's rules; tools/check_fixtures.py checks that every fixtures
+# id names a recorded scenario. The generated table is
+# out/docs/media-parts.md.
+#
+# Fields
+#
+#   modalities        The modality vocabulary (the upstream enum).
+#   stripped_reasons  The `stripped_reason` vocabulary on a blob, with what
+#                     each means. A Rius vocabulary on a free-form upstream
+#                     field.
+#   source     producer.api: who writes the shape, and through which API.
+#   shape      The source shape, as the producer writes it.
+#   direction  input | output. Whether the shape is in a request message or
+#              in a response message.
+#   normalized What the part becomes: blob, uri, file, text (it is text to
+#              the model, so it becomes text parts) or generic. A list when
+#              the shape normalizes to more than one of these, depending on
+#              its value.
+#   modality   image, video, audio or document, or from_mime: the modality
+#              rule above. Not needed when normalized is text.
+#   paths      Which paths deliver the shape today: passthrough (the SDK
+#              helpers, set_input / setInput with raw provider dicts),
+#              openinference (flattened message contents), openllmetry,
+#              laminar (provider blocks), vercel (ai.prompt.messages),
+#              native (semconv parts).
+#   fixtures   Scenario ids, <family>/<scenario>: a directory under
+#              fixtures/ and a key of recordings.<file>.scenarios in that
+#              family's manifest.json. Each must exist.
+#   reason     Why no fixture proves the row yet. Required when fixtures is
+#              empty.
+#   note       Optional detail on how the shape normalizes.
+
+modalities: [image, video, audio, document]
+
+stripped_reasons:
+  not_captured: Our default policy removed the inline bytes.
+  redacted_upstream: The instrumentor had already replaced the payload (OpenInference __REDACTED__).
+
+rows:
+  - source: openai.chat
+    shape: image_url.url = data:<mime>;base64,...
+    direction: input
+    normalized: blob
+    modality: image
+    paths: [passthrough, openllmetry, laminar]
+    fixtures: []
+    reason: Recorded in this change.
+    note: The mime type comes from the data URL.
+
+  - source: openai.chat
+    shape: image_url.url = http(s)://...
+    direction: input
+    normalized: uri
+    modality: image
+    paths: [passthrough, openllmetry, laminar]
+    fixtures: []
+    reason: Recorded in this change.
+
+  - source: openai.chat
+    shape: input_audio {data, format}
+    direction: input
+    normalized: blob
+    modality: audio
+    paths: [passthrough, openllmetry, laminar]
+    fixtures: []
+    reason: Recorded in this change.
+    note: The mime type is audio/<format>.
+
+  - source: openai.chat
+    shape: file {file_id}
+    direction: input
+    normalized: file
+    modality: document
+    paths: [passthrough, openllmetry, laminar]
+    fixtures: []
+    reason: No recorded family; covered by the SDK pass-through unit tests.
+
+  - source: openai.chat
+    shape: file {file_data, filename}
+    direction: input
+    normalized: blob
+    modality: from_mime
+    paths: [passthrough, openllmetry, laminar]
+    fixtures: []
+    reason: No recorded family; covered by the SDK pass-through unit tests.
+    note: The modality comes from the data URL's mime type, or from the filename extension.
+
+  - source: openai.chat
+    shape: message.audio {data, transcript}
+    direction: output
+    normalized: blob
+    modality: audio
+    paths: [passthrough, openllmetry, laminar]
+    fixtures: []
+    reason: Recorded in this change.
+    note: A text part with the transcript follows the blob.
+
+  - source: openai.responses
+    shape: input_image {image_url | file_id}
+    direction: input
+    normalized: [blob, uri, file]
+    modality: image
+    paths: [passthrough, openllmetry, laminar]
+    fixtures: []
+    reason: No recorded family; covered by the SDK pass-through unit tests.
+    note: A data URL becomes a blob, an http(s) URL a uri, a file id a file.
+
+  - source: openai.responses
+    shape: input_file {file_id | file_data | file_url}
+    direction: input
+    normalized: [file, blob, uri]
+    modality: from_mime
+    paths: [passthrough, openllmetry, laminar]
+    fixtures: []
+    reason: No recorded family; covered by the SDK pass-through unit tests.
+    note: A file id becomes a file, file data a blob, a file URL a uri.
+
+  - source: openai.responses
+    shape: image_generation_call.result (base64)
+    direction: output
+    normalized: blob
+    modality: image
+    paths: [passthrough, openllmetry, laminar]
+    fixtures: []
+    reason: No recorded family; covered by the SDK pass-through unit tests.
+
+  - source: anthropic.messages
+    shape: image / document with source.type = base64
+    direction: input
+    normalized: blob
+    modality: from_mime
+    paths: [passthrough, openllmetry, laminar]
+    fixtures: []
+    reason: Recorded in this change.
+    note: The mime type comes from source.media_type.
+
+  - source: anthropic.messages
+    shape: image / document with source.type = url
+    direction: input
+    normalized: uri
+    modality: from_mime
+    paths: [passthrough, openllmetry, laminar]
+    fixtures: []
+    reason: Recorded in this change.
+
+  - source: anthropic.messages
+    shape: image / document with source.type = file
+    direction: input
+    normalized: file
+    modality: from_mime
+    paths: [passthrough, openllmetry, laminar]
+    fixtures: []
+    reason: No recorded family; covered by the SDK pass-through unit tests.
+
+  - source: anthropic.messages
+    shape: document with source.type = text | content
+    direction: input
+    normalized: text
+    paths: [passthrough, openllmetry, laminar]
+    fixtures: []
+    reason: No recorded family; covered by the SDK pass-through unit tests.
+    note: It is text to the model, so it becomes text parts.
+
+  - source: gemini.generate_content
+    shape: inline_data {mime_type, data}
+    direction: input
+    normalized: blob
+    modality: from_mime
+    paths: [passthrough]
+    fixtures: []
+    reason: No recorded family; covered by the SDK pass-through unit tests.
+
+  - source: gemini.generate_content
+    shape: file_data {mime_type, file_uri}
+    direction: input
+    normalized: uri
+    modality: from_mime
+    paths: [passthrough]
+    fixtures: []
+    reason: No recorded family; covered by the SDK pass-through unit tests.
+
+  - source: openinference.llm
+    shape: message_content.type = image, image.image.url = data URL | http(s) | __REDACTED__
+    direction: input
+    normalized: [blob, uri]
+    modality: image
+    paths: [openinference]
+    fixtures: []
+    reason: Recorded in this change.
+    note: A data URL becomes a blob, an http(s) URL a uri, and __REDACTED__ a blob with stripped_reason redacted_upstream. Python and JS.
+
+  - source: openinference.llm
+    shape: audio.url / audio.mime_type
+    direction: input
+    normalized: [blob, uri]
+    modality: audio
+    paths: [openinference]
+    fixtures: []
+    reason: Recorded in this change when the instrumentor writes audio.url; otherwise covered by the sink normalizer unit tests.
+    note: Only when an instrumentor records them.
+
+  - source: vercel.ai
+    shape: image / file parts in ai.prompt.messages
+    direction: input
+    normalized: [blob, uri]
+    modality: from_mime
+    paths: [vercel]
+    fixtures: []
+    reason: Recorded in this change.
+    note: The existing blob and uri mapping, with the modality rule. A blob is stripped. TypeScript SDK and sink.
+
+  - source: semconv.native
+    shape: blob part with content
+    direction: input
+    normalized: blob
+    modality: from_mime
+    paths: [native]
+    fixtures: []
+    reason: Recorded in this change.
+    note: The same blob, stripped. Any OTel GenAI instrumentation.
+
+  - source: semconv.native
+    shape: uri / file part
+    direction: input
+    normalized: [uri, file]
+    modality: from_mime
+    paths: [native]
+    fixtures: []
+    reason: No recorded family; covered by the SDK pass-through unit tests.
+    note: Unchanged, and modality is filled from the mime type when missing.

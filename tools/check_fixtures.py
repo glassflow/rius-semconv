@@ -19,8 +19,11 @@ start with "_"):
 - no JSON file in it holds a traceback or a local path from the machine that
   recorded it.
 
+Then, across families: every scenario id a row of registry/media_parts.yaml
+names (`<family>/<scenario>`) is a scenario some family's manifest describes.
+
 Exit 0 when everything is consistent, 1 otherwise, with one line per problem.
-Needs only the standard library.
+Needs PyYAML, to read the registry.
 """
 
 from __future__ import annotations
@@ -31,6 +34,11 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+
+from generators import media_parts  # noqa: E402
+from generators.registry import Registry  # noqa: E402
+
 RECORD_SCRIPTS = ("record.py", "record.mjs")
 EXPECTED_SUFFIX = ".expected.json"
 #: A sink-only family's expected result: the rows the sink stores, not spans.
@@ -214,6 +222,7 @@ def check(fixtures: Path) -> list[str]:
     errors: list[str] = []
     for family in families(fixtures):
         errors += check_family(family)
+    errors += media_parts.check_fixture_refs(Registry.load().media_parts, fixtures)
     return errors
 
 
