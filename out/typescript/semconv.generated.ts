@@ -23,7 +23,23 @@ export const SERVICE_INSTANCE_ID = "service.instance.id";
 // is deliberately no placeholder default, because a fake one merges every
 // deployment into a single bucket, the same mistake `unknown_service` makes
 // for service.name.
+// The coding-agent plugin stamps the coding agent's own version here (Claude
+// Code, Codex or Cursor, which service.name names), replacing cc.version,
+// codex.version and cursor.version.
 export const SERVICE_VERSION = ATTR_SERVICE_VERSION;
+
+// Names the distribution that exported the span. Both SDKs set it as an
+// inline literal, "glassflow-rius". The coding-agent plugin sets
+// TELEMETRY_DISTRO_NAME_CODING_AGENTS, and the backend reads
+// process.working_directory and vcs.ref.head.name as a coding session's
+// repo and branch only on spans carrying that value: both keys are general
+// OpenTelemetry keys any process may send.
+export const TELEMETRY_DISTRO_NAME = "telemetry.distro.name";
+
+// The version of the distribution that exported the span: the SDK's, or the
+// coding-agent plugin's. Inline literal in both SDKs, like
+// telemetry.distro.name.
+export const TELEMETRY_DISTRO_VERSION = "telemetry.distro.version";
 
 // The agent this process IS, stamped once on the resource so every span it
 // emits groups under the same name its heartbeats do. Without it the backend

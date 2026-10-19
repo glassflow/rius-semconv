@@ -44,9 +44,9 @@ def test_shipped_in_limits_a_row_to_its_languages(registry):
 
 
 def test_planned_rows_are_skipped_unless_asked_for(data):
-    assert "TELEMETRY_DISTRO_NAME" not in [r["const"] for r in Registry(data).rows("python")]
+    assert "GEN_AI_SYSTEM_INSTRUCTIONS" not in [r["const"] for r in Registry(data).rows("python")]
     planned = Registry(data, include_planned=True).rows("python")
-    assert "TELEMETRY_DISTRO_NAME" in [r["const"] for r in planned]
+    assert "GEN_AI_SYSTEM_INSTRUCTIONS" in [r["const"] for r in planned]
 
 
 def test_allowlist_members_honour_shipped_in(data):

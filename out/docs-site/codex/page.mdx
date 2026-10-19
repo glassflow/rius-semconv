@@ -1,0 +1,81 @@
+{/* GENERATED FILE, do not edit by hand.
+    Regenerate with: python -m generators.registry_docs in glassflow/rius-semconv; each release copies it here.
+    Source of truth: registry/ in glassflow/rius-semconv (rius-semconv 1.5.0). x-release-please-version */}
+
+# `codex` namespace
+
+`codex` is not a Rius namespace. Rius defines only the keys below
+in it, each under a documented namespace exception; every other
+`codex` key Rius uses is upstream's (see [upstream keys](/rius/interoperability/registry/upstream)).
+
+Generated from [rius-semconv](https://github.com/glassflow/rius-semconv) 1.5.0, the Rius attribute registry, and updated on each of its releases. {/* x-release-please-version */}
+
+## Attributes
+
+| Key | Stability | Type | Description | Examples |
+| -- | -- | -- | -- | -- |
+| <a id="codex-originator"></a>`codex.originator` | Development | string | Which Codex client ran the session, as Codex names it. [3] | `codex_exec` |
+| <a id="codex-subagent-id"></a>`codex.subagent.id` | Development | string | Codex's id for one subagent run. [4] | `019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5b` |
+| <a id="codex-turn-aborted"></a>`codex.turn.aborted` | Development | string | Why a Codex turn was aborted, when it was. [5] | `interrupted` |
+| <a id="codex-turn-duration-ms"></a>`codex.turn.duration_ms` | Development | int | How long a Codex turn took, in milliseconds, as Codex measured it. [6] | `48210` |
+| <a id="codex-turn-id"></a>`codex.turn.id` | Development | string | Codex's id for one turn. [7] | `019a2b3c-5e6f-7a80-9b1c-2d3e4f5a6b7c` |
+| <a id="codex-turn-ttft-ms"></a>`codex.turn.ttft_ms` | Development | int | Milliseconds from the start of a Codex turn to its first streamed output, as Codex measured it. [8] | `1830` |
+
+## Deprecated
+
+| Key | Type | Replaced by | Description |
+| -- | -- | -- | -- |
+| <a id="codex-cwd"></a>`codex.cwd` | string | [`process.working_directory`](/rius/interoperability/registry/upstream#process-working-directory) | Former spelling of process.working_directory for Codex: the directory a Codex session ran in. [1] Moved to process.working_directory, the OpenTelemetry key for the working directory. The coding-agent plugin wrote this spelling before; the Rius backend reads both for as long as traces carrying it are stored. |
+| <a id="codex-git-branch"></a>`codex.git_branch` | string | [`vcs.ref.head.name`](/rius/interoperability/registry/upstream#vcs-ref-head-name) | Former spelling of vcs.ref.head.name for Codex: the git branch a Codex session ran on. [2] Moved to vcs.ref.head.name, the OpenTelemetry key for the git branch. The coding-agent plugin wrote this spelling before; the Rius backend reads both for as long as traces carrying it are stored. |
+| <a id="codex-version"></a>`codex.version` | string | [`service.version`](/rius/interoperability/registry/upstream#service-version) | Former spelling of service.version for Codex: the Codex version that ran the session. [9] Moved to service.version, the OpenTelemetry key for the version. The coding-agent plugin wrote this spelling before; the Rius backend reads both for as long as traces carrying it are stored. |
+
+## Notes
+
+**[1] `codex.cwd`:** Kept so a reader of older coding-agent traces can tell what the key was.
+
+**[2] `codex.git_branch`:** Kept so a reader of older coding-agent traces can tell what the key was.
+
+**[3] `codex.originator`:** Copied from the session's metadata in Codex's rollout file (the CLI, codex
+exec, an IDE). Codex tags its own metrics with the same word.
+
+Namespace exception: Named after the coding agent that produced it, like every key the
+coding-agent plugin writes for a fact only that agent has. Shipped before
+the plugin was registered here.
+
+**[4] `codex.subagent.id`:** As cc.subagent.id, for Codex, and not gen_ai.agent.id for the same reason.
+
+Namespace exception: Named after the coding agent that produced it, like every key the
+coding-agent plugin writes for a fact only that agent has. Shipped before
+the plugin was registered here.
+
+**[5] `codex.turn.aborted`:** The reason Codex gives for aborting the turn, or "aborted" when it gives
+none. Absent on a turn that finished. A string despite the name, because
+it carries the reason.
+
+Namespace exception: Named after the coding agent that produced it, like every key the
+coding-agent plugin writes for a fact only that agent has. Shipped before
+the plugin was registered here.
+
+**[6] `codex.turn.duration_ms`:** Codex's own measurement, kept beside the span's start and end, which the
+plugin derives from rollout timestamps.
+
+Namespace exception: Named after the coding agent that produced it, like every key the
+coding-agent plugin writes for a fact only that agent has. Shipped before
+the plugin was registered here.
+
+**[7] `codex.turn.id`:** The turn id Codex writes in its rollout file, on the finished turn span,
+so a span can be matched to the rollout it came from.
+
+Namespace exception: Named after the coding agent that produced it, like every key the
+coding-agent plugin writes for a fact only that agent has. Shipped before
+the plugin was registered here.
+
+**[8] `codex.turn.ttft_ms`:** Measured per turn, not per model call, so it is not
+gen_ai.response.time_to_first_chunk, which belongs on an inference span
+and is in seconds.
+
+Namespace exception: Named after the coding agent that produced it, like every key the
+coding-agent plugin writes for a fact only that agent has. Shipped before
+the plugin was registered here.
+
+**[9] `codex.version`:** Kept so a reader of older coding-agent traces can tell what the key was.

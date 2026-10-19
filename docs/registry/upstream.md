@@ -80,32 +80,45 @@ Rius uses it.
 | <a id="mcp-method-name"></a>[`mcp.method.name`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/mcp.md#mcp-method-name) | string | required | OpenTelemetry GenAI | Emitted. [26] |
 | <a id="mcp-protocol-version"></a>[`mcp.protocol.version`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/mcp.md#mcp-protocol-version) | string | recommended | OpenTelemetry GenAI | Emitted. [27] |
 
+## `process`
+
+| Key | Type | Requirement level | Defined in | How Rius uses it |
+| -- | -- | -- | -- | -- |
+| <a id="process-exit-code"></a>[`process.exit.code`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/process.md#process-exit-code) | int | recommended | OpenTelemetry v1.44.0 | Emitted. [28] |
+| <a id="process-working-directory"></a>[`process.working_directory`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/process.md#process-working-directory) | string | recommended | OpenTelemetry v1.44.0 | Emitted. [29] |
+
 ## `service`
 
 | Key | Type | Requirement level | Defined in | How Rius uses it |
 | -- | -- | -- | -- | -- |
-| <a id="service-instance-id"></a>[`service.instance.id`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/service.md#service-instance-id) | string | required | OpenTelemetry v1.44.0 | Emitted. [28] |
-| <a id="service-name"></a>[`service.name`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/service.md#service-name) | string | required | OpenTelemetry v1.44.0 | Emitted. [29] |
-| <a id="service-version"></a>[`service.version`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/service.md#service-version) | string | recommended | OpenTelemetry v1.44.0 | Emitted. [30] |
+| <a id="service-instance-id"></a>[`service.instance.id`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/service.md#service-instance-id) | string | required | OpenTelemetry v1.44.0 | Emitted. [30] |
+| <a id="service-name"></a>[`service.name`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/service.md#service-name) | string | required | OpenTelemetry v1.44.0 | Emitted. [31] |
+| <a id="service-version"></a>[`service.version`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/service.md#service-version) | string | recommended | OpenTelemetry v1.44.0 | Emitted. [32] |
 
 ## `session`
 
 | Key | Type | Requirement level | Defined in | How Rius uses it |
 | -- | -- | -- | -- | -- |
-| <a id="session-id"></a>[`session.id`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/session.md#session-id) | string | recommended | OpenTelemetry v1.44.0 | Emitted. [31] |
+| <a id="session-id"></a>[`session.id`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/session.md#session-id) | string | recommended | OpenTelemetry v1.44.0 | Emitted. [33] |
 
 ## `telemetry`
 
 | Key | Type | Requirement level | Defined in | How Rius uses it |
 | -- | -- | -- | -- | -- |
-| <a id="telemetry-distro-name"></a>[`telemetry.distro.name`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/telemetry.md#telemetry-distro-name) | string | required | OpenTelemetry v1.44.0 | Planned, not emitted yet. [32] |
-| <a id="telemetry-distro-version"></a>[`telemetry.distro.version`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/telemetry.md#telemetry-distro-version) | string | required | OpenTelemetry v1.44.0 | Planned, not emitted yet. [33] |
+| <a id="telemetry-distro-name"></a>[`telemetry.distro.name`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/telemetry.md#telemetry-distro-name) | string | required | OpenTelemetry v1.44.0 | Emitted. [34] |
+| <a id="telemetry-distro-version"></a>[`telemetry.distro.version`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/telemetry.md#telemetry-distro-version) | string | required | OpenTelemetry v1.44.0 | Emitted. [35] |
 
 ## `user`
 
 | Key | Type | Requirement level | Defined in | How Rius uses it |
 | -- | -- | -- | -- | -- |
-| <a id="user-id"></a>[`user.id`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/user.md#user-id) | string | recommended | OpenTelemetry v1.44.0 | Emitted. [34] |
+| <a id="user-id"></a>[`user.id`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/user.md#user-id) | string | recommended | OpenTelemetry v1.44.0 | Emitted. [36] |
+
+## `vcs`
+
+| Key | Type | Requirement level | Defined in | How Rius uses it |
+| -- | -- | -- | -- | -- |
+| <a id="vcs-ref-head-name"></a>[`vcs.ref.head.name`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/vcs.md#vcs-ref-head-name) | string | recommended | OpenTelemetry v1.44.0 | Emitted. [37] |
 
 ## Notes
 
@@ -272,31 +285,57 @@ kind, name and I/O shape, so this is what tells the two apart.
 
 **[27] `mcp.protocol.version`:** The version the initialize handshake negotiated, not the one we asked for.
 
-**[28] `service.instance.id`:** OTel standard identity of one process lifetime (one uuid per client, minted
+**[28] `process.exit.code`:** A shell tool call's exit code, when the agent reports one: Codex and
+Cursor on every call that has one, Claude Code only on a failed call.
+Written next to rius.command.class, so a failed test run reads as such
+without the command or its output.
+
+**[29] `process.working_directory`:** The directory a coding-agent session runs in, as the agent reports it.
+The OTel process convention's key for the fact, replacing cc.cwd,
+codex.cwd and cursor.cwd. The backend shows a trace's repository from
+it only on spans whose telemetry.distro.name is the plugin's, since any
+process may send the key, and reads the old per-agent spellings for
+traces stored before.
+
+**[30] `service.instance.id`:** OTel standard identity of one process lifetime (one uuid per client, minted
 at init). The heartbeat payload's instance_id carries the SAME value, which
 is what lets the backend join heartbeats to traces and count replicas.
 
-**[29] `service.name`:** OTel standard logical service name. The backend falls back to it when a
+**[31] `service.name`:** OTel standard logical service name. The backend falls back to it when a
 process names no agent.
 
-**[30] `service.version`:** OTel standard version of the deployed service. Metadata about the process,
+**[32] `service.version`:** OTel standard version of the deployed service. Metadata about the process,
 not about any one span. Stamped only when a version is actually known: there
 is deliberately no placeholder default, because a fake one merges every
 deployment into a single bucket, the same mistake `unknown_service` makes
 for service.name.
+The coding-agent plugin stamps the coding agent's own version here (Claude
+Code, Codex or Cursor, which service.name names), replacing cc.version,
+codex.version and cursor.version.
 
-**[31] `session.id`:** The session grouping key. OpenInference's spelling, and the one the sink
+**[33] `session.id`:** The session grouping key. OpenInference's spelling, and the one the sink
 reads first; gen_ai.conversation.id is deliberately not emitted alongside
 it, one name for one fact.
 
-**[32] `telemetry.distro.name`:** Names the distribution that exported the span. Both SDKs set it today as
-an inline literal with no semconv constant, which is why the row is
-planned rather than shipped.
+**[34] `telemetry.distro.name`:** Names the distribution that exported the span. Both SDKs set it as an
+inline literal, "glassflow-rius". The coding-agent plugin sets
+TELEMETRY_DISTRO_NAME_CODING_AGENTS, and the backend reads
+process.working_directory and vcs.ref.head.name as a coding session's
+repo and branch only on spans carrying that value: both keys are general
+OpenTelemetry keys any process may send.
 
-**[33] `telemetry.distro.version`:** The SDK version that exported the span. Inline literal in both SDKs today,
-like telemetry.distro.name.
+**[35] `telemetry.distro.version`:** The version of the distribution that exported the span: the SDK's, or the
+coding-agent plugin's. Inline literal in both SDKs, like
+telemetry.distro.name.
 
-**[34] `user.id`:** The end-user identity. OpenInference's spelling, also what Langfuse reads
+**[36] `user.id`:** The end-user identity. OpenInference's spelling, also what Langfuse reads
 and what the OTel registry lists; the sink additionally accepts OTel's
 enduser.id / enduser.pseudo.id from third-party instrumentors, but the SDKs
 emit one name for one fact.
+
+**[37] `vcs.ref.head.name`:** The git branch a coding-agent session runs on, as the agent reports it.
+The OTel VCS convention's key for the current reference, the one Claude
+Code's own telemetry uses too, replacing cc.git_branch, codex.git_branch
+and cursor.git_branch. Like process.working_directory, the backend reads
+it only on spans whose telemetry.distro.name is the plugin's, and reads
+the old per-agent spellings for traces stored before.
