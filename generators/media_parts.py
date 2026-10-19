@@ -247,6 +247,13 @@ def lint_golden(raw: dict) -> list[str]:
         tokens = [t.as_dict(str(raw["replacement"]["unknown"])) for t in result.tokens]
         if tokens != golden.get("tokens"):
             errors.append(f"{where} {name}: strip finds tokens {tokens}")
+        if "second_output" in golden:
+            second = strip(raw, golden["output"])
+            if second.text != golden["second_output"]:
+                errors.append(f"{where} {name}: a second pass gives {second.text!r}")
+            second_tokens = [t.as_dict(str(raw["replacement"]["unknown"])) for t in second.tokens]
+            if second_tokens != golden.get("second_tokens"):
+                errors.append(f"{where} {name}: a second pass finds tokens {second_tokens}")
     return errors
 
 
@@ -986,6 +993,14 @@ def _render_raw_payloads(raw: dict) -> list[str]:
         lines += ["Input:", "", "```text", golden["input"], "```", ""]
         lines += ["Output:", "", "```text", golden["output"], "```", ""]
         lines += [f"Tokens: {tokens or 'none'}.", ""]
+        if "second_output" in golden:
+            second = ", ".join(
+                f"({t['rule']}) {t['mime']}, {t['byte_size']} bytes"
+                for t in golden.get("second_tokens") or []
+            )
+            lines += ["Output of a second pass over the output:", ""]
+            lines += ["```text", golden["second_output"], "```", ""]
+            lines += [f"Tokens of the second pass: {second or 'none'}.", ""]
     return lines
 
 

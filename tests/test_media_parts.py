@@ -575,6 +575,7 @@ REQUIRED_GOLDEN = {
     "context_is_read_before_the_pass",
     "context_is_read_before_the_pass_in_any_order",
     "output_format_is_read_before_the_pass",
+    "a_second_pass_after_the_candidate_starts_to_parse",
 }
 
 
@@ -589,11 +590,26 @@ def test_golden(base_data, golden):
     assert result.text == golden["output"]
     assert media_parts.strip_raw_payload(raw, golden["input"]) == golden["output"]
     assert [t.as_dict() for t in result.tokens] == golden["tokens"]
+    if "second_output" in golden:
+        second = media_parts.strip(raw, golden["output"])
+        assert second.text == golden["second_output"]
+        assert [t.as_dict() for t in second.tokens] == golden["second_tokens"]
+
+
+def _parse_status_changes(text: str, once: str) -> bool:
+    """The one class idempotence excludes: a candidate whose parse status
+    differs after pass 1 (it did not parse and now does)."""
+    return (media_parts.parse_json_candidate(text) is None) != (
+        media_parts.parse_json_candidate(once) is None
+    )
 
 
 @pytest.mark.parametrize("golden", GOLDEN, ids=[g["name"] for g in GOLDEN])
 def test_stripping_is_idempotent(base_data, golden):
     raw = base_data["media_parts"]["raw_payloads"]
+    if _parse_status_changes(golden["input"], golden["output"]):
+        assert golden["name"] == "a_second_pass_after_the_candidate_starts_to_parse"
+        return
     assert media_parts.strip(raw, golden["output"]) == media_parts.Stripped(golden["output"], [])
 
 
@@ -639,6 +655,8 @@ def test_stripping_twice_is_stripping_once_on_random_documents(base_data):
         separators = rng.choice([(",", ":"), (", ", ": ")])
         text = json.dumps(_fuzz_value(rng), separators=separators)
         once = media_parts.strip_raw_payload(raw, text)
+        if _parse_status_changes(text, once):
+            continue
         if media_parts.strip_raw_payload(raw, once) != once:
             failures.append(text)
     assert failures == [], f"{len(failures)} not idempotent, first: {failures[0]}"

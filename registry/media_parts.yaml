@@ -173,8 +173,16 @@ raw_payloads:
     neither for whether rule (e) fires nor for the mime type it chooses. So a
     Buffer that rule (d) turned into a replacement in one pass (`{"mediaType":
     {"type":"Buffer","data":[1]},"data":"QUFB"}`) makes no token of its siblings
-    in the next. With both, strip(strip(x)) is strip(x) for every x: the sink
-    re-strips what an SDK already stripped and gets the same bytes. A string
+    in the next. With both, strip(strip(x)) is strip(x) for every x except one
+    class: a JSON candidate that does not parse before pass 1 and does parse
+    after it. Elsewhere the sink re-strips what an SDK already stripped and gets
+    the same bytes. In that class a second pass may strip more. It needs
+    malformed JSON whose only defect sits inside a rule (b) data URL (an invalid
+    escape such as `\d` in a mime type): pass 1 can only apply rule (b), which
+    removes the defect, and pass 2 then parses the candidate and rules (d) and
+    (e) fire on what pass 1 left, a partial replacement for instance. No media
+    survives in either pass, and only the replacement text differs. See
+    `a_second_pass_after_the_candidate_starts_to_parse`. A string
     that only looks like one is still a token: `[stripped image/png lots
     bytes]`, or `[stripped a b 3 bytes]` (rule e), or `[stripped
     data:image/png;base64,... 1 bytes]`, whose data URL rule (b) replaces.
@@ -593,6 +601,15 @@ raw_payloads:
       tokens:
         - {rule: b, mime: image/png, byte_size: 3}
         - {rule: e, mime: unknown, byte_size: 3}
+    - name: a_second_pass_after_the_candidate_starts_to_parse
+      note: The candidate does not parse because of the invalid escape \d inside the data URL, so pass 1 applies rule (b) alone, and the replacement removes the escape. The result parses, and its b64_json string is not a complete replacement, so a second pass applies rule (e) to it. This is the one input class where strip(strip(x)) differs from strip(x); no media survives in either pass.
+      input: '{"output_format":"stripped image/png 3 bytes]","b64_json":"[stDATA:au\dio/wav;x=1;base64,UklGRg==ripped unknown 3 bytes]"}'
+      output: '{"output_format":"stripped image/png 3 bytes]","b64_json":"[st[stripped unknown 4 bytes]ripped unknown 3 bytes]"}'
+      tokens:
+        - {rule: b, mime: unknown, byte_size: 4}
+      second_output: '{"output_format":"stripped image/png 3 bytes]","b64_json":"[stripped unknown unknown bytes]"}'
+      second_tokens:
+        - {rule: e, mime: unknown, byte_size: unknown}
     - name: a_sibling_mime_that_is_not_a_token_is_unknown
       note: The mime_type sibling is a non-empty string, so it is context, but it is not a token/token mime, so the mime type is unknown and none of it reaches the replacement. The sibling itself is a data URL, stripped by rule (b).
       input: '{"data":"QUFB","mime_type":"data:image/png;base64,QUFB"}'
