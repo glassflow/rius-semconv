@@ -17,17 +17,19 @@ start with "_"):
   normalized), the expected result is the recording itself, since
   normalizing canonical spans must change nothing;
 - an expected result holds no base64 or byte-array media (recordings may):
-  (a) no blob part with content (other than a replacement string, which a
-  raw payload's blob part keeps); (b) no data: URL; (c) no 4096-character
-  base64 run; (d) no non-empty {"type": "Buffer", "data": [...]} byte array;
-  (e) no base64 string under data, b64_json or result next to a media type or
-  format, under input_audio, audio, inline_data or inlineData, or in a base64
-  source (a replacement string is not one); and (f) not
+  (a) no blob part with content, except a replacement string in a raw payload
+  (an attribute of raw_payloads.raw_keys, or the sink's InputValue and
+  OutputValue columns), whose blob part keeps it; in a message key the
+  normalized blob part has no content at all; (b) no data: URL; (c) no
+  4096-character base64 run; (d) no non-empty {"type": "Buffer", "data":
+  [...]} byte array; (e) no base64 string under data, b64_json or result next
+  to a media type or output format, under input_audio, audio, inline_data or
+  inlineData, or in a base64 source (a replacement string is not one); and (f) not
   the first 32 base64 characters of any payload fixtures/_media.py exports,
   anywhere in the file. Rules (b), (d) and (e) are read from
   registry/media_parts.yaml raw_payloads.detection, the rules the normalizers
   strip by, and a string holding JSON is read as they read it (ASCII
-  whitespace before { or [, strict RFC 8259);
+  whitespace before { or [, strict RFC 8259, at most 64 levels deep);
 - no JSON file in it holds a traceback or a local path from the machine that
   recorded it.
 
@@ -112,22 +114,32 @@ def _holds_payload(text: str) -> bool:
     return any(prefix in text for prefix in payload_prefixes().values())
 
 
-def _holds_media(value: Any, parent_key: str | None = None) -> bool:
-    """Whether a value, or JSON nested in a string in it, holds base64 media."""
+def _holds_media(
+    value: Any,
+    parent_key: str | None = None,
+    *,
+    key: str | None = None,
+    depth: int | None = None,
+) -> bool:
+    """Whether a value, or JSON nested in a string in it, holds base64 media.
+    `key` is the attribute or column the value is under: only a raw payload's
+    blob part may keep content, and only as a replacement (rule a). `depth` is
+    how many JSON arrays and objects enclose the value, None outside JSON."""
     raw = raw_payloads()
+    inner = None if depth is None else depth + 1
     if isinstance(value, dict):
         if value.get("type") == "blob" and "content" in value:  # (a)
             content = value["content"]
-            # A raw payload's blob part keeps its content as the replacement.
-            if not (isinstance(content, str) and media_parts.is_replacement(raw, content)):
+            replaced = isinstance(content, str) and media_parts.is_replacement(raw, content)
+            if not (replaced and key in raw["raw_keys"]):
                 return True
         if media_parts.is_buffer(raw, value):  # (d)
             return True
         if media_parts.keyed_base64(raw, value, parent_key):  # (e)
             return True
-        return any(_holds_media(v, k) for k, v in value.items())
+        return any(_holds_media(v, k, key=key, depth=inner) for k, v in value.items())
     if isinstance(value, list):
-        return any(_holds_media(v, parent_key) for v in value)
+        return any(_holds_media(v, parent_key, key=key, depth=inner) for v in value)
     if isinstance(value, str):
         if media_parts.is_data_url(raw, value):  # (b), anywhere in the string
             return True
@@ -135,9 +147,9 @@ def _holds_media(value: Any, parent_key: str | None = None) -> bool:
             return True
         if _holds_payload(value):  # (f)
             return True
-        parsed = media_parts.parse_json_candidate(value)
+        parsed = media_parts.parse_json_candidate(value, depth or 0)
         if parsed is not None:
-            return _holds_media(parsed)
+            return _holds_media(parsed, key=key, depth=depth or 0)
     return False
 
 
@@ -162,12 +174,15 @@ def _media_leaks(path: Path) -> list[str]:
                 scopes.append((f"{where} link", link))
         for where, holder in scopes:
             for attribute in (holder or {}).get("attributes") or []:
-                if _holds_media(attribute.get("value")):
+                if _holds_media(attribute.get("value"), key=attribute.get("key")):
                     prefix = f"{scenario} {where}" if where == "resource" else where
                     leaks.append(f"{prefix} attribute {attribute.get('key')}")
         for row in recording.get("rows") or []:
             for column, value in row.items():
-                if _holds_media(value):
+                # An attribute map column (SpanAttributes, ResourceAttributes):
+                # each value is under its own attribute key.
+                values = value.items() if isinstance(value, dict) else [(column, value)]
+                if any(_holds_media(v, key=k) for k, v in values):
                     leaks.append(f"{scenario} span {row.get('SpanID')} attribute {column}")
     return leaks
 

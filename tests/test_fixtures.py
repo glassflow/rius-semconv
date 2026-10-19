@@ -362,9 +362,46 @@ def test_data_key_without_media_context_is_not_media(family):
     assert _media_errors(family) == []
 
 
-def test_a_blob_part_whose_content_is_the_replacement_is_not_media():
+def test_a_blob_part_whose_content_is_the_replacement_is_media_only_in_a_raw_payload():
     from tools.check_fixtures import _holds_media
 
-    assert _holds_media({"type": "blob", "content": "iVBORw0KGgo="})
-    assert not _holds_media({"type": "blob", "content": "[stripped image/png 8 bytes]"})
-    assert _holds_media({"type": "blob", "content": "[stripped image/png lots bytes]"})
+    replaced = {"type": "blob", "content": "[stripped image/png 8 bytes]"}
+    for key in ("pydantic_ai.all_messages", "input.value", "InputValue", "OutputValue"):
+        assert not _holds_media(replaced, key=key), key
+        assert _holds_media({"type": "blob", "content": "iVBORw0KGgo="}, key=key), key
+        assert _holds_media({"type": "blob", "content": "[stripped image/png lots bytes]"}, key=key)
+    for key in ("gen_ai.input.messages", "InputMessages", "some.attribute", None):
+        assert _holds_media(replaced, key=key), key
+
+
+REPLACED_BLOB = {"type": "blob", "modality": "image", "content": "[stripped image/png 3 bytes]"}
+
+
+def test_a_replaced_blob_in_a_message_key_is_caught(family):
+    _first_span_attr(family / EXPECTED, "gen_ai.input.messages", _messages(REPLACED_BLOB))
+    errors = _media_errors(family)
+    assert len(errors) == 1
+    assert "attribute gen_ai.input.messages holds base64 media" in errors[0]
+
+
+def test_a_replaced_blob_in_a_raw_payload_is_not_media(family):
+    _first_span_attr(family / EXPECTED, "pydantic_ai.all_messages", _messages(REPLACED_BLOB))
+    assert _media_errors(family) == []
+
+
+def test_a_replaced_blob_in_a_sink_column(sink_family):
+    def change(data):
+        row = data["recordings"][0]["rows"][0]
+        row["InputValue"] = _messages(REPLACED_BLOB)
+        row["SpanAttributes"]["pydantic_ai.all_messages"] = _messages(REPLACED_BLOB)
+
+    edit(sink_family / SINK_ROWS, change)
+    assert _media_errors(sink_family) == []
+
+    def to_messages(data):
+        data["recordings"][0]["rows"][0]["OutputMessages"] = _messages(REPLACED_BLOB)
+
+    edit(sink_family / SINK_ROWS, to_messages)
+    errors = _media_errors(sink_family)
+    assert len(errors) == 1
+    assert "attribute OutputMessages holds base64 media" in errors[0]
