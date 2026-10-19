@@ -398,3 +398,33 @@ def test_installed_packages_are_not_scanned(tmp_path):
     vendored.mkdir(parents=True)
     (vendored / "CHANGELOG.md").write_text("Fixed RIUS-1\n")
     assert ticket_ids(tmp_path) == []
+
+
+# --- media parts and per-modality usage -------------------------------------
+
+
+@pytest.mark.parametrize("modality", ["text", "image", "audio"])
+@pytest.mark.parametrize("suffix", ["input_tokens", "output_tokens", "cache_read.input_tokens"])
+def test_modality_usage_rows_are_planned_otel_ints(data, modality, suffix):
+    key = f"gen_ai.usage.{modality}.{suffix}"
+    r = next(r for r in data["attributes"]["attributes"] if r["key"] == key)
+    assert (r["origin"], r["status"], r["type"]) == ("otel", "planned", "int")
+
+
+def test_context_sizes_documents_media_entries(data):
+    import json
+
+    r = row(data, "RIUS_CONTEXT_SIZES")
+    for word in ("blob / uri / file", "modality", "byte_size"):
+        assert word in r["rationale"]
+    media = [
+        part
+        for example in r["examples"]
+        for side in ("input_messages", "output_messages")
+        for message in json.loads(example).get(side, [])
+        for part in message["parts"]
+        if part["type"] == "blob"
+    ]
+    assert media, "no example carries a blob entry"
+    for part in media:
+        assert part["modality"] == "image" and "byte_size" in part and "bytes" not in part

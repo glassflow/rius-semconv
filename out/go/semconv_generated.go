@@ -353,6 +353,9 @@ const (
 	// output_messages (literal role, parts typed text / tool_call /
 	// tool_call_response with bytes and tool name), cache_marker, and a folded
 	// summary of older input.
+	// A media part (blob / uri / file) carries its modality (image, video,
+	// audio or document) and, when known, byte_size, never bytes: the size of
+	// the media itself, not of any content, which a blob does not carry.
 	// A Rius vendor attribute, NOT a convention:
 	// the backend reads it to attribute gen_ai.usage.input_tokens across the
 	// context, and no convention describes context composition. Deliberately

@@ -11,7 +11,7 @@ convention names gets a key here.
 | -- | -- | -- | -- | -- |
 | <a id="rius-aggregated-usage"></a>`rius.aggregated_usage.<key>` | ![Development](https://img.shields.io/badge/-development-blue) | int | A whole agent run's token usage, moved off gen_ai.usage.\* so per-call usage is not counted twice; the suffix is the gen_ai.usage.\* suffix. [1] | `115`; `42` |
 | <a id="rius-command-class"></a>`rius.command.class` | ![Development](https://img.shields.io/badge/-development-blue) | string | What kind of work a shell tool call ran, as one word, never the command itself. [2] | `test` |
-| <a id="rius-context-sizes"></a>`rius.context.sizes` | ![Development](https://img.shields.io/badge/-development-blue) | any | Byte sizes of each part of a generation's context (tool definitions, input and output messages), as compact JSON. [3] | `{"version":1,"input_messages":[{"role":"system","parts":[{"type":"text","bytes":19}]},{"role":"user","parts":[{"type":"text","bytes":18}]}],"output_messages":[{"role":"assistant","parts":[{"type":"text","bytes":6}]}]}` |
+| <a id="rius-context-sizes"></a>`rius.context.sizes` | ![Development](https://img.shields.io/badge/-development-blue) | any | Byte sizes of each part of a generation's context (tool definitions, input and output messages), as compact JSON. [3] | `{"version":1,"input_messages":[{"role":"system","parts":[{"type":"text","bytes":19}]},{"role":"user","parts":[{"type":"text","bytes":18}]}],"output_messages":[{"role":"assistant","parts":[{"type":"text","bytes":6}]}]}`; `{"version":1,"input_messages":[{"role":"user","parts":[{"type":"text","bytes":14},{"type":"blob","modality":"image","byte_size":48213}]}],"output_messages":[{"role":"assistant","parts":[{"type":"text","bytes":31}]}]}` |
 | <a id="rius-main-agent-version"></a>`rius.main_agent.version` | ![Development](https://img.shields.io/badge/-development-blue) | string | Version of the agent definition (prompt, tools and policy) this process runs, independent of service.version. [7] | `7`; `2026-10-01` |
 | <a id="rius-parent-foreign"></a>`rius.parent.foreign` | ![Development](https://img.shields.io/badge/-development-blue) | boolean | The span's parent is local to this process but was never received by Rius, so the trace arrives without it. [8] | `true` |
 | <a id="rius-request"></a>`rius.request.<key>` | ![Development](https://img.shields.io/badge/-development-blue) | any | A request parameter the GenAI conventions do not define, keyed by the parameter's name as the caller spelled it. [9] | `flex`; `true`; `{"type":"json_object"}` |
@@ -65,6 +65,9 @@ readable keys: tool_definitions (name, bytes), input_messages and
 output_messages (literal role, parts typed text / tool_call /
 tool_call_response with bytes and tool name), cache_marker, and a folded
 summary of older input.
+A media part (blob / uri / file) carries its modality (image, video,
+audio or document) and, when known, byte_size, never bytes: the size of
+the media itself, not of any content, which a blob does not carry.
 A Rius vendor attribute, NOT a convention:
 the backend reads it to attribute gen_ai.usage.input_tokens across the
 context, and no convention describes context composition. Deliberately
