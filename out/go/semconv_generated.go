@@ -422,9 +422,10 @@ const (
 	RiusCommandClassGit     = "git"
 	RiusCommandClassOther   = "other"
 
-	// A shell tool call's exit code, when the agent reports one. Written next to
-	// rius.command.class, so a failed test run reads as such without the
-	// command or its output.
+	// A shell tool call's exit code, when the agent reports one: Codex and
+	// Cursor on every call that has one, Claude Code only on a failed call.
+	// Written next to rius.command.class, so a failed test run reads as such
+	// without the command or its output.
 	ProcessExitCode = "process.exit.code"
 
 	// user when the turn opened with text the user typed, system when Claude

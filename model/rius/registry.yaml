@@ -1615,9 +1615,10 @@ attributes:
   deprecated:
     reason: uncategorized
     note: |
-      Moved to process.working_directory, the OpenTelemetry key for the working directory. The
-      coding-agent plugin wrote this spelling before; the Rius backend reads
-      both for as long as traces carrying it are stored.
+      Moved to process.working_directory, the OpenTelemetry key for the
+      working directory. The coding-agent plugin wrote this spelling
+      before; the Rius backend reads both for as long as traces carrying it
+      are stored.
   annotations:
     code_generation:
       exclude: true
@@ -1693,9 +1694,10 @@ attributes:
   deprecated:
     reason: uncategorized
     note: |
-      Moved to process.working_directory, the OpenTelemetry key for the working directory. The
-      coding-agent plugin wrote this spelling before; the Rius backend reads
-      both for as long as traces carrying it are stored.
+      Moved to process.working_directory, the OpenTelemetry key for the
+      working directory. The coding-agent plugin wrote this spelling
+      before; the Rius backend reads both for as long as traces carrying it
+      are stored.
   annotations:
     code_generation:
       exclude: true
@@ -1771,9 +1773,10 @@ attributes:
   deprecated:
     reason: uncategorized
     note: |
-      Moved to process.working_directory, the OpenTelemetry key for the working directory. The
-      coding-agent plugin wrote this spelling before; the Rius backend reads
-      both for as long as traces carrying it are stored.
+      Moved to process.working_directory, the OpenTelemetry key for the
+      working directory. The coding-agent plugin wrote this spelling
+      before; the Rius backend reads both for as long as traces carrying it
+      are stored.
   annotations:
     code_generation:
       exclude: true

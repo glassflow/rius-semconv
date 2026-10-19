@@ -1641,9 +1641,10 @@ attributes:
     shipped_in: [python, go]
     divergence: *coding_agent_languages
     rationale: |
-      A shell tool call's exit code, when the agent reports one. Written next to
-      rius.command.class, so a failed test run reads as such without the
-      command or its output.
+      A shell tool call's exit code, when the agent reports one: Codex and
+      Cursor on every call that has one, Claude Code only on a failed call.
+      Written next to rius.command.class, so a failed test run reads as such
+      without the command or its output.
 
   # Claude Code (cc.*).
 
@@ -2239,9 +2240,10 @@ retired:
       reason: uncategorized
       replaced_by: process.working_directory
       note: |
-        Moved to process.working_directory, the OpenTelemetry key for the working directory. The
-        coding-agent plugin wrote this spelling before; the Rius backend reads
-        both for as long as traces carrying it are stored.
+        Moved to process.working_directory, the OpenTelemetry key for the
+        working directory. The coding-agent plugin wrote this spelling
+        before; the Rius backend reads both for as long as traces carrying it
+        are stored.
     symbol: attribute
     origin: rius
     kinds: resource
@@ -2293,9 +2295,10 @@ retired:
       reason: uncategorized
       replaced_by: process.working_directory
       note: |
-        Moved to process.working_directory, the OpenTelemetry key for the working directory. The
-        coding-agent plugin wrote this spelling before; the Rius backend reads
-        both for as long as traces carrying it are stored.
+        Moved to process.working_directory, the OpenTelemetry key for the
+        working directory. The coding-agent plugin wrote this spelling
+        before; the Rius backend reads both for as long as traces carrying it
+        are stored.
     symbol: attribute
     origin: rius
     kinds: resource
@@ -2347,9 +2350,10 @@ retired:
       reason: uncategorized
       replaced_by: process.working_directory
       note: |
-        Moved to process.working_directory, the OpenTelemetry key for the working directory. The
-        coding-agent plugin wrote this spelling before; the Rius backend reads
-        both for as long as traces carrying it are stored.
+        Moved to process.working_directory, the OpenTelemetry key for the
+        working directory. The coding-agent plugin wrote this spelling
+        before; the Rius backend reads both for as long as traces carrying it
+        are stored.
     symbol: attribute
     origin: rius
     kinds: resource

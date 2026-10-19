@@ -285,9 +285,10 @@ kind, name and I/O shape, so this is what tells the two apart.
 
 **[27] `mcp.protocol.version`:** The version the initialize handshake negotiated, not the one we asked for.
 
-**[28] `process.exit.code`:** A shell tool call's exit code, when the agent reports one. Written next to
-rius.command.class, so a failed test run reads as such without the
-command or its output.
+**[28] `process.exit.code`:** A shell tool call's exit code, when the agent reports one: Codex and
+Cursor on every call that has one, Claude Code only on a failed call.
+Written next to rius.command.class, so a failed test run reads as such
+without the command or its output.
 
 **[29] `process.working_directory`:** The directory a coding-agent session runs in, as the agent reports it.
 The OTel process convention's key for the fact, replacing cc.cwd,

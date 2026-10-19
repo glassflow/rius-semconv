@@ -1235,9 +1235,10 @@ attribute_groups:
           Only the coding-agent plugin (Python) writes it, and only the Rius
           backend (Go) reads it. No TypeScript consumer has a use for it.
         rationale: |
-          A shell tool call's exit code, when the agent reports one. Written next to
-          rius.command.class, so a failed test run reads as such without the
-          command or its output.
+          A shell tool call's exit code, when the agent reports one: Codex and
+          Cursor on every call that has one, Claude Code only on a failed call.
+          Written next to rius.command.class, so a failed test run reads as such
+          without the command or its output.
 - id: rius.passthrough
   visibility: public
   stability: development
