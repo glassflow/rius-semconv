@@ -207,3 +207,78 @@ def test_a_control_must_come_out_unchanged(control_family):
 
     edit(control_family / CONTROL_EXPECTED, rename_model)
     assert any("must come out unchanged" in e for e in check_family(control_family))
+
+
+def _first_span_attr(path: Path, key: str, value: str) -> None:
+    """Set a string attribute on the first expected span."""
+
+    def change(data):
+        attributes = data["recordings"][0]["spans"][0]["span"]["attributes"]
+        attributes[:] = [a for a in attributes if a["key"] != key]
+        attributes.append({"key": key, "value": {"stringValue": value}})
+
+    edit(path, change)
+
+
+def _media_errors(family: Path) -> list[str]:
+    return [e for e in check_family(family) if "holds base64 media" in e]
+
+
+def _messages(part: dict) -> str:
+    return json.dumps([{"role": "user", "parts": [part]}])
+
+
+def test_blob_content_inside_messages_json_is_caught(family):
+    blob = {"type": "blob", "modality": "image", "content": "iVBORw0K"}
+    _first_span_attr(family / EXPECTED, "gen_ai.input.messages", _messages(blob))
+    errors = _media_errors(family)
+    assert len(errors) == 1
+    assert "attribute gen_ai.input.messages holds base64 media" in errors[0]
+
+
+def test_empty_blob_content_is_still_content(family):
+    blob = {"type": "blob", "modality": "image", "content": ""}
+    _first_span_attr(family / EXPECTED, "gen_ai.input.messages", _messages(blob))
+    assert _media_errors(family)
+
+
+def test_data_url_is_caught(family):
+    part = {"type": "text", "content": "see data:image/png;base64,AAAA"}
+    _first_span_attr(family / EXPECTED, "gen_ai.input.messages", _messages(part))
+    assert _media_errors(family)
+
+
+def test_long_base64_run_is_caught(family):
+    _first_span_attr(family / EXPECTED, "some.attribute", "A" * 4096)
+    assert _media_errors(family)
+
+
+def test_long_non_media_strings_are_not_base64(family):
+    args = json.dumps({"query": "word " * 400})
+    values = [
+        "a" * 32 + "0123456789abcdef" * 2,
+        "123e4567-e89b-12d3-a456-426614174000",
+        args[:2000].ljust(2000, " "),
+        "lorem ipsum " * 417,
+    ]
+    for i, value in enumerate(values):
+        _first_span_attr(family / EXPECTED, f"some.attribute.{i}", value)
+    assert check_family(family) == []
+
+
+def test_base64_in_sink_rows_is_caught(sink_family):
+    blob = {"type": "blob", "modality": "image", "content": "iVBORw0K"}
+
+    def change(data):
+        data["recordings"][0]["rows"][0]["InputMessages"] = _messages(blob)
+
+    edit(sink_family / SINK_ROWS, change)
+    errors = _media_errors(sink_family)
+    assert len(errors) == 1
+    assert "attribute InputMessages holds base64 media" in errors[0]
+
+
+def test_recordings_may_hold_base64(family):
+    blob = {"type": "blob", "modality": "image", "content": "iVBORw0K"}
+    _first_span_attr(family / RECORDING, "gen_ai.input.messages", _messages(blob))
+    assert not _media_errors(family)

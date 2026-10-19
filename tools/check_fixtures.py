@@ -16,6 +16,8 @@ start with "_"):
 - in a control family (manifest `"control": true`: spans an SDK already
   normalized), the expected result is the recording itself, since
   normalizing canonical spans must change nothing;
+- an expected result holds no base64 media: no blob part with content, no
+  data: URL, no 4096-character base64 run (recordings may);
 - no JSON file in it holds a traceback or a local path from the machine that
   recorded it.
 
@@ -29,6 +31,7 @@ Needs PyYAML, to read the registry.
 from __future__ import annotations
 
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -60,6 +63,53 @@ MACHINE_MARKERS = (
 def _machine_leaks(path: Path) -> list[str]:
     text = path.read_text()
     return [marker for marker in MACHINE_MARKERS if marker in text]
+
+
+#: A run this long of base64 characters is media, not an id or a tool argument.
+BASE64_RUN = re.compile(r"[A-Za-z0-9+/=]{4096}")
+
+
+def _holds_media(value: Any) -> bool:
+    """Whether a value, or JSON nested in a string in it, holds base64 media."""
+    if isinstance(value, dict):
+        if value.get("type") == "blob" and "content" in value:
+            return True
+        return any(_holds_media(v) for v in value.values())
+    if isinstance(value, list):
+        return any(_holds_media(v) for v in value)
+    if isinstance(value, str):
+        if "data:" in value and ";base64," in value.split("data:", 1)[1]:
+            return True
+        if BASE64_RUN.search(value):
+            return True
+        if value.lstrip()[:1] in ("{", "["):
+            try:
+                return _holds_media(json.loads(value))
+            except ValueError:
+                return False
+    return False
+
+
+def _media_leaks(path: Path) -> list[str]:
+    """Where an expected result holds base64 media: `<scenario> span <id> attribute <key>`."""
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, ValueError):
+        return []  # reported as unreadable elsewhere
+    leaks = []
+    for recording in data.get("recordings", []):
+        scenario = recording.get("scenario")
+        for entry in recording.get("spans") or []:
+            span = entry.get("span", {})
+            for attribute in span.get("attributes") or []:
+                if _holds_media(attribute.get("value")):
+                    where = f"{scenario} span {span.get('spanId')}"
+                    leaks.append(f"{where} attribute {attribute.get('key')}")
+        for row in recording.get("rows") or []:
+            for column, value in row.items():
+                if _holds_media(value):
+                    leaks.append(f"{scenario} span {row.get('SpanID')} attribute {column}")
+    return leaks
 
 
 def _spans_by_id(scenario: dict[str, Any]) -> dict[str, dict[str, Any]]:
@@ -96,6 +146,11 @@ def check_family(family: Path) -> list[str]:
         return errors
     if manifest.get("family") != label:
         errors.append(f"{label}: manifest names family {manifest.get('family')!r}")
+
+    for path in sorted(family.glob("*.expected*.json")):
+        if path.name.endswith((EXPECTED_SUFFIX, ROWS_SUFFIX)):
+            for leak in _media_leaks(path):
+                errors.append(f"{label}/{path.name}: {leak} holds base64 media")
 
     listed = manifest.get("recordings", {})
     on_disk = {p.name for p in recording_files(family)}
