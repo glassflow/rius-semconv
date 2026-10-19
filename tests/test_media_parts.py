@@ -9,6 +9,7 @@ from __future__ import annotations
 import copy
 import json
 import re
+import time
 
 import pytest
 
@@ -484,6 +485,30 @@ def test_data_url_mime_is_a_token_or_unknown(base_data, text, mime):
     assert (span.start, span.end, span.mime) == (0, len(text), mime)
 
 
+#: Rule (b) is linear: 40 KB of near-matches takes milliseconds (it took
+#: seconds while the classes allowed `:`). The bound leaves room for slow CI.
+NEAR_MATCHES = {"data_colon": "data:" * 8_000, "data_a_semicolon": "data:a;" * 6_000}
+TIME_BOUND = 0.5
+
+
+@pytest.mark.parametrize("text", NEAR_MATCHES.values(), ids=NEAR_MATCHES.keys())
+def test_near_matches_strip_in_linear_time(base_data, text):
+    raw = base_data["media_parts"]["raw_payloads"]
+    start = time.perf_counter()
+    assert media_parts.strip_raw_payload(raw, text) == text
+    assert time.perf_counter() - start < TIME_BOUND
+
+
+@pytest.mark.parametrize("text", NEAR_MATCHES.values(), ids=NEAR_MATCHES.keys())
+def test_near_matches_check_in_linear_time(text):
+    from tools.check_fixtures import _holds_media
+
+    _holds_media("", key="input.value")  # loads the registry and payloads once
+    start = time.perf_counter()
+    assert not _holds_media(text, key="input.value")
+    assert time.perf_counter() - start < TIME_BOUND
+
+
 def test_a_long_data_url_without_base64_is_linear(base_data):
     # The parameter group never overlaps the mime group, so this returns at once.
     raw = base_data["media_parts"]["raw_payloads"]
@@ -529,6 +554,9 @@ REQUIRED_GOLDEN = {
     "uppercase_data_url_scheme",
     "data_url_with_parameters",
     "a_sibling_mime_that_is_not_a_token_is_unknown",
+    "a_replacement_holding_a_data_url_is_not_complete",
+    "a_replacement_with_a_mime_that_is_not_a_token_is_a_token",
+    "a_nested_document_has_no_enclosing_object",
 }
 
 
@@ -727,7 +755,7 @@ def test_data_url_pattern_is_portable(base_data):
         for match in re.finditer(r"\\(.)", pattern):
             assert match.group(1) in PORTABLE_ESCAPES, f"\\{match.group(1)} is not portable"
     assert rule["pattern"].startswith("[dD][aA][tT][aA]:")
-    assert '[^;,\\t\\n\\f\\r "]' in rule["pattern"]
+    assert '([^;,:\\t\\n\\f\\r "]*)(;[^;,:\\t\\n\\f\\r "]*)*' in rule["pattern"]
     assert "[A-Za-z0-9+/_-]" in rule["pattern"]
 
 
@@ -745,7 +773,11 @@ def test_portability_check_bites():
     [
         ("[stripped image/png 67 bytes]", True),
         ("[stripped unknown unknown bytes]", True),
-        ("[stripped image/png; charset=x 0 bytes]", True),
+        ("[stripped image/png; charset=x 0 bytes]", False),
+        ("[stripped a b 3 bytes]", False),
+        ("[stripped data:image/png;base64,iVBORw0KGgo= 1 bytes]", False),
+        ("[stripped application/vnd.ms-excel 12 bytes]", True),
+        ("[stripped unknown 3 bytes]", True),
         ("[stripped image/png lots bytes]", False),
         ("[stripped  3 bytes]", False),
         ("[stripped image/png bytes]", False),

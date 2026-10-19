@@ -421,7 +421,8 @@ def is_buffer(raw: dict, value: dict | Members) -> bool:
 
 def is_replacement(raw: dict, value: str) -> bool:
     """Whether a string is already a complete replacement: the format with a
-    non-empty mime and a byte_size of ASCII digits or unknown."""
+    mime that is unknown or a valid mime (the only mimes a replacement holds)
+    and a byte_size of ASCII digits or unknown."""
     form = str(raw["replacement"]["format"])
     head, rest = form.split("<mime>")
     between, tail = rest.split("<byte_size>")
@@ -432,7 +433,7 @@ def is_replacement(raw: dict, value: str) -> bool:
     mime, sep, size = value[len(head) : len(value) - len(tail)].rpartition(between)
     unknown = str(raw["replacement"]["unknown"])
     digits = bool(size) and all("0" <= ch <= "9" for ch in size)
-    return bool(sep and mime) and (digits or size == unknown)
+    return bool(sep) and (mime == unknown or is_mime(raw, mime)) and (digits or size == unknown)
 
 
 def _keyed_string(raw: dict, value: Any) -> bool:
