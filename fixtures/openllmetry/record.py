@@ -36,6 +36,7 @@ else:
     import httpx
 
     HTTPX = "httpx"
+from _media import PNG_1X1, data_url  # noqa: E402
 from _recording import ScriptedProvider, record_all  # noqa: E402
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
@@ -489,6 +490,39 @@ PACKAGES = [
     "anthropic",
     HTTPX,
 ]
+
+
+# ---- images -----------------------------------------------------------------
+
+
+def ask_about_image(mock, url):
+    mock.post(OPENAI).mock(
+        return_value=httpx.Response(
+            200, json=oa_completion({"role": "assistant", "content": "A tiny image."})
+        )
+    )
+    oa.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "What is in this image?"},
+                    {"type": "image_url", "image_url": {"url": url}},
+                ],
+            }
+        ],
+    )
+
+
+@scenario
+def image_base64(mock):
+    ask_about_image(mock, data_url("image/png", PNG_1X1))
+
+
+@scenario
+def image_https_url(mock):
+    ask_about_image(mock, "https://example.com/cat.png")
 
 
 if __name__ == "__main__":

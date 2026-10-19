@@ -16,6 +16,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from _media import PDF_ONE_PAGE, PNG_1X1, b64  # noqa: E402
 from _recording import ScriptedProvider, record_all, recorder_resource, sse  # noqa: E402
 
 os.environ["ANTHROPIC_API_KEY"] = "sk-ant-test"
@@ -244,6 +245,51 @@ def error() -> None:
         pass
     else:
         raise AssertionError("the scripted 400 did not raise")
+
+
+def ask_about(block: dict, question: str) -> None:
+    script.answer(
+        MESSAGES, httpx.Response(200, json=message([{"type": "text", "text": "A tiny image."}]))
+    )
+    client.messages.create(
+        model=MODEL,
+        max_tokens=64,
+        messages=[{"role": "user", "content": [{"type": "text", "text": question}, block]}],
+    )
+
+
+@scenario
+def image_base64() -> None:
+    ask_about(
+        {
+            "type": "image",
+            "source": {"type": "base64", "media_type": "image/png", "data": b64(PNG_1X1)},
+        },
+        "What is in this image?",
+    )
+
+
+@scenario
+def image_url() -> None:
+    ask_about(
+        {"type": "image", "source": {"type": "url", "url": "https://example.com/cat.png"}},
+        "What is in this image?",
+    )
+
+
+@scenario
+def document_pdf() -> None:
+    ask_about(
+        {
+            "type": "document",
+            "source": {
+                "type": "base64",
+                "media_type": "application/pdf",
+                "data": b64(PDF_ONE_PAGE),
+            },
+        },
+        "Summarize this document.",
+    )
 
 
 if __name__ == "__main__":

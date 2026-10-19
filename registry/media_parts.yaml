@@ -66,9 +66,8 @@ rows:
     normalized: blob
     modality: image
     paths: [passthrough, openllmetry, laminar]
-    fixtures: []
-    reason: Recorded in this change.
-    note: The mime type comes from the data URL.
+    fixtures: [openinference-openai/image_data_url]
+    note: The mime type comes from the data URL. OpenInference flattens it into the message contents, and its input.value keeps the request JSON.
 
   - source: openai.chat
     shape: image_url.url = http(s)://...
@@ -76,8 +75,8 @@ rows:
     normalized: uri
     modality: image
     paths: [passthrough, openllmetry, laminar]
-    fixtures: []
-    reason: Recorded in this change.
+    fixtures: [openinference-openai/image_https_url, openllmetry/image_https_url]
+    note: OpenLLMetry before 0.62 writes the content array as a JSON string in gen_ai.prompt.N.content. From 0.62 it writes a native uri part.
 
   - source: openai.chat
     shape: input_audio {data, format}
@@ -85,9 +84,8 @@ rows:
     normalized: blob
     modality: audio
     paths: [passthrough, openllmetry, laminar]
-    fixtures: []
-    reason: Recorded in this change.
-    note: The mime type is audio/<format>.
+    fixtures: [openinference-openai/input_audio]
+    note: The mime type is audio/<format>. OpenInference leaves the audio out of the flattened message contents and keeps it only in the request JSON of input.value.
 
   - source: openai.chat
     shape: file {file_id}
@@ -114,9 +112,8 @@ rows:
     normalized: blob
     modality: audio
     paths: [passthrough, openllmetry, laminar]
-    fixtures: []
-    reason: Recorded in this change.
-    note: A text part with the transcript follows the blob.
+    fixtures: [openinference-openai/audio_output]
+    note: A text part with the transcript follows the blob. OpenInference leaves the audio out of the flattened output messages and keeps it only in the response JSON of output.value.
 
   - source: openai.responses
     shape: input_image {image_url | file_id}
@@ -153,9 +150,8 @@ rows:
     normalized: blob
     modality: from_mime
     paths: [passthrough, openllmetry, laminar]
-    fixtures: []
-    reason: Recorded in this change.
-    note: The mime type comes from source.media_type.
+    fixtures: [openinference-anthropic/image_base64, openinference-anthropic/document_pdf]
+    note: The mime type comes from source.media_type. OpenInference flattens an image into a data URL, drops a document from the flattened messages, and keeps both in the request JSON of input.value.
 
   - source: anthropic.messages
     shape: image / document with source.type = url
@@ -163,8 +159,8 @@ rows:
     normalized: uri
     modality: from_mime
     paths: [passthrough, openllmetry, laminar]
-    fixtures: []
-    reason: Recorded in this change.
+    fixtures: [openinference-anthropic/image_url]
+    note: OpenInference flattens a url source into the placeholder data:None;url,None, so the URL survives only in the request JSON of input.value.
 
   - source: anthropic.messages
     shape: image / document with source.type = file
@@ -208,19 +204,8 @@ rows:
     normalized: [blob, uri]
     modality: image
     paths: [openinference]
-    fixtures: []
-    reason: Recorded in this change.
+    fixtures: [openinference-openai/image_data_url, openinference-openai/image_https_url, openinference-openai/image_redacted, openinference-anthropic/image_base64]
     note: A data URL becomes a blob, an http(s) URL a uri, and __REDACTED__ a blob with stripped_reason redacted_upstream. Python and JS.
-
-  - source: openinference.llm
-    shape: audio.url / audio.mime_type
-    direction: input
-    normalized: [blob, uri]
-    modality: audio
-    paths: [openinference]
-    fixtures: []
-    reason: Recorded in this change when the instrumentor writes audio.url; otherwise covered by the sink normalizer unit tests.
-    note: Only when an instrumentor records them.
 
   - source: vercel.ai
     shape: image / file parts in ai.prompt.messages
@@ -238,16 +223,42 @@ rows:
     normalized: blob
     modality: from_mime
     paths: [native]
-    fixtures: []
-    reason: Recorded in this change.
-    note: The same blob, stripped. Any OTel GenAI instrumentation.
+    fixtures: [pydantic-ai/image_binary]
+    note: The same blob, stripped. pydantic-ai writes it in gen_ai.input.messages and pydantic_ai.all_messages. Any OTel GenAI instrumentation.
 
   - source: semconv.native
-    shape: uri / file part
+    shape: uri part
     direction: input
-    normalized: [uri, file]
+    normalized: uri
+    modality: from_mime
+    paths: [native]
+    fixtures: [openllmetry/image_https_url]
+    note: Unchanged, and modality is filled from the mime type when missing. OpenLLMetry 0.62 writes it in gen_ai.input.messages.
+
+  - source: semconv.native
+    shape: file part
+    direction: input
+    normalized: file
     modality: from_mime
     paths: [native]
     fixtures: []
     reason: No recorded family; covered by the SDK pass-through unit tests.
     note: Unchanged, and modality is filled from the mime type when missing.
+
+  - source: openinference.llm
+    shape: image.image.url = data:None;url,None
+    direction: input
+    normalized: blob
+    modality: image
+    paths: [openinference]
+    fixtures: [openinference-anthropic/image_url]
+    note: What OpenInference's Anthropic instrumentor writes for an image with a url source; the URL itself is lost. The data URL names no mime type and holds no bytes, so the blob has neither mime_type nor byte_size, and its stripped_reason is not_captured.
+
+  - source: laminar.openhands
+    shape: ImageContent with image_urls in lmnr.span.input
+    direction: input
+    normalized: [blob, uri]
+    modality: image
+    paths: [laminar]
+    fixtures: [laminar/image_base64, laminar/image_https_url]
+    note: A data URL becomes a blob, an http(s) URL a uri. Written on the conversation.send_message span's input; the LLM span drops the image when the model has no vision support.
