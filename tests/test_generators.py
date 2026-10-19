@@ -167,7 +167,7 @@ def test_typescript_values(base_data):
         ["llm.request.functions.", [".description", ".parameters", ".arguments"]]
     ]
     assert len(values["PENDING_IDENTITY_ATTRIBUTES"]["__set__"]) == 17
-    assert values["OTEL_KIND_BY_KIND"]["LLM"] == "OtelSpanKind.CLIENT"
+    assert values["OTEL_KIND_BY_KIND"]["LLM"] == "CLIENT"
     assert values["SpanKind"]["RETRIEVER"] == "RETRIEVER"
 
 
