@@ -26,9 +26,13 @@ A normalized part in a message key is written with exactly these members, in ord
 - A member whose value is unknown is omitted, never written as null. This applies to mime_type and byte_size.
 - mime_type is written only when it is a valid token/token MIME type, matching the replacement's mime_pattern in full. Anything else is omitted.
 - The modality is taken from the prefix of the MIME type, matched case-insensitively. image/\* is image, audio/\* audio, video/\* video, anything else document.
-- A native part is rebuilt into this canonical shape when it is a blob that still carries content, or a media part whose modality is missing. Its other members are not kept.
-- A file part, or any part with no MIME type and no other hint, falls back to the modality document. With no MIME type, the filename extension is the hint (see extensions).
+- Every native media part in a message key (blob, uri or file) is always rebuilt into its canonical shape: members in the pinned order, extra members dropped, and every member that is unknown omitted. The only exception is a uri part with no usable uri, or a file part with no usable file_id: it is left as it came. Every other normalized media part carries a modality.
+- The modality that the part already has is kept. Otherwise it is taken from the MIME type, then from the filename extension (see extensions), then from the part kind the provider gives it (an image, audio, video, file or document item is a hint), and otherwise it is document. A file part, or any part with no MIME type and no other hint, therefore gets document.
+- A blob that carries `content` is rebuilt with stripped_reason not_captured and a byte_size taken from the content under the size rule of the strip (omitted when the size is unknown). With no MIME type and no modality its modality is document. A blob in a message key never carries content.
+- A uri part, or a provider uri such as a Gemini file_data, whose URI is a data URL is never a uri: it becomes a blob under the data URL rules below.
+- When a part has duplicate `type` members, the last one wins, as in a standard JSON decoder. The strip is different: there, a condition on `type` holds when any member qualifies.
 - A data URL that is not base64 (`data:<mime>,<payload>`) becomes a blob with the stripped_reason not_captured and no byte_size. When its payload is empty or `None`, it becomes a blob with the stripped_reason redacted_upstream.
+- When a normalizer rebuilds a native part inside an existing message-key value, it edits in place: only that part object token is replaced by its canonical compact serialization (no spaces, the minimal escaping of the strip), and every other byte of the value stays as it came. A value with nothing to rebuild stays byte for byte. Messages a normalizer builds itself are serialized compactly.
 
 Filename extensions (lower case) that give a modality:
 
@@ -49,10 +53,10 @@ A base64 data URL of image/png, 8 bytes decoded.
 
 #### `blob_whose_bytes_never_arrived`
 
-An image part whose content is the placeholder the instrumentor wrote, with no MIME type.
+An image item whose content is the placeholder the instrumentor wrote, with no MIME type: the part kind the provider gives it is the modality hint.
 
 ```json
-{"type":"blob","modality":"document","stripped_reason":"redacted_upstream"}
+{"type":"blob","modality":"image","stripped_reason":"redacted_upstream"}
 ```
 
 #### `data_url_that_is_not_base64`
@@ -69,6 +73,46 @@ The data URL data:image/png, with no payload.
 
 ```json
 {"type":"blob","modality":"image","mime_type":"image/png","stripped_reason":"redacted_upstream"}
+```
+
+#### `blob_with_content_and_no_hint`
+
+A native blob part with a content member holding the base64 iVBORw0KGgo= and neither a MIME type nor a modality.
+
+```json
+{"type":"blob","modality":"document","byte_size":8,"stripped_reason":"not_captured"}
+```
+
+#### `uri_with_no_mime_type_and_no_modality`
+
+A uri part for https://example.com/download with neither a MIME type nor a modality.
+
+```json
+{"type":"uri","modality":"document","uri":"https://example.com/download"}
+```
+
+#### `uri_with_members_out_of_order_keeps_its_modality`
+
+A uri part written as uri, modality image, type uri and an extra member, in that order.
+
+```json
+{"type":"uri","modality":"image","uri":"https://example.com/talk"}
+```
+
+#### `uri_with_an_invalid_mime_type`
+
+A uri part with the mime_type text/plain;charset=x, which is not token/token.
+
+```json
+{"type":"uri","modality":"document","uri":"https://example.com/notes"}
+```
+
+#### `uri_that_is_a_data_url`
+
+A uri part, or a Gemini file_data, whose URI is data:image/png;base64,iVBORw0KGgo=.
+
+```json
+{"type":"blob","modality":"image","mime_type":"image/png","byte_size":8,"stripped_reason":"not_captured"}
 ```
 
 #### `uri_with_a_mime_type`
@@ -93,6 +137,22 @@ A provider file id and nothing else.
 
 ```json
 {"type":"file","modality":"document","file_id":"file-abc123"}
+```
+
+#### `only_the_part_is_replaced`
+
+A spaced message value holding a native blob with content and a MIME type, and no modality.
+
+Input:
+
+```json
+[ {"role": "user", "parts": [ {"type": "blob", "content": "QUJD", "mime_type": "image/png"} ] } ]
+```
+
+Output:
+
+```json
+[ {"role": "user", "parts": [ {"type":"blob","modality":"image","mime_type":"image/png","byte_size":3,"stripped_reason":"not_captured"} ] } ]
 ```
 
 ## Raw payloads

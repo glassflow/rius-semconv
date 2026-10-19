@@ -210,6 +210,15 @@ def part_order_errors(data: dict, part: Any) -> list[str]:
     return errors
 
 
+def _json_objects(value: Any) -> list[dict]:
+    """Every object in a parsed value, outermost first."""
+    if isinstance(value, dict):
+        return [value, *[o for v in value.values() for o in _json_objects(v)]]
+    if isinstance(value, list):
+        return [o for v in value for o in _json_objects(v)]
+    return []
+
+
 def lint_part_shapes(data: dict) -> list[str]:
     """The part_shapes section: the member order, the rules, the extension map
     and examples that follow the order."""
@@ -243,6 +252,27 @@ def lint_part_shapes(data: dict) -> list[str]:
         if isinstance(part, dict):
             seen_types.add(part.get("type"))
         errors += [f"{where} example {name} {e}" for e in part_order_errors(data, part)]
+    for example in shapes.get("in_place_examples") or []:
+        name = example.get("name")
+        try:
+            before, after = json.loads(example["input"]), json.loads(example["output"])
+        except (KeyError, ValueError):
+            errors.append(f"{where} in_place example {name} needs JSON input and output")
+            continue
+        parts = [p for p in _json_objects(after) if p.get("type") in PART_MEMBERS]
+        if not parts:
+            errors.append(f"{where} in_place example {name} output holds no part")
+        for part in parts:
+            errors += [
+                f"{where} in_place example {name} {e}" for e in part_order_errors(data, part)
+            ]
+        if (
+            _json_objects(before) == _json_objects(after)
+            or "{" + '"type":' not in example["output"]
+        ):
+            errors.append(f"{where} in_place example {name} must rebuild a part, compactly")
+    if not shapes.get("in_place_examples"):
+        errors.append(f"{where} needs an in_place example")
     if seen_types != set(PART_MEMBERS):
         errors.append(f"{where} needs an example of each of {sorted(PART_MEMBERS)}")
     return errors
@@ -1113,6 +1143,10 @@ def _render_part_shapes(shapes: dict) -> list[str]:
     for example in shapes["examples"]:
         lines += [f"#### `{example['name']}`", "", _prose(example["from"]), ""]
         lines += ["```json", example["part"], "```", ""]
+    for example in shapes.get("in_place_examples") or []:
+        lines += [f"#### `{example['name']}`", "", _prose(example["from"]), ""]
+        lines += ["Input:", "", "```json", example["input"], "```", ""]
+        lines += ["Output:", "", "```json", example["output"], "```", ""]
     return lines
 
 

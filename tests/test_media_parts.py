@@ -683,6 +683,18 @@ def test_rows_with_a_part_example_follow_the_member_order(base_data):
                 assert list(part) == [m for m in members[part["type"]] if m in part]
 
 
+def test_in_place_example_changes_only_the_part(base_data):
+    for example in base_data["media_parts"]["part_shapes"]["in_place_examples"]:
+        before, after = example["input"], example["output"]
+        start = after.index('{"type":')
+        end = after.index("}", start) + 1
+        assert after[:start] == before[: before.index('{"type"')]
+        assert after[end:] == before[before.index("}", before.index('{"type"')) + 1 :]
+        assert list(json.loads(after[start:end])) == [
+            "type", "modality", "mime_type", "byte_size", "stripped_reason",
+        ]  # fmt: skip
+
+
 def test_members_out_of_order_fail_lint(data):
     examples = data["media_parts"]["part_shapes"]["examples"]
     examples[0]["part"] = '{"modality":"image","type":"blob","stripped_reason":"not_captured"}'
