@@ -1025,7 +1025,7 @@ def render_table(data: dict) -> str:
     lines += [
         "",
         "*Fixtures* lists the recorded scenarios (`<family>/<scenario>`) that prove the",
-        "row; a row with none says why in *Why*.",
+        "row; a row with none says why in *Notes*.",
         "",
     ]
     lines += _render_raw_payloads(data["raw_payloads"])
@@ -1033,17 +1033,17 @@ def render_table(data: dict) -> str:
         rows = [r for r in data["rows"] if r["direction"] == direction]
         if not rows:
             continue
-        header = ["Source", "Shape", "Becomes", "Modality", "Paths", "Fixtures", "Why"]
+        header = ["Source", "Shape", "Becomes", "Modality", "Paths", "Fixtures", "Notes"]
         lines += [f"## {direction.capitalize()}", ""]
         lines.append("| " + " | ".join(header) + " |")
         lines.append("|" + " -- |" * len(header))
         for row in rows:
-            why = _prose(row.get("note"))
+            notes = _prose(row.get("note"))
             if row.get("fixtures"):
                 fixtures = ", ".join(f"`{f}`" for f in row["fixtures"])
             else:
                 fixtures = "none"
-                why = _prose(f"{row.get('reason')} {row.get('note') or ''}")
+                notes = _prose(f"{row.get('reason')} {row.get('note') or ''}")
             cells = [
                 f"`{row['source']}`",
                 f"`{_one_line(row['shape'])}`",
@@ -1051,7 +1051,7 @@ def render_table(data: dict) -> str:
                 row.get("modality", "-"),
                 ", ".join(row["paths"]),
                 fixtures,
-                why,
+                notes,
             ]
             lines.append("| " + " | ".join(cells) + " |")
         lines.append("")

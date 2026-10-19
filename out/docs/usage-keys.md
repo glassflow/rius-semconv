@@ -18,20 +18,20 @@ families it produced them for.
 
 | Key | python | typescript | sink | Recorded in | Why |
 | -- | -- | -- | -- | -- | -- |
-| `gen_ai.usage.audio.cache_read.input_tokens` | canonical | canonical | canonical | not in any recording |  |
-| `gen_ai.usage.audio.input_tokens` | canonical | canonical | canonical | not in any recording |  |
-| `gen_ai.usage.audio.output_tokens` | canonical | canonical | canonical | not in any recording |  |
+| `gen_ai.usage.audio.cache_read.input_tokens` | canonical | canonical | canonical | not in any recording | Planned, not emitted yet. |
+| `gen_ai.usage.audio.input_tokens` | canonical | canonical | canonical | not in any recording | Planned, not emitted yet. |
+| `gen_ai.usage.audio.output_tokens` | canonical | canonical | canonical | not in any recording | Planned, not emitted yet. |
 | `gen_ai.usage.cache_read.input_tokens` | canonical | canonical | canonical | openllmetry, pydantic-ai, rius-python, rius-typescript, vercel-ai-otel |  |
 | `gen_ai.usage.cache_write.input_tokens` | canonical | canonical | canonical | produced in laminar, openinference-anthropic, openinference-js-anthropic, openinference-litellm, openinference-litellm-openai, openllmetry |  |
-| `gen_ai.usage.image.cache_read.input_tokens` | canonical | canonical | canonical | not in any recording |  |
-| `gen_ai.usage.image.input_tokens` | canonical | canonical | canonical | not in any recording |  |
-| `gen_ai.usage.image.output_tokens` | canonical | canonical | canonical | not in any recording |  |
+| `gen_ai.usage.image.cache_read.input_tokens` | canonical | canonical | canonical | not in any recording | Planned, not emitted yet. |
+| `gen_ai.usage.image.input_tokens` | canonical | canonical | canonical | not in any recording | Planned, not emitted yet. |
+| `gen_ai.usage.image.output_tokens` | canonical | canonical | canonical | not in any recording | Planned, not emitted yet. |
 | `gen_ai.usage.input_tokens` | canonical | canonical | canonical | laminar, openllmetry, pydantic-ai, rius-python, rius-typescript, vercel-ai-otel, vercel-ai-v5, vercel-ai-v6 |  |
 | `gen_ai.usage.output_tokens` | canonical | canonical | canonical | laminar, openllmetry, pydantic-ai, rius-python, rius-typescript, vercel-ai-otel, vercel-ai-v5, vercel-ai-v6 |  |
 | `gen_ai.usage.reasoning.output_tokens` | canonical | canonical | canonical | rius-python, rius-typescript |  |
-| `gen_ai.usage.text.cache_read.input_tokens` | canonical | canonical | canonical | not in any recording |  |
-| `gen_ai.usage.text.input_tokens` | canonical | canonical | canonical | not in any recording |  |
-| `gen_ai.usage.text.output_tokens` | canonical | canonical | canonical | not in any recording |  |
+| `gen_ai.usage.text.cache_read.input_tokens` | canonical | canonical | canonical | not in any recording | Planned, not emitted yet. |
+| `gen_ai.usage.text.input_tokens` | canonical | canonical | canonical | not in any recording | Planned, not emitted yet. |
+| `gen_ai.usage.text.output_tokens` | canonical | canonical | canonical | not in any recording | Planned, not emitted yet. |
 | `rius.aggregated_usage.*` | canonical | canonical | canonical | produced in openinference-litellm-openai, vercel-ai-otel, vercel-ai-v5, vercel-ai-v6 | A whole agent run's usage, moved off gen_ai.usage.* by the TypeScript SDK on producers known to repeat it on each call's span. Never read as usage, so the run is not counted twice. |
 
 ## Mapped

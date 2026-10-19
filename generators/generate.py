@@ -34,7 +34,10 @@ TARGETS = (*weaver.LANGS, "docs", "media")
 def render_usage_keys(reg: Registry) -> str:
     """The usage-key table, with where each key was recorded."""
     result = usage_keys.scan(reg.usage_keys, ROOT / "fixtures")
-    return usage_keys.render_table(reg.usage_keys, result)
+    planned = frozenset(
+        a["key"] for a in reg.attributes if a.get("status") == "planned" and "key" in a
+    )
+    return usage_keys.render_table(reg.usage_keys, result, planned)
 
 
 def stage_weaver_inputs(data: dict, tmp: pathlib.Path) -> tuple[pathlib.Path, pathlib.Path]:

@@ -33,7 +33,7 @@ def test_committed_file_is_clean(base_data):
 
 def test_every_row_has_a_source_shape_and_direction(base_data):
     rows = base_data["media_parts"]["rows"]
-    assert len(rows) == 27
+    assert len(rows) == 28
     assert {r["direction"] for r in rows} == {"input", "output"}
 
 
@@ -142,7 +142,8 @@ def test_none_is_a_normalized_outcome(base_data):
     rows = [r for r in base_data["media_parts"]["rows"] if r["normalized"] == "none"]
     assert rows
     table = media_parts.render_table(base_data["media_parts"])
-    assert "no part (raw payload stripped: `input.value`, `output.value`)" in table
+    assert "no part (raw payload stripped: `input.value`)" in table
+    assert "no part (raw payload stripped: `output.value`)" in table
     assert "| no part |" in table
 
 
@@ -198,9 +199,12 @@ def test_raw_payload_rows(base_data):
         ],
         (
             "openinference.llm",
-            "media present only in input.value / output.value "
-            "(audio input, audio output, PDF document)",
-        ): ["input.value", "output.value"],
+            "media present only in input.value (audio input, PDF document)",
+        ): ["input.value"],
+        (
+            "openinference.llm",
+            "media present only in output.value (audio output)",
+        ): ["output.value"],
         ("vercel.ai", "file part with Buffer data in ai.prompt"): ["ai.prompt"],
     }
     (oo,) = [r for r in rows if r["source"] == "openllmetry.openai"]
@@ -225,15 +229,23 @@ def test_raw_payload_is_rendered(base_data):
 
 def test_openinference_raw_only_media_makes_no_part(base_data):
     rows = base_data["media_parts"]["rows"]
-    (row,) = [r for r in rows if r["source"] == "openinference.llm" and r["normalized"] == "none"]
-    assert sorted(row["fixtures"]) == sorted(
+    by_direction = {
+        r["direction"]: r
+        for r in rows
+        if r["source"] == "openinference.llm" and r["normalized"] == "none"
+    }
+    assert sorted(by_direction["input"]["fixtures"]) == sorted(
         [
             "openinference-openai/input_audio",
-            "openinference-openai/audio_output",
             "openinference-js-openai/input_audio",
-            "openinference-js-openai/audio_output",
             "openinference-anthropic/document_pdf",
             "openinference-js-anthropic/document_pdf",
+        ]
+    )
+    assert sorted(by_direction["output"]["fixtures"]) == sorted(
+        [
+            "openinference-openai/audio_output",
+            "openinference-js-openai/audio_output",
         ]
     )
 
@@ -324,8 +336,8 @@ def _holds_media_part(value) -> bool:
 
 
 def test_every_part_row_is_proved_by_a_message_key(base_data):
-    """R7: a fixture proving a part must carry the media in a message key,
-    never only in a raw payload such as input.value."""
+    """A fixture proving a part must carry the media in a message key, never
+    only in a raw payload such as input.value."""
     media = base_data["media_parts"]
     for row in media["rows"]:
         if not set(media_parts.normalized_of(row)) & {"blob", "uri", "file"}:

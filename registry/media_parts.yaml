@@ -124,7 +124,7 @@ raw_payloads:
     sink's InputMessages and OutputMessages columns) a blob part never has a
     content member, while in any other attribute or column a blob part's content
     may be a complete replacement, the one rule (e) writes there.
-    tools/check_fixtures.py rule (a) holds expected results to exactly this.
+    The fixture check holds expected results to exactly this: a normalized blob part carries no content.
     Within one pass, every rule reads the text as it was before the pass: rule
     (e) takes its context and its mime type from each object's member values as
     they were, never from a sibling the same pass has already rewritten (see
@@ -323,7 +323,7 @@ raw_payloads:
       mime_keys: [media_type, mediaType, mime_type, mimeType]
     - id: e
       name: keyed base64 string
-      description: 'A non-empty string (or each string of an array) under one of the keys, when its object has one of the sibling keys with a non-empty string value that is not a complete replacement, or its object''s parent key is one of the parent keys, or its object is the value of a source key and has type base64 (the Anthropic {"source":{"type":"base64","media_type":...,"data":...}}: the object holding data is the source itself, not the content block around it); and a non-empty string under content when its object has type blob (the semconv blob part, as in a raw payload like pydantic_ai.all_messages: the raw-payload twin of the check''s rule (a)). Never a string that is already a complete replacement (see idempotence). See members for duplicate keys, siblings and arrays.'
+      description: 'A non-empty string (or each string of an array) under one of the keys, when its object has one of the sibling keys with a non-empty string value that is not a complete replacement, or its object''s parent key is one of the parent keys, or its object is the value of a source key and has type base64 (the Anthropic {"source":{"type":"base64","media_type":...,"data":...}}: the object holding data is the source itself, not the content block around it); and a non-empty string under content when its object has type blob (the semconv blob part, as in a raw payload like pydantic_ai.all_messages: the raw-payload twin of the fixture check''s rule that a normalized blob part carries no content). Never a string that is already a complete replacement (see idempotence). See members for duplicate keys, siblings and arrays.'
       keys: [data, b64_json, result]
       # format is not one: it counts only under input_audio or audio (see members).
       sibling_keys: [media_type, mediaType, mime_type, mimeType, output_format]
@@ -767,7 +767,7 @@ rows:
     modality: from_mime
     paths: [native]
     fixtures: [pydantic-ai/image_binary]
-    note: The same blob, stripped. pydantic-ai writes it in gen_ai.input.messages and pydantic_ai.all_messages. Any OTel GenAI instrumentation.
+    note: The same blob, stripped. pydantic-ai writes it in gen_ai.input.messages and pydantic_ai.all_messages. This applies to any OTel GenAI instrumentation that writes blob parts.
 
   - source: semconv.native
     shape: uri part
@@ -834,13 +834,22 @@ rows:
     note: What OpenInference's JS Anthropic instrumentor writes for an image. A base64 source leaves image.media_type (the mime type) and image.type = base64 but no data; a url source leaves only message_content.type = image. The blob carries the mime type when given, no byte_size, and stripped_reason redacted_upstream.
 
   - source: openinference.llm
-    shape: media present only in input.value / output.value (audio input, audio output, PDF document)
+    shape: media present only in input.value (audio input, PDF document)
     direction: input
     normalized: none
-    raw_payload: [input.value, output.value]
+    raw_payload: [input.value]
     paths: [openinference]
-    fixtures: [openinference-openai/input_audio, openinference-openai/audio_output, openinference-js-openai/input_audio, openinference-js-openai/audio_output, openinference-anthropic/document_pdf, openinference-js-anthropic/document_pdf]
-    note: OpenInference (Python and JS) leaves OpenAI input_audio, an OpenAI message.audio response and an Anthropic base64 document out of the flattened messages, and keeps them only in the request or response JSON of input.value / output.value. No part is made; the raw payload is stripped per raw_payloads.
+    fixtures: [openinference-openai/input_audio, openinference-js-openai/input_audio, openinference-anthropic/document_pdf, openinference-js-anthropic/document_pdf]
+    note: OpenInference (Python and JS) leaves OpenAI input_audio and an Anthropic base64 document out of the flattened messages, and keeps them only in the request JSON of input.value. No part is made; the raw payload is stripped per raw_payloads.
+
+  - source: openinference.llm
+    shape: media present only in output.value (audio output)
+    direction: output
+    normalized: none
+    raw_payload: [output.value]
+    paths: [openinference]
+    fixtures: [openinference-openai/audio_output, openinference-js-openai/audio_output]
+    note: OpenInference (Python and JS) leaves an OpenAI message.audio response out of the flattened messages, and keeps it only in the response JSON of output.value. No part is made; the raw payload is stripped per raw_payloads.
 
   - source: openllmetry.openai
     shape: 'image as a data URL: the instrumentor drops the prompt content; nothing to normalize'
@@ -848,4 +857,4 @@ rows:
     normalized: none
     paths: [openllmetry]
     fixtures: [openllmetry/image_base64]
-    note: Before 0.62 the span keeps only gen_ai.prompt.0.role, with no content; 0.62 writes no gen_ai.input.messages at all. Every recorded version.
+    note: Before 0.62 the span keeps only gen_ai.prompt.0.role, with no content; 0.62 writes no gen_ai.input.messages at all. This holds for every recorded version.
