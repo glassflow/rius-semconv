@@ -282,3 +282,22 @@ def test_recordings_may_hold_base64(family):
     blob = {"type": "blob", "modality": "image", "content": "iVBORw0K"}
     _first_span_attr(family / RECORDING, "gen_ai.input.messages", _messages(blob))
     assert not _media_errors(family)
+
+
+def test_blob_in_an_event_attribute_is_caught(family):
+    blob = {"type": "blob", "modality": "image", "content": "x"}
+
+    def change(data):
+        span = data["recordings"][0]["spans"][0]["span"]
+        span["events"] = [
+            {
+                "timeUnixNano": "1",
+                "name": "gen_ai.client.inference.operation.details",
+                "attributes": [{"key": "payload", "value": {"stringValue": _messages(blob)}}],
+            }
+        ]
+
+    edit(family / EXPECTED, change)
+    errors = _media_errors(family)
+    assert len(errors) == 1
+    assert "event gen_ai.client.inference.operation.details attribute payload" in errors[0]

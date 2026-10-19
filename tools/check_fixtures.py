@@ -99,12 +99,21 @@ def _media_leaks(path: Path) -> list[str]:
     leaks = []
     for recording in data.get("recordings", []):
         scenario = recording.get("scenario")
+        scopes = [("resource", recording.get("resource"))]
         for entry in recording.get("spans") or []:
             span = entry.get("span", {})
-            for attribute in span.get("attributes") or []:
+            where = f"{scenario} span {span.get('spanId')}"
+            scopes.append((where, span))
+            scopes.append((where + " scope", entry.get("scope")))
+            for event in span.get("events") or []:
+                scopes.append((f"{where} event {event.get('name')}", event))
+            for link in span.get("links") or []:
+                scopes.append((f"{where} link", link))
+        for where, holder in scopes:
+            for attribute in (holder or {}).get("attributes") or []:
                 if _holds_media(attribute.get("value")):
-                    where = f"{scenario} span {span.get('spanId')}"
-                    leaks.append(f"{where} attribute {attribute.get('key')}")
+                    prefix = f"{scenario} {where}" if where == "resource" else where
+                    leaks.append(f"{prefix} attribute {attribute.get('key')}")
         for row in recording.get("rows") or []:
             for column, value in row.items():
                 if _holds_media(value):
