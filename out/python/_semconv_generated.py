@@ -51,8 +51,9 @@ PROCESS_WORKING_DIRECTORY = "process.working_directory"
 # the old per-agent spellings for traces stored before.
 VCS_REF_HEAD_NAME = "vcs.ref.head.name"
 
-# Names the distribution that exported the span. Both SDKs set it as an
-# inline literal, "glassflow-rius". The coding-agent plugin sets
+# Names the distribution that exported the span. Both SDKs set it to
+# "glassflow-rius", a literal with no value row since the backend never
+# matches on it. The coding-agent plugin sets
 # TELEMETRY_DISTRO_NAME_CODING_AGENTS, and the backend reads
 # process.working_directory and vcs.ref.head.name as a coding session's
 # repo and branch only on spans carrying that value: both keys are general
@@ -61,8 +62,7 @@ TELEMETRY_DISTRO_NAME = "telemetry.distro.name"
 TELEMETRY_DISTRO_NAME_CODING_AGENTS = "rius-coding-agents"
 
 # The version of the distribution that exported the span: the SDK's, or the
-# coding-agent plugin's. Inline literal in both SDKs, like
-# telemetry.distro.name.
+# coding-agent plugin's.
 TELEMETRY_DISTRO_VERSION = "telemetry.distro.version"
 
 # The agent this process IS, stamped once on the resource so every span it

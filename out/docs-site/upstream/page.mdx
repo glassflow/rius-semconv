@@ -321,16 +321,16 @@ codex.version and cursor.version.
 reads first; gen_ai.conversation.id is deliberately not emitted alongside
 it, one name for one fact.
 
-**[34] `telemetry.distro.name`:** Names the distribution that exported the span. Both SDKs set it as an
-inline literal, "glassflow-rius". The coding-agent plugin sets
+**[34] `telemetry.distro.name`:** Names the distribution that exported the span. Both SDKs set it to
+"glassflow-rius", a literal with no value row since the backend never
+matches on it. The coding-agent plugin sets
 TELEMETRY_DISTRO_NAME_CODING_AGENTS, and the backend reads
 process.working_directory and vcs.ref.head.name as a coding session's
 repo and branch only on spans carrying that value: both keys are general
 OpenTelemetry keys any process may send.
 
 **[35] `telemetry.distro.version`:** The version of the distribution that exported the span: the SDK's, or the
-coding-agent plugin's. Inline literal in both SDKs, like
-telemetry.distro.name.
+coding-agent plugin's.
 
 **[36] `user.id`:** The end-user identity. OpenInference's spelling, also what Langfuse reads
 and what the OTel registry lists; the sink additionally accepts OTel's
