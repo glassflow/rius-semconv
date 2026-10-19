@@ -411,6 +411,9 @@ def test_shape_cell_is_code(base_data):
         ({"result": {"data": "x"}}, set()),
         ({"data": "", "media_type": "image/png"}, set()),
         ('{"audio": {"data": "UklGRg=="}}', {"e"}),
+        ({"type": "blob", "mime_type": "image/png", "content": "iVBO"}, {"e"}),
+        ({"type": "text", "content": "iVBO"}, set()),
+        ({"type": "blob", "content": "[stripped image/png 3 bytes]"}, set()),
     ],
 )
 def test_detection_rules(base_data, value, rules):
@@ -484,6 +487,7 @@ REQUIRED_GOLDEN = {
     "gemini_inline_data_camel_case",
     "openai_responses_image_generation_result",
     "stripping_twice_changes_nothing",
+    "pydantic_ai_blob_part_in_all_messages",
 }
 
 
@@ -620,3 +624,21 @@ def test_portability_check_bites():
             m.group(1) not in PORTABLE_ESCAPES for m in re.finditer(r"\\(.)", pattern)
         )
         assert bites, bad
+
+
+@pytest.mark.parametrize(
+    ("value", "complete"),
+    [
+        ("[stripped image/png 67 bytes]", True),
+        ("[stripped unknown unknown bytes]", True),
+        ("[stripped image/png; charset=x 0 bytes]", True),
+        ("[stripped image/png lots bytes]", False),
+        ("[stripped  3 bytes]", False),
+        ("[stripped image/png bytes]", False),
+        ("[stripped image/png \u0663 bytes]", False),
+        ("x[stripped image/png 3 bytes]", False),
+    ],
+)
+def test_complete_replacement(base_data, value, complete):
+    raw = base_data["media_parts"]["raw_payloads"]
+    assert media_parts.is_replacement(raw, value) is complete

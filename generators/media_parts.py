@@ -40,6 +40,8 @@ DETECTION_FIELDS = {
         "parent_keys",
         "source_key",
         "source_type",
+        "blob_type",
+        "blob_key",
         "mime_keys",
         "mime_formats",
     ),
@@ -53,6 +55,7 @@ RAW_PAYLOAD_FIELDS = (
     "order",
     "json_candidate",
     "precedence",
+    "idempotence",
     "spans",
     "byte_size",
     "regex_dialect",
@@ -69,6 +72,7 @@ RAW_PAYLOAD_PROSE = (
     "order",
     "json_candidate",
     "precedence",
+    "idempotence",
     "spans",
     "byte_size",
     "regex_dialect",
@@ -362,11 +366,19 @@ def is_buffer(raw: dict, value: dict) -> bool:
 
 
 def is_replacement(raw: dict, value: str) -> bool:
-    """Whether a string is already a replacement: it starts with the format's
-    text before <mime> and ends with its text after <byte_size>."""
+    """Whether a string is already a complete replacement: the format with a
+    non-empty mime and a byte_size of ASCII digits or unknown."""
     form = str(raw["replacement"]["format"])
-    head, tail = form.split("<mime>")[0], form.split("<byte_size>")[-1]
-    return len(value) >= len(head) + len(tail) and value.startswith(head) and value.endswith(tail)
+    head, rest = form.split("<mime>")
+    between, tail = rest.split("<byte_size>")
+    if len(value) < len(head) + len(between) + len(tail):
+        return False
+    if not (value.startswith(head) and value.endswith(tail)):
+        return False
+    mime, sep, size = value[len(head) : len(value) - len(tail)].rpartition(between)
+    unknown = str(raw["replacement"]["unknown"])
+    digits = bool(size) and all("0" <= ch <= "9" for ch in size)
+    return bool(sep and mime) and (digits or size == unknown)
 
 
 def keyed_base64(raw: dict, value: dict, parent_key: str | None) -> list[str]:
@@ -378,11 +390,12 @@ def keyed_base64(raw: dict, value: dict, parent_key: str | None) -> list[str]:
         or parent_key in rule["parent_keys"]
         or (parent_key == rule["source_key"] and value.get("type") == rule["source_type"])
     )
-    if not context:
-        return []
+    keys = list(rule["keys"]) if context else []
+    if value.get("type") == rule["blob_type"]:
+        keys.append(rule["blob_key"])
     return [
         k
-        for k in rule["keys"]
+        for k in keys
         if isinstance(value.get(k), str) and value[k] and not is_replacement(raw, value[k])
     ]
 
@@ -612,7 +625,9 @@ _Edit = tuple[int, int, str]
 def _strip_text(raw: dict, text: str, tokens: list[Token]) -> list[_Edit]:
     """The edits on a string's text (a raw attribute, or a JSON string's
     unescaped value): the JSON walk when it is a candidate that parses, else
-    rule b alone."""
+    rule b alone. A complete replacement is never stripped again."""
+    if is_replacement(raw, text):
+        return []
     if is_json_candidate(text):
         document = _parse(text)
         if document is not None:

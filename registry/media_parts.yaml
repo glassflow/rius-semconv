@@ -142,10 +142,14 @@ raw_payloads:
     inherits the parent key of its array, so `{"audio":[{"data":"..."}]}` matches
     (e) through the parent key audio; in the same way, the enclosing object rule
     (d) takes its mime type from is the nearest object holding the Buffer,
-    directly or through arrays. A string that is already a replacement (it
-    starts with `[stripped ` and ends with ` bytes]`) is never an (e) token, so
-    stripping a stripped string changes nothing: the sink re-strips what an SDK
-    already stripped and gets the same bytes.
+    directly or through arrays.
+  idempotence: >-
+    Every implementation follows this rule: a string that is already a complete
+    replacement, `[stripped <mime> <byte_size> bytes]` with a non-empty mime and a
+    byte_size that is ASCII digits or unknown, is never stripped again, by rule
+    (e) or rule (b). So strip(strip(x)) is strip(x) for every x: the sink
+    re-strips what an SDK already stripped and gets the same bytes. A string that
+    only looks like one (say `[stripped image/png lots bytes]`) is still a token.
   spans: >-
     Every span is on the original text; nothing is re-serialized. (d) The object
     token, from its `{` to its matching `}`, is replaced by the replacement as a
@@ -231,12 +235,14 @@ raw_payloads:
       mime_keys: [media_type, mediaType, mime_type, mimeType]
     - id: e
       name: keyed base64 string
-      description: A non-empty string under one of the keys, when its object has one of the sibling keys, or its object's parent key is one of the parent keys, or its object is a source with type base64.
+      description: 'A non-empty string under one of the keys, when its object has one of the sibling keys, or its object''s parent key is one of the parent keys, or its object is a source with type base64; and a non-empty string under content when its object has type blob (the semconv blob part, as in a raw payload like pydantic_ai.all_messages: the raw-payload twin of the check''s rule (a)). Never a string that is already a complete replacement (see idempotence).'
       keys: [data, b64_json, result]
       sibling_keys: [media_type, mediaType, mime_type, mimeType, format, output_format]
       parent_keys: [input_audio, audio, inline_data, inlineData]
       source_key: source
       source_type: base64
+      blob_type: blob
+      blob_key: content
       mime_keys: [media_type, mediaType, mime_type, mimeType]
       # Tried in order, after the mime keys: <value> is the sibling's value.
       mime_formats:
@@ -373,10 +379,17 @@ raw_payloads:
         - {rule: e, mime: image/png, byte_size: 8}
         - {rule: e, mime: image/png, byte_size: unknown}
     - name: stripping_twice_changes_nothing
-      note: A string that is already a replacement is not a token, so the sink re-stripping an SDK's output gets the same bytes.
-      input: '{"source":{"type":"base64","media_type":"image/png","data":"[stripped image/png 8 bytes]"},"inline_data":{"data":"[stripped unknown unknown bytes]"}}'
-      output: '{"source":{"type":"base64","media_type":"image/png","data":"[stripped image/png 8 bytes]"},"inline_data":{"data":"[stripped unknown unknown bytes]"}}'
-      tokens: []
+      note: 'Already-stripped text, stripped again: complete replacements are not tokens, so strip(strip(x)) is strip(x) (test_stripping_is_idempotent checks it for every golden output). [stripped image/png lots bytes] is not a complete replacement, so it is a token.'
+      input: '{"source":{"type":"base64","media_type":"image/png","data":"[stripped image/png 8 bytes]"},"inline_data":{"data":"[stripped unknown unknown bytes]"},"text":"see [stripped image/png 8 bytes]","audio":{"data":"[stripped image/png lots bytes]"}}'
+      output: '{"source":{"type":"base64","media_type":"image/png","data":"[stripped image/png 8 bytes]"},"inline_data":{"data":"[stripped unknown unknown bytes]"},"text":"see [stripped image/png 8 bytes]","audio":{"data":"[stripped unknown unknown bytes]"}}'
+      tokens:
+        - {rule: e, mime: unknown, byte_size: unknown}
+    - name: pydantic_ai_blob_part_in_all_messages
+      note: 'A semconv blob part in a raw payload (pydantic_ai.all_messages): rule (e) replaces its content string in place, mime from mime_type. A text part''s content is left alone.'
+      input: '[{"role":"user","parts":[{"type":"text","content":"What is in this image?"},{"type":"blob","mime_type":"image/png","modality":"image","content":"iVBORw0KGgo="}]}]'
+      output: '[{"role":"user","parts":[{"type":"text","content":"What is in this image?"},{"type":"blob","mime_type":"image/png","modality":"image","content":"[stripped image/png 8 bytes]"}]}]'
+      tokens:
+        - {rule: e, mime: image/png, byte_size: 8}
     - name: url_safe_data_url
       note: The base64 run may be URL-safe; mixing the two alphabets is not valid base64.
       input: 'a data:image/png;base64,-_-_ and data:image/png;base64,+_+_ b'
