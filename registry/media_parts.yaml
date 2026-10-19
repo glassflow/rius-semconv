@@ -12,6 +12,9 @@
 #   file  {"type":"file","modality","mime_type"?,"file_id"}
 #         A provider file id.
 #
+# Their members are written in the order shown, and a member whose value is
+# unknown is omitted, never null: see part_shapes.
+#
 # The modality comes from the MIME type when it is known: image/* is image,
 # audio/* audio, video/* video, anything else (PDF, text/*, office formats)
 # document. With no MIME type it comes from the provider's part kind. It is
@@ -31,6 +34,9 @@
 #   stripped_reasons  The `stripped_reason` vocabulary on a blob, with what
 #                     each means. A Rius vocabulary on a free-form upstream
 #                     field: exactly not_captured and redacted_upstream.
+#   part_shapes       The serialized member order and omission rules of a
+#                     normalized part, the filename extension to modality
+#                     map, and an example of each.
 #   raw_payloads      Where parts come from (message keys only), and how a
 #                     raw request or response payload is stripped of media in
 #                     place. Its detection rules are the ones
@@ -109,12 +115,15 @@ raw_payloads:
     stripped blob part shape instead; the replacement string is only for raw
     payloads.
   scope: >-
-    The strip applies to every string value, and to every element of a string-array
-    value, of the span attributes, the span event attributes, the span link
-    attributes, and the resource and scope attributes of the recording. The sink
-    applies the same rules to its stored columns InputValue, OutputValue,
-    InputMessages and OutputMessages and to the values of SpanAttributes. This is
-    what tools/check_fixtures.py scans.
+    The SDKs strip every string value, and every element of a string-array
+    value, of the span attributes, the span event attributes and the span link
+    attributes. They do not strip resource or scope attributes: a span processor
+    cannot rewrite them. The sink applies the same rules to its stored columns
+    InputValue, OutputValue, InputMessages and OutputMessages and to the values
+    of SpanAttributes. tools/check_fixtures.py scans more than the strip covers:
+    it also scans the resource and scope attributes of a recording. That scan is
+    a check, not a strip rule, and media in those attributes would still be a
+    bug.
   order: >-
     A normalizer first builds parts from the message keys (the source rule).
     Stripping runs last, over every string attribute in scope, including the
@@ -617,6 +626,50 @@ raw_payloads:
       tokens:
         - {rule: e, mime: unknown, byte_size: 3}
         - {rule: b, mime: image/png, byte_size: 3}
+
+part_shapes:
+  # The exact serialized form of a normalized part in a message key. The
+  # members of each type appear in exactly this order.
+  members:
+    blob: [type, modality, mime_type, byte_size, stripped_reason]
+    uri: [type, modality, mime_type, uri]
+    file: [type, modality, mime_type, file_id]
+  # A filename extension (of a URI, a file name or a path), lower case, gives
+  # the modality when the MIME type does not. Any other extension is document.
+  extensions:
+    image: [png, jpg, jpeg, gif, webp]
+    audio: [wav, mp3, m4a, ogg, flac]
+    video: [mp4, mov, webm]
+  rules:
+    - Members appear in exactly the order of members, and no member appears twice.
+    - A member whose value is unknown is omitted, never written as null. This applies to mime_type and byte_size.
+    - mime_type is written only when it is a valid token/token MIME type, matching the replacement's mime_pattern in full. Anything else is omitted.
+    - The modality is taken from the prefix of the MIME type, matched case-insensitively. image/* is image, audio/* audio, video/* video, anything else document.
+    - A native part is rebuilt into this canonical shape when it is a blob that still carries content, or a media part whose modality is missing. Its other members are not kept.
+    - A file part, or any part with no MIME type and no other hint, falls back to the modality document. With no MIME type, the filename extension is the hint (see extensions).
+    - A data URL that is not base64 (`data:<mime>,<payload>`) becomes a blob with the stripped_reason not_captured and no byte_size. When its payload is empty or `None`, it becomes a blob with the stripped_reason redacted_upstream.
+  examples:
+    - name: blob_with_a_known_size
+      from: 'A base64 data URL of image/png, 8 bytes decoded.'
+      part: '{"type":"blob","modality":"image","mime_type":"image/png","byte_size":8,"stripped_reason":"not_captured"}'
+    - name: blob_whose_bytes_never_arrived
+      from: 'An image part whose content is the placeholder the instrumentor wrote, with no MIME type.'
+      part: '{"type":"blob","modality":"document","stripped_reason":"redacted_upstream"}'
+    - name: data_url_that_is_not_base64
+      from: 'The data URL data:text/plain,hello.'
+      part: '{"type":"blob","modality":"document","mime_type":"text/plain","stripped_reason":"not_captured"}'
+    - name: data_url_that_is_not_base64_and_empty
+      from: 'The data URL data:image/png, with no payload.'
+      part: '{"type":"blob","modality":"image","mime_type":"image/png","stripped_reason":"redacted_upstream"}'
+    - name: uri_with_a_mime_type
+      from: 'An audio part by URL, with the MIME type audio/mpeg.'
+      part: '{"type":"uri","modality":"audio","mime_type":"audio/mpeg","uri":"https://example.com/a.mp3"}'
+    - name: uri_with_only_an_extension
+      from: 'A part by URL, with no MIME type, ending in .mov.'
+      part: '{"type":"uri","modality":"video","uri":"https://example.com/clip.mov"}'
+    - name: file_with_no_hint
+      from: 'A provider file id and nothing else.'
+      part: '{"type":"file","modality":"document","file_id":"file-abc123"}'
 
 rows:
   - source: openai.chat

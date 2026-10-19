@@ -14,6 +14,87 @@ part kind. A `blob` carries a `stripped_reason`:
 *Fixtures* lists the recorded scenarios (`<family>/<scenario>`) that prove the
 row; a row with none says why in *Notes*.
 
+## Part shapes
+
+A normalized part in a message key is written with exactly these members, in order:
+
+- `blob`: `type`, `modality`, `mime_type`, `byte_size`, `stripped_reason`
+- `uri`: `type`, `modality`, `mime_type`, `uri`
+- `file`: `type`, `modality`, `mime_type`, `file_id`
+
+- Members appear in exactly the order of members, and no member appears twice.
+- A member whose value is unknown is omitted, never written as null. This applies to mime_type and byte_size.
+- mime_type is written only when it is a valid token/token MIME type, matching the replacement's mime_pattern in full. Anything else is omitted.
+- The modality is taken from the prefix of the MIME type, matched case-insensitively. image/\* is image, audio/\* audio, video/\* video, anything else document.
+- A native part is rebuilt into this canonical shape when it is a blob that still carries content, or a media part whose modality is missing. Its other members are not kept.
+- A file part, or any part with no MIME type and no other hint, falls back to the modality document. With no MIME type, the filename extension is the hint (see extensions).
+- A data URL that is not base64 (`data:<mime>,<payload>`) becomes a blob with the stripped_reason not_captured and no byte_size. When its payload is empty or `None`, it becomes a blob with the stripped_reason redacted_upstream.
+
+Filename extensions (lower case) that give a modality:
+
+- `image`: `png`, `jpg`, `jpeg`, `gif`, `webp`
+- `audio`: `wav`, `mp3`, `m4a`, `ogg`, `flac`
+- `video`: `mp4`, `mov`, `webm`
+- anything else: `document`
+
+Examples:
+
+#### `blob_with_a_known_size`
+
+A base64 data URL of image/png, 8 bytes decoded.
+
+```json
+{"type":"blob","modality":"image","mime_type":"image/png","byte_size":8,"stripped_reason":"not_captured"}
+```
+
+#### `blob_whose_bytes_never_arrived`
+
+An image part whose content is the placeholder the instrumentor wrote, with no MIME type.
+
+```json
+{"type":"blob","modality":"document","stripped_reason":"redacted_upstream"}
+```
+
+#### `data_url_that_is_not_base64`
+
+The data URL data:text/plain,hello.
+
+```json
+{"type":"blob","modality":"document","mime_type":"text/plain","stripped_reason":"not_captured"}
+```
+
+#### `data_url_that_is_not_base64_and_empty`
+
+The data URL data:image/png, with no payload.
+
+```json
+{"type":"blob","modality":"image","mime_type":"image/png","stripped_reason":"redacted_upstream"}
+```
+
+#### `uri_with_a_mime_type`
+
+An audio part by URL, with the MIME type audio/mpeg.
+
+```json
+{"type":"uri","modality":"audio","mime_type":"audio/mpeg","uri":"https://example.com/a.mp3"}
+```
+
+#### `uri_with_only_an_extension`
+
+A part by URL, with no MIME type, ending in .mov.
+
+```json
+{"type":"uri","modality":"video","uri":"https://example.com/clip.mov"}
+```
+
+#### `file_with_no_hint`
+
+A provider file id and nothing else.
+
+```json
+{"type":"file","modality":"document","file_id":"file-abc123"}
+```
+
 ## Raw payloads
 
 **Source rule.** Normalized message parts come only from message keys: gen_ai.input.messages, gen_ai.output.messages and gen_ai.system_instructions, or the flattened instrumentor message keys each normalizer already maps (OpenInference llm.input_messages.\* and llm.output_messages.\*, OpenLLMetry gen_ai.prompt.\* and gen_ai.completion.\*, Vercel ai.prompt.messages). Raw request and response payloads are never mined to rebuild parts.
@@ -24,7 +105,7 @@ Raw payloads, never mined for parts: `input.value`, `output.value`, `lmnr.span.i
 
 **Strip rule.** Each media token (found by the detection rules below) is replaced in place. Every other byte of the string stays identical: normalizers must not parse and re-serialize the JSON. Byte equality across the Python SDK, the TypeScript SDK and the Go sink depends on this. Message parts in gen_ai.\*.messages keep the stripped blob part shape instead; the replacement string is only for raw payloads.
 
-**Scope.** The strip applies to every string value, and to every element of a string-array value, of the span attributes, the span event attributes, the span link attributes, and the resource and scope attributes of the recording. The sink applies the same rules to its stored columns InputValue, OutputValue, InputMessages and OutputMessages and to the values of SpanAttributes. This is what tools/check_fixtures.py scans.
+**Scope.** The SDKs strip every string value, and every element of a string-array value, of the span attributes, the span event attributes and the span link attributes. They do not strip resource or scope attributes: a span processor cannot rewrite them. The sink applies the same rules to its stored columns InputValue, OutputValue, InputMessages and OutputMessages and to the values of SpanAttributes. tools/check_fixtures.py scans more than the strip covers: it also scans the resource and scope attributes of a recording. That scan is a check, not a strip rule, and media in those attributes would still be a bug.
 
 **Order.** A normalizer first builds parts from the message keys (the source rule). Stripping runs last, over every string attribute in scope, including the message-key attributes it keeps and the gen_ai.\*.messages it produced. A stripped blob part carries no content, so nothing in it matches; a text part holding a data URL gets rule (b) in place. So in a message key (and in the sink's InputMessages and OutputMessages columns) a blob part never has a content member, while in any other attribute or column a blob part's content may be a complete replacement, the one rule (e) writes there. The fixture check holds expected results to exactly this: a normalized blob part carries no content. Within one pass, every rule reads the text as it was before the pass: rule (e) takes its context and its mime type from each object's member values as they were, never from a sibling the same pass has already rewritten (see members). A walker that rewrites the document in place must keep reading the original values.
 

@@ -122,6 +122,7 @@ def lint(data: dict) -> list[str]:
     if set(reasons) != STRIPPED_REASONS:
         errors.append(f"media_parts: stripped_reasons must be exactly {sorted(STRIPPED_REASONS)}")
     errors += lint_raw_payloads(data.get("raw_payloads"))
+    errors += lint_part_shapes(data)
     seen: set[tuple] = set()
     for row in data.get("rows") or []:
         label = row_name(row)
@@ -168,6 +169,82 @@ def lint(data: dict) -> list[str]:
                 errors.append(f"{label} fixtures must be <family>/<scenario>, not {ref!r}")
         if not fixtures and not str(row.get("reason", "")).strip():
             errors.append(f"{label} needs fixtures or a reason")
+    return errors
+
+
+#: The serialized member order of each normalized part type.
+PART_MEMBERS = {
+    "blob": ["type", "modality", "mime_type", "byte_size", "stripped_reason"],
+    "uri": ["type", "modality", "mime_type", "uri"],
+    "file": ["type", "modality", "mime_type", "file_id"],
+}
+#: Members whose unknown value is omitted rather than written as null.
+OMITTABLE = {"mime_type", "byte_size"}
+
+
+def part_order_errors(data: dict, part: Any) -> list[str]:
+    """What is wrong with one serialized part: members out of order, a null,
+    a mime_type that is not a MIME token, an unknown modality or reason."""
+    if not isinstance(part, dict):
+        return ["is not an object"]
+    kind = part.get("type")
+    members = PART_MEMBERS.get(kind)
+    if members is None:
+        return [f"has type {kind!r}, not one of {sorted(PART_MEMBERS)}"]
+    errors = []
+    keys = list(part)
+    if keys != [m for m in members if m in part] or set(keys) - set(members):
+        errors.append(f"has members {keys}, not in the order {members}")
+    errors += [f"writes {k} as null" for k, v in part.items() if v is None]
+    for required in ("type", "modality"):
+        if required not in part:
+            errors.append(f"has no {required}")
+    mime_pattern = ((data.get("raw_payloads") or {}).get("replacement") or {}).get("mime_pattern")
+    mime = part.get("mime_type")
+    if mime is not None and mime_pattern and not re.fullmatch(str(mime_pattern), str(mime)):
+        errors.append(f"has mime_type {mime!r}, which is not a token/token MIME type")
+    if part.get("modality") not in set(data.get("modalities") or []):
+        errors.append(f"has modality {part.get('modality')!r}")
+    if kind == "blob" and part.get("stripped_reason") not in STRIPPED_REASONS:
+        errors.append(f"has stripped_reason {part.get('stripped_reason')!r}")
+    return errors
+
+
+def lint_part_shapes(data: dict) -> list[str]:
+    """The part_shapes section: the member order, the rules, the extension map
+    and examples that follow the order."""
+    where = "media_parts: part_shapes"
+    shapes = data.get("part_shapes")
+    if not isinstance(shapes, dict):
+        return [f"{where} must be a mapping"]
+    errors: list[str] = []
+    if shapes.get("members") != PART_MEMBERS:
+        errors.append(f"{where} members must be exactly {PART_MEMBERS}")
+    modalities = set(data.get("modalities") or [])
+    for modality, extensions in (shapes.get("extensions") or {}).items():
+        if modality not in modalities:
+            errors.append(f"{where} extensions: {modality} is not a modality")
+        if not isinstance(extensions, list) or any(
+            str(e) != str(e).lower() or not str(e) for e in extensions
+        ):
+            errors.append(f"{where} extensions {modality} must be lower case extensions")
+    if not shapes.get("extensions"):
+        errors.append(f"{where} needs extensions")
+    if not shapes.get("rules"):
+        errors.append(f"{where} needs rules")
+    seen_types = set()
+    for example in shapes.get("examples") or []:
+        name = example.get("name")
+        try:
+            part = json.loads(str(example.get("part")))
+        except ValueError:
+            errors.append(f"{where} example {name} part is not JSON")
+            continue
+        if isinstance(part, dict):
+            seen_types.add(part.get("type"))
+        errors += [f"{where} example {name} {e}" for e in part_order_errors(data, part)]
+    if seen_types != set(PART_MEMBERS):
+        errors.append(f"{where} needs an example of each of {sorted(PART_MEMBERS)}")
     return errors
 
 
@@ -1019,6 +1096,26 @@ def _param(value: Any) -> str:
     return _code_list(value) if isinstance(value, list) else f"`{value}`"
 
 
+def _render_part_shapes(shapes: dict) -> list[str]:
+    lines = ["## Part shapes", ""]
+    lines += [
+        "A normalized part in a message key is written with exactly these members, in order:",
+        "",
+    ]
+    for kind, members in shapes["members"].items():
+        lines.append(f"- `{kind}`: " + ", ".join(f"`{m}`" for m in members))
+    lines += [""]
+    lines += [f"- {_prose(rule)}" for rule in shapes["rules"]]
+    lines += ["", "Filename extensions (lower case) that give a modality:", ""]
+    for modality, extensions in shapes["extensions"].items():
+        lines.append(f"- `{modality}`: " + ", ".join(f"`{e}`" for e in extensions))
+    lines += ["- anything else: `document`", "", "Examples:", ""]
+    for example in shapes["examples"]:
+        lines += [f"#### `{example['name']}`", "", _prose(example["from"]), ""]
+        lines += ["```json", example["part"], "```", ""]
+    return lines
+
+
 def render_table(data: dict) -> str:
     """out/docs/media-parts.md: every source shape and what it becomes."""
     lines = [
@@ -1043,6 +1140,7 @@ def render_table(data: dict) -> str:
         "row; a row with none says why in *Notes*.",
         "",
     ]
+    lines += _render_part_shapes(data["part_shapes"])
     lines += _render_raw_payloads(data["raw_payloads"])
     for direction in ("input", "output"):
         rows = [r for r in data["rows"] if r["direction"] == direction]

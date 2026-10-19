@@ -662,6 +662,49 @@ def test_stripping_twice_is_stripping_once_on_random_documents(base_data):
     assert failures == [], f"{len(failures)} not idempotent, first: {failures[0]}"
 
 
+def test_part_examples_follow_the_member_order(base_data):
+    media = base_data["media_parts"]
+    members = media["part_shapes"]["members"]
+    examples = media["part_shapes"]["examples"]
+    assert {json.loads(e["part"])["type"] for e in examples} == set(members)
+    for example in examples:
+        part = json.loads(example["part"])
+        assert list(part) == [m for m in members[part["type"]] if m in part], example["name"]
+        assert None not in part.values(), example["name"]
+
+
+def test_rows_with_a_part_example_follow_the_member_order(base_data):
+    """Any row that carries an example output follows the same order."""
+    members = base_data["media_parts"]["part_shapes"]["members"]
+    for row in base_data["media_parts"]["rows"]:
+        for field in ("part", "example", "output"):
+            if field in row:
+                part = json.loads(row[field]) if isinstance(row[field], str) else row[field]
+                assert list(part) == [m for m in members[part["type"]] if m in part]
+
+
+def test_members_out_of_order_fail_lint(data):
+    examples = data["media_parts"]["part_shapes"]["examples"]
+    examples[0]["part"] = '{"modality":"image","type":"blob","stripped_reason":"not_captured"}'
+    assert_flags(media_parts.lint(data["media_parts"]), "not in the order")
+
+
+def test_a_null_member_fails_lint(data):
+    examples = data["media_parts"]["part_shapes"]["examples"]
+    examples[0]["part"] = (
+        '{"type":"blob","modality":"image","byte_size":null,"stripped_reason":"not_captured"}'
+    )
+    assert_flags(media_parts.lint(data["media_parts"]), "as null")
+
+
+def test_a_mime_that_is_not_a_token_fails_lint(data):
+    examples = data["media_parts"]["part_shapes"]["examples"]
+    examples[0]["part"] = (
+        '{"type":"blob","modality":"image","mime_type":"a b","stripped_reason":"not_captured"}'
+    )
+    assert_flags(media_parts.lint(data["media_parts"]), "not a token/token MIME type")
+
+
 def test_a_wrong_golden_fails_lint(data):
     data["media_parts"]["raw_payloads"]["golden"][0]["output"] = "{}"
     errors = media_parts.lint(data["media_parts"])

@@ -36,10 +36,10 @@ usage-key table, those included, is [out/docs/usage-keys.md](../../out/docs/usag
 | <a id="llm-cost-total"></a>`llm.cost.total` | ![Development](https://img.shields.io/badge/-development-blue) | double | ignored | Usage figure written by OpenInference, left on the span: nothing reads it as usage. [1] |  |
 | <a id="llm-invocation-parameters"></a>`llm.invocation_parameters` | ![Development](https://img.shields.io/badge/-development-blue) | any | read | The request parameters an OpenInference instrumentor recorded, as one JSON object. [2] | `{"model": "gpt-4o-mini", "max_tokens": 64, "temperature": 0.2}` |
 | <a id="llm-token-count-completion"></a>`llm.token_count.completion` | ![Development](https://img.shields.io/badge/-development-blue) | int | mapped to `gen_ai.usage.output_tokens` (python, typescript, sink) | Usage count written by OpenInference; the python, typescript and sink normalizers map it to gen_ai.usage.output_tokens. |  |
-| <a id="llm-token-count-completion-details-audio"></a>`llm.token_count.completion_details.audio` | ![Development](https://img.shields.io/badge/-development-blue) | int | ignored | Usage figure written by OpenInference, left on the span: nothing reads it as usage. [3] |  |
+| <a id="llm-token-count-completion-details-audio"></a>`llm.token_count.completion_details.audio` | ![Development](https://img.shields.io/badge/-development-blue) | int | mapped to `gen_ai.usage.audio.output_tokens` (python, typescript) | Usage count written by OpenInference; the python and typescript normalizers map it to gen_ai.usage.audio.output_tokens. [3] |  |
 | <a id="llm-token-count-completion-details-reasoning"></a>`llm.token_count.completion_details.reasoning` | ![Development](https://img.shields.io/badge/-development-blue) | int | mapped to `gen_ai.usage.reasoning.output_tokens` (python, typescript, sink) | Usage count written by OpenInference; the python, typescript and sink normalizers map it to gen_ai.usage.reasoning.output_tokens. |  |
 | <a id="llm-token-count-prompt"></a>`llm.token_count.prompt` | ![Development](https://img.shields.io/badge/-development-blue) | int | mapped to `gen_ai.usage.input_tokens` (python, typescript, sink) | Usage count written by OpenInference; the python, typescript and sink normalizers map it to gen_ai.usage.input_tokens. [4] |  |
-| <a id="llm-token-count-prompt-details-audio"></a>`llm.token_count.prompt_details.audio` | ![Development](https://img.shields.io/badge/-development-blue) | int | ignored | Usage figure written by OpenInference, left on the span: nothing reads it as usage. [5] |  |
+| <a id="llm-token-count-prompt-details-audio"></a>`llm.token_count.prompt_details.audio` | ![Development](https://img.shields.io/badge/-development-blue) | int | mapped to `gen_ai.usage.audio.input_tokens` (python, typescript) | Usage count written by OpenInference; the python and typescript normalizers map it to gen_ai.usage.audio.input_tokens. [5] |  |
 | <a id="llm-token-count-prompt-details-cache-read"></a>`llm.token_count.prompt_details.cache_read` | ![Development](https://img.shields.io/badge/-development-blue) | int | mapped to `gen_ai.usage.cache_read.input_tokens` (python, typescript, sink) | Usage count written by OpenInference; the python, typescript and sink normalizers map it to gen_ai.usage.cache_read.input_tokens. |  |
 | <a id="llm-token-count-prompt-details-cache-write"></a>`llm.token_count.prompt_details.cache_write` | ![Development](https://img.shields.io/badge/-development-blue) | int | mapped to `gen_ai.usage.cache_write.input_tokens` (python, typescript, sink) | Usage count written by OpenInference; the python, typescript and sink normalizers map it to gen_ai.usage.cache_write.input_tokens. |  |
 | <a id="llm-token-count-total"></a>`llm.token_count.total` | ![Development](https://img.shields.io/badge/-development-blue) | int | ignored | Usage figure written by OpenInference, left on the span: nothing reads it as usage. [6] |  |
@@ -87,12 +87,12 @@ counts with its own table, so a producer's figure is never trusted.
 
 **[2] `llm.invocation_parameters`:** The request-parameters bag OpenInference instrumentors emit.
 
-**[3] `llm.token_count.completion_details.audio`:** No canonical key; modality splits are not priced separately.
+**[3] `llm.token_count.completion_details.audio`:** A subset of the output count, never added to it.
 
 **[4] `llm.token_count.prompt`:** Copied, never summed with the cache counts: every bundled instrumentor
 already reports it inclusive of them.
 
-**[5] `llm.token_count.prompt_details.audio`:** No canonical key; modality splits are not priced separately.
+**[5] `llm.token_count.prompt_details.audio`:** A subset of the input count, never added to it.
 
 **[6] `llm.token_count.total`:** The conventions define no total: they record input and output and leave
 the sum to the reader. The sink reads it for validation only.
