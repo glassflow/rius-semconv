@@ -41,7 +41,7 @@ def test_python_surface_normalizes_containers_and_enums():
     assert s["SET"] == {"__set__": ["a", "b"]}
     assert s["PREFIXES"] == {"__tuple__": ["a"]}
     assert s["SpanKind"] == {"__enum__": {"LLM": "LLM", "TOOL": "TOOL"}}
-    assert s["_MAP"] == {"LLM": "OtelSpanKind.CLIENT"}
+    assert s["_MAP"] == {"LLM": "CLIENT"}
     assert "helper" not in s and "Span" not in s and "annotations" not in s
 
 
@@ -113,7 +113,7 @@ def test_ts_surface_evaluates_exports_and_private_consts():
     assert s["SERVICE_VERSION"] == ("service.version", True)
     assert s["SET"] == ({"__set__": ["a", "b"]}, True)
     assert s["SpanKind"] == ({"LLM": "LLM"}, True)
-    assert s["MAP"] == ({"LLM": "OtelSpanKind.CLIENT"}, False)
+    assert s["MAP"] == ({"LLM": "CLIENT"}, False)
     assert "f" not in s
 
 
@@ -168,7 +168,7 @@ def test_cross_compare_maps_private_names_and_containers():
         "SET": ({"__set__": ["a", "b"]}, True),
         "PREFIXES": (["a"], True),
         "SpanKind": ({"LLM": "LLM", "TOOL": "TOOL"}, True),
-        "MAP": ({"LLM": "OtelSpanKind.CLIENT"}, False),
+        "MAP": ({"LLM": "CLIENT"}, False),
         "TS_ONLY": ("t", True),
     }
     diff = cross_compare(py, ts)
