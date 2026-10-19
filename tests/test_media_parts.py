@@ -27,7 +27,7 @@ def test_committed_file_is_clean(base_data):
 
 def test_every_row_has_a_source_shape_and_direction(base_data):
     rows = base_data["media_parts"]["rows"]
-    assert len(rows) == 22
+    assert len(rows) == 25
     assert {r["direction"] for r in rows} == {"input", "output"}
 
 

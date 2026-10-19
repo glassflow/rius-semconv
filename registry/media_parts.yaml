@@ -66,8 +66,8 @@ rows:
     normalized: blob
     modality: image
     paths: [passthrough, openllmetry, laminar]
-    fixtures: [openinference-openai/image_data_url]
-    note: The mime type comes from the data URL. OpenInference flattens it into the message contents, and its input.value keeps the request JSON.
+    fixtures: [openinference-openai/image_data_url, openinference-js-openai/image_data_url]
+    note: The mime type comes from the data URL. OpenInference (Python and JS) flattens it into the message contents, and its input.value keeps the request JSON.
 
   - source: openai.chat
     shape: image_url.url = http(s)://...
@@ -75,7 +75,7 @@ rows:
     normalized: uri
     modality: image
     paths: [passthrough, openllmetry, laminar]
-    fixtures: [openinference-openai/image_https_url, openllmetry/image_https_url]
+    fixtures: [openinference-openai/image_https_url, openinference-js-openai/image_https_url, openllmetry/image_https_url]
     note: OpenLLMetry before 0.62 writes the content array as a JSON string in gen_ai.prompt.N.content. From 0.62 it writes a native uri part.
 
   - source: openai.chat
@@ -84,8 +84,8 @@ rows:
     normalized: blob
     modality: audio
     paths: [passthrough, openllmetry, laminar]
-    fixtures: [openinference-openai/input_audio]
-    note: The mime type is audio/<format>. OpenInference leaves the audio out of the flattened message contents and keeps it only in the request JSON of input.value.
+    fixtures: [openinference-openai/input_audio, openinference-js-openai/input_audio]
+    note: The mime type is audio/<format>. OpenInference (Python and JS) leaves the audio out of the flattened message contents and keeps it only in the request JSON of input.value.
 
   - source: openai.chat
     shape: file {file_id}
@@ -112,8 +112,8 @@ rows:
     normalized: blob
     modality: audio
     paths: [passthrough, openllmetry, laminar]
-    fixtures: [openinference-openai/audio_output]
-    note: A text part with the transcript follows the blob. OpenInference leaves the audio out of the flattened output messages and keeps it only in the response JSON of output.value.
+    fixtures: [openinference-openai/audio_output, openinference-js-openai/audio_output]
+    note: A text part with the transcript follows the blob. OpenInference (Python and JS) leaves the audio out of the flattened output messages and keeps it only in the response JSON of output.value.
 
   - source: openai.responses
     shape: input_image {image_url | file_id}
@@ -150,8 +150,8 @@ rows:
     normalized: blob
     modality: from_mime
     paths: [passthrough, openllmetry, laminar]
-    fixtures: [openinference-anthropic/image_base64, openinference-anthropic/document_pdf]
-    note: The mime type comes from source.media_type. OpenInference flattens an image into a data URL, drops a document from the flattened messages, and keeps both in the request JSON of input.value.
+    fixtures: [openinference-anthropic/image_base64, openinference-anthropic/document_pdf, openinference-js-anthropic/image_base64, openinference-js-anthropic/document_pdf]
+    note: The mime type comes from source.media_type. OpenInference Python flattens an image into a data URL; OpenInference JS flattens it to image.media_type and image.type with no data at all. Both drop a document from the flattened messages. Both keep the base64 data only in the request JSON of input.value.
 
   - source: anthropic.messages
     shape: image / document with source.type = url
@@ -159,8 +159,8 @@ rows:
     normalized: uri
     modality: from_mime
     paths: [passthrough, openllmetry, laminar]
-    fixtures: [openinference-anthropic/image_url]
-    note: OpenInference flattens a url source into the placeholder data:None;url,None, so the URL survives only in the request JSON of input.value.
+    fixtures: [openinference-anthropic/image_url, openinference-js-anthropic/image_url]
+    note: OpenInference Python flattens a url source into the placeholder data:None;url,None; OpenInference JS flattens it to an image part with no image keys. In both the URL survives only in the request JSON of input.value.
 
   - source: anthropic.messages
     shape: image / document with source.type = file
@@ -204,8 +204,8 @@ rows:
     normalized: [blob, uri]
     modality: image
     paths: [openinference]
-    fixtures: [openinference-openai/image_data_url, openinference-openai/image_https_url, openinference-openai/image_redacted, openinference-anthropic/image_base64]
-    note: A data URL becomes a blob, an http(s) URL a uri, and __REDACTED__ a blob with stripped_reason redacted_upstream. Python and JS.
+    fixtures: [openinference-openai/image_data_url, openinference-openai/image_https_url, openinference-openai/image_redacted, openinference-anthropic/image_base64, openinference-js-openai/image_data_url, openinference-js-openai/image_https_url, openinference-js-openai/image_redacted]
+    note: A data URL becomes a blob, an http(s) URL a uri, and __REDACTED__ a blob with stripped_reason redacted_upstream. Python and JS; the JS instrumentor redacts above the same 32,000 characters.
 
   - source: vercel.ai
     shape: image / file parts in ai.prompt.messages
@@ -213,9 +213,8 @@ rows:
     normalized: [blob, uri]
     modality: from_mime
     paths: [vercel]
-    fixtures: []
-    reason: Recorded in this change.
-    note: The existing blob and uri mapping, with the modality rule. A blob is stripped. TypeScript SDK and sink.
+    fixtures: [vercel-ai-v5/image_file, vercel-ai-v5/pdf_file, vercel-ai-v5/text_plain_file, vercel-ai-v5/audio_file, vercel-ai-v6/image_file, vercel-ai-v6/pdf_file, vercel-ai-v6/text_plain_file, vercel-ai-v6/audio_file]
+    note: The existing blob and uri mapping, with the modality rule. A blob is stripped. TypeScript SDK and sink. The AI SDK writes a file part as a part of type file with mediaType and base64 data in ai.prompt.messages (the model call), whatever the media type. A PDF and a text/plain file are not images.
 
   - source: semconv.native
     shape: blob part with content
@@ -262,3 +261,30 @@ rows:
     paths: [laminar]
     fixtures: [laminar/image_base64, laminar/image_https_url]
     note: A data URL becomes a blob, an http(s) URL a uri. Written on the conversation.send_message span's input; the LLM span drops the image when the model has no vision support.
+
+  - source: vercel.ai
+    shape: file part with Buffer data in ai.prompt
+    direction: input
+    normalized: blob
+    modality: from_mime
+    paths: [vercel]
+    fixtures: [vercel-ai-v5/image_file, vercel-ai-v5/pdf_file, vercel-ai-v5/text_plain_file, vercel-ai-v5/audio_file, vercel-ai-v6/image_file, vercel-ai-v6/pdf_file, vercel-ai-v6/text_plain_file, vercel-ai-v6/audio_file]
+    note: On the operation span (ai.generateText) the prompt is JSON, and a file given as a Buffer is written as an object of type Buffer whose data is a JSON array of byte values, not base64 (a Uint8Array becomes an object keyed by index). The blob is stripped like any other, and its byte_size is the array length.
+
+  - source: vercel.ai_otel
+    shape: blob part with modality image for a non-image file, in gen_ai.input.messages
+    direction: input
+    normalized: blob
+    modality: from_mime
+    paths: [native]
+    fixtures: [vercel-ai-otel/image_file, vercel-ai-otel/pdf_file, vercel-ai-otel/text_plain_file, vercel-ai-otel/audio_file]
+    note: '@ai-sdk/otel writes every file part as a blob with base64 content and labels application/pdf and text/plain as modality image (audio/wav is labelled audio). The modality is recomputed from the mime type, so these become document blobs.'
+
+  - source: openinference.llm
+    shape: message_content.type = image with no image.url (image.media_type and image.type only, or nothing)
+    direction: input
+    normalized: blob
+    modality: image
+    paths: [openinference]
+    fixtures: [openinference-js-anthropic/image_base64, openinference-js-anthropic/image_url]
+    note: What OpenInference's JS Anthropic instrumentor writes for an image. A base64 source leaves image.media_type (the mime type) and image.type = base64 but no data; a url source leaves only message_content.type = image. The blob carries the mime type when given, no byte_size, and stripped_reason not_captured.

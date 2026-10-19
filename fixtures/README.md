@@ -236,6 +236,9 @@ Each Node family has its own `package.json` with exact pins and a committed
   nests spans through the active context (the AI SDK v5 does), as every Node
   app's provider does.
 
+`_media.mjs` holds the media payloads (image, audio, PDF), byte-identical to
+`_media.py`'s (`tests/test_media_payloads.py` compares them).
+
 `_vercel.mjs` holds the Vercel AI SDK scenarios both Vercel families share;
 each family passes in its own `ai` and `@ai-sdk/openai` modules. The rerank
 scenario is v6's alone (v5 has no rerank), against Cohere's reranking model.
