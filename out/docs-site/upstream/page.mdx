@@ -109,8 +109,8 @@ Generated from [rius-semconv](https://github.com/glassflow/rius-semconv) 1.5.0, 
 
 | Key | Type | Requirement level | Defined in | How Rius uses it |
 | -- | -- | -- | -- | -- |
-| <a id="telemetry-distro-name"></a>[`telemetry.distro.name`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/telemetry.md#telemetry-distro-name) | string | required | OpenTelemetry v1.44.0 | Planned, not emitted yet. [34] |
-| <a id="telemetry-distro-version"></a>[`telemetry.distro.version`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/telemetry.md#telemetry-distro-version) | string | required | OpenTelemetry v1.44.0 | Planned, not emitted yet. [35] |
+| <a id="telemetry-distro-name"></a>[`telemetry.distro.name`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/telemetry.md#telemetry-distro-name) | string | required | OpenTelemetry v1.44.0 | Emitted. [34] |
+| <a id="telemetry-distro-version"></a>[`telemetry.distro.version`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/telemetry.md#telemetry-distro-version) | string | required | OpenTelemetry v1.44.0 | Emitted. [35] |
 
 ## `user`
 
@@ -296,7 +296,9 @@ command or its output.
 **[29] `process.working_directory`:** The directory a coding-agent session runs in, as the agent reports it.
 The OTel process convention's key for the fact, replacing cc.cwd,
 codex.cwd and cursor.cwd. The backend shows a trace's repository from
-it, reading the old per-agent spellings for traces stored before.
+it only on spans whose telemetry.distro.name is the plugin's, since any
+process may send the key, and reads the old per-agent spellings for
+traces stored before.
 
 **[30] `service.instance.id`:** OTel standard identity of one process lifetime (one uuid per client, minted
 at init). The heartbeat payload's instance_id carries the SAME value, which
@@ -318,12 +320,16 @@ codex.version and cursor.version.
 reads first; gen_ai.conversation.id is deliberately not emitted alongside
 it, one name for one fact.
 
-**[34] `telemetry.distro.name`:** Names the distribution that exported the span. Both SDKs set it today as
-an inline literal with no semconv constant, which is why the row is
-planned rather than shipped.
+**[34] `telemetry.distro.name`:** Names the distribution that exported the span. Both SDKs set it as an
+inline literal, "glassflow-rius". The coding-agent plugin sets
+TELEMETRY_DISTRO_NAME_CODING_AGENTS, and the backend reads
+process.working_directory and vcs.ref.head.name as a coding session's
+repo and branch only on spans carrying that value: both keys are general
+OpenTelemetry keys any process may send.
 
-**[35] `telemetry.distro.version`:** The SDK version that exported the span. Inline literal in both SDKs today,
-like telemetry.distro.name.
+**[35] `telemetry.distro.version`:** The version of the distribution that exported the span: the SDK's, or the
+coding-agent plugin's. Inline literal in both SDKs, like
+telemetry.distro.name.
 
 **[36] `user.id`:** The end-user identity. OpenInference's spelling, also what Langfuse reads
 and what the OTel registry lists; the sink additionally accepts OTel's
@@ -333,5 +339,6 @@ emit one name for one fact.
 **[37] `vcs.ref.head.name`:** The git branch a coding-agent session runs on, as the agent reports it.
 The OTel VCS convention's key for the current reference, the one Claude
 Code's own telemetry uses too, replacing cc.git_branch, codex.git_branch
-and cursor.git_branch. The backend reads the old per-agent spellings for
-traces stored before.
+and cursor.git_branch. Like process.working_directory, the backend reads
+it only on spans whose telemetry.distro.name is the plugin's, and reads
+the old per-agent spellings for traces stored before.

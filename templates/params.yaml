@@ -26,6 +26,16 @@ params:
   - const: PROCESS_WORKING_DIRECTORY
   - const: VCS_REF_HEAD_NAME
   - const: TELEMETRY_DISTRO_NAME
+  - const: TELEMETRY_DISTRO_NAME_CODING_AGENTS
+    key: rius-coding-agents
+    symbol: value
+    of: TELEMETRY_DISTRO_NAME
+    shipped_in:
+    - python
+    - go
+    divergence: |
+      Only the coding-agent plugin (Python) writes it, and only the Rius
+      backend (Go) reads it. No TypeScript consumer has a use for it.
   - const: TELEMETRY_DISTRO_VERSION
   - const: GEN_AI_AGENT_NAME
   - const: GEN_AI_AGENT_ID

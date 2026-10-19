@@ -85,7 +85,7 @@ def test_python_constants(py_module):
     assert py_module["EXCEPTION_EVENT"] == "exception"
     assert py_module["RIUS_REQUEST_PREFIX"] == "rius.request."
     assert "SERVICE_NAME" not in py_module  # Go-only
-    assert "TELEMETRY_DISTRO_NAME" not in py_module  # planned
+    assert "GEN_AI_SYSTEM_INSTRUCTIONS" not in py_module  # planned
 
 
 def test_python_allowlists(py_module):
@@ -132,7 +132,7 @@ def test_python_all_lists_exactly_the_public_names(base_data):
 def test_python_include_planned_adds_planned_rows(base_data):
     reg = Registry(base_data, include_planned=True)
     surface = python_surface(generate.render(reg, ["python"])["python"])
-    assert surface["TELEMETRY_DISTRO_NAME"] == "telemetry.distro.name"
+    assert surface["GEN_AI_SYSTEM_INSTRUCTIONS"] == "gen_ai.system_instructions"
 
 
 # --- TypeScript --------------------------------------------------------------

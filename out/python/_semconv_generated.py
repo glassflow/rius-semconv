@@ -40,15 +40,32 @@ SERVICE_VERSION = "service.version"
 # The directory a coding-agent session runs in, as the agent reports it.
 # The OTel process convention's key for the fact, replacing cc.cwd,
 # codex.cwd and cursor.cwd. The backend shows a trace's repository from
-# it, reading the old per-agent spellings for traces stored before.
+# it only on spans whose telemetry.distro.name is the plugin's, since any
+# process may send the key, and reads the old per-agent spellings for
+# traces stored before.
 PROCESS_WORKING_DIRECTORY = "process.working_directory"
 
 # The git branch a coding-agent session runs on, as the agent reports it.
 # The OTel VCS convention's key for the current reference, the one Claude
 # Code's own telemetry uses too, replacing cc.git_branch, codex.git_branch
-# and cursor.git_branch. The backend reads the old per-agent spellings for
-# traces stored before.
+# and cursor.git_branch. Like process.working_directory, the backend reads
+# it only on spans whose telemetry.distro.name is the plugin's, and reads
+# the old per-agent spellings for traces stored before.
 VCS_REF_HEAD_NAME = "vcs.ref.head.name"
+
+# Names the distribution that exported the span. Both SDKs set it as an
+# inline literal, "glassflow-rius". The coding-agent plugin sets
+# TELEMETRY_DISTRO_NAME_CODING_AGENTS, and the backend reads
+# process.working_directory and vcs.ref.head.name as a coding session's
+# repo and branch only on spans carrying that value: both keys are general
+# OpenTelemetry keys any process may send.
+TELEMETRY_DISTRO_NAME = "telemetry.distro.name"
+TELEMETRY_DISTRO_NAME_CODING_AGENTS = "rius-coding-agents"
+
+# The version of the distribution that exported the span: the SDK's, or the
+# coding-agent plugin's. Inline literal in both SDKs, like
+# telemetry.distro.name.
+TELEMETRY_DISTRO_VERSION = "telemetry.distro.version"
 
 # The agent this process IS, stamped once on the resource so every span it
 # emits groups under the same name its heartbeats do. Without it the backend
@@ -1197,6 +1214,9 @@ __all__ = [
     "SERVICE_VERSION",
     "SESSION_ID",
     "SpanKind",
+    "TELEMETRY_DISTRO_NAME",
+    "TELEMETRY_DISTRO_NAME_CODING_AGENTS",
+    "TELEMETRY_DISTRO_VERSION",
     "THIRD_PARTY_CONTENT_ATTRIBUTES",
     "TRACER_NAME",
     "USER_ID",
