@@ -15,7 +15,7 @@
         "opentelemetry-sdk": "1.45.0",
         "opentelemetry-exporter-otlp-proto-http": "1.45.0"
       },
-      "note": "First recorded on Python 3.12.13; re-recorded on 3.12.9, as 3.12.13 has no macOS arm64 build. The spans' content is the same.",
+      "note": "First recorded on Python 3.12.13; re-recorded on 3.12.9, as 3.12.13 has no macOS arm64 build. The spans' content is the same. Record with a PATH that has no `python` on it (`env PATH=/usr/bin:/bin <venv>/bin/python record.py ...`): the OpenHands terminal tool records `command -v python` into the spans, so a `python` on PATH changes the existing scenarios.",
       "scenarios": {
         "agent_metadata": "chat_tool_calls with Conversation(observability_metadata={\"agent.name\": \"billing-agent\"}): every span carries lmnr.association.properties.metadata.agent.name.",
         "chat_tool_calls": "Chat-completions path: the model calls terminal, then finish. Each LLM call is an llm.openai/fake wrapper (cache counts only) with a litellm.completion child carrying the model, usage and messages.",
@@ -28,7 +28,7 @@
         "file": "lmnr-0.7.64.expected-row.json",
         "source": "sink"
       },
-      "verified": "Re-recorded 2026-10-19 twice in a row in the pinned virtualenv: byte-identical. Content (names, attributes, events, status) matches the recordings first made in the Rius backend's sink testdata; only the ids and times, now kept, and the order of event attributes, now sorted, differ. Needs a PATH with no `python` on it: the terminal tool records `command -v python`."
+      "verified": "Re-recorded 2026-10-19 twice in a row in the pinned virtualenv: byte-identical. Content (names, attributes, events, status) matches the recordings first made in the Rius backend's sink testdata; only the ids and times, now kept, and the order of event attributes, now sorted, differ."
     }
   }
 }

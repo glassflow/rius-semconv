@@ -251,6 +251,10 @@ precedes its own end.
 
 1. Make a virtualenv holding exactly the manifest's pins (Python version
    included).
+   `_recording.py` also imports `opentelemetry-exporter-otlp-proto-common`
+   (and protobuf, which it pulls in); no manifest lists it, so install it at the
+   same version as the pinned `opentelemetry-sdk`. A family's manifest `note`
+   names anything else it needs beyond the pins (extra packages, the PATH).
 2. `python record.py <family>-<version>.json <environment.json>`. The second
    file gets the Python version and package pins for the manifest.
 3. Run it twice and compare: the two outputs must be byte-identical.
