@@ -1,18 +1,21 @@
 """Proves the generated constants match what each consumer ships.
 
-    python tools/check_parity.py                     # both SDKs, vs origin/main
+    python tools/check_parity.py                     # SDKs + plugin, vs origin/main
     python tools/check_parity.py python              # a subset
     python tools/check_parity.py go --go-dir DIR     # the Rius backend
+    python tools/check_parity.py plugin              # the coding-agent plugin
     python tools/check_parity.py --fetch             # git fetch each repo first
     python tools/check_parity.py --ref HEAD          # e.g. a CI checkout of main
     python tools/check_parity.py --cross             # also diff the two SDKs
 
 Each consumer is read from a git ref (default origin/main) of a checkout, so a
 stale local branch cannot make the check pass by accident. The SDKs default to
-sibling checkouts; point elsewhere with --python-repo / --typescript-repo. The
+sibling checkouts, and so does the coding-agent plugin (rius-coding-agents);
+point elsewhere with --python-repo / --typescript-repo / --plugin-repo. The
 backend has no default location: pass --go-dir, its semconv package directory
 (the one holding semconv.go) inside a git checkout. With no consumer named,
-the check covers both SDKs, plus the backend when --go-dir is given.
+the check covers both SDKs and the plugin, plus the backend when --go-dir is
+given.
 
 What is compared, per consumer:
 
@@ -28,6 +31,9 @@ What is compared, per consumer:
               the registry does not generate must be explained in
               tools/go_reference_only.yaml (normalizer input, legacy spellings)
               or decided in registry/usage_keys.yaml (usage keys).
+  Plugin      out/python/_semconv_generated.py against its vendored copy,
+              scripts/rius_cc/_semconv_generated.py. It has no hand-written
+              module, so it must vendor: no copy at the ref fails.
 
 Once a consumer vendors the generated file (it exists at the ref), the check
 switches to comparing that file byte for byte. A consumer's sync script may
@@ -37,7 +43,10 @@ them are compared. A difference means the consumer is pinned to an older
 registry version, which is allowed, so it is a warning unless --strict. For the
 backend, when the copy is current, the constants its hand-written semconv.go
 still declares must each be classified, as above, and none may repeat a
-generated one.
+generated one. For the plugin, every name its code reads from the vendored
+module (`semconv.NAME`, or imported from it) must still be generated, even
+when the copy lags: a registry change that drops or renames one would break
+the plugin's next re-vendor, so it fails here first, regardless of --strict.
 
 Exit 0 when every requested consumer passes, 1 otherwise.
 """
@@ -45,6 +54,7 @@ Exit 0 when every requested consumer passes, 1 otherwise.
 from __future__ import annotations
 
 import argparse
+import ast
 import pathlib
 import re
 import subprocess
@@ -87,7 +97,19 @@ CONSUMERS = {
         "vendored": "semconv_generated.go",
         "generated": ROOT / "out" / "go" / "semconv_generated.go",
     },
+    # Vendors only: no hand-written module re-exports the generated one, its
+    # code imports it directly. `sources` is the tree whose Python must only
+    # read names the generated module still defines.
+    "plugin": {
+        "repo": ROOT.parent / "rius-coding-agents",
+        "reference": None,
+        "vendored": "scripts/rius_cc/_semconv_generated.py",
+        "generated": ROOT / "out" / "python" / "_semconv_generated.py",
+        "sources": "scripts",
+    },
 }
+# The generated Python module's name, as a consumer imports it.
+GENERATED_MODULE = "_semconv_generated"
 GO_GAPS = ROOT / "tools" / "go_reference_only.yaml"
 # The two comment lines a consumer's sync script puts above a vendored copy,
 # the first naming the release it came from.
@@ -197,6 +219,53 @@ def go_gaps() -> dict[str, dict]:
     return gaps
 
 
+def used_names(source: str) -> set[str]:
+    """The names a Python file reads from the generated module: attributes of
+    a name it binds the module to (`from . import _semconv_generated as
+    semconv`, then `semconv.KEY`), and names it imports from it."""
+    tree = ast.parse(source)
+    aliases: set[str] = set()
+    used: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            if (node.module or "").split(".")[-1] == GENERATED_MODULE:
+                used.update(a.name for a in node.names if a.name != "*")
+            else:
+                aliases.update(a.asname or a.name for a in node.names if a.name == GENERATED_MODULE)
+        elif isinstance(node, ast.Import):
+            aliases.update(
+                a.asname
+                for a in node.names
+                if a.asname and a.name.split(".")[-1] == GENERATED_MODULE
+            )
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Attribute)
+            and isinstance(node.value, ast.Name)
+            and node.value.id in aliases
+        ):
+            used.add(node.attr)
+    return used
+
+
+def check_plugin_usage(
+    repo: pathlib.Path, ref: str, sources: str, vendored_path: str, generated: str
+) -> bool:
+    """Every name the plugin reads from the vendored module is still generated."""
+    listed = git(repo, "ls-tree", "-r", "--name-only", ref, "--", sources).stdout.split()
+    defined = set(python_surface(generated, raw=True))
+    users: dict[str, list[str]] = {}
+    for path in listed:
+        if not path.endswith(".py") or path == vendored_path:
+            continue
+        for name in used_names(read_at(repo, ref, path) or ""):
+            users.setdefault(name, []).append(path)
+    missing = sorted(f"{name} ({', '.join(users[name])})" for name in set(users) - defined)
+    print(f"generated names the plugin reads: {len(users)}")
+    listing("MISSING (the plugin reads it, the registry no longer generates it)", missing)
+    return not missing
+
+
 def check_go(reference: str, generated: str) -> bool:
     gaps = go_gaps()
     ref, gen = go_constants(reference), go_constants(generated)
@@ -242,7 +311,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="check_parity.py")
     parser.add_argument("consumers", nargs="*", metavar="CONSUMER")
     parser.add_argument("--ref", default="origin/main", help="git ref to read (origin/main)")
-    for lang in ("python", "typescript"):
+    for lang in ("python", "typescript", "plugin"):
         parser.add_argument(f"--{lang}-repo", default=str(CONSUMERS[lang]["repo"]))
     parser.add_argument("--go-dir", help="the backend's semconv package directory, in a checkout")
     parser.add_argument("--fetch", action="store_true", help="git fetch origin in each repo first")
@@ -270,7 +339,6 @@ def main(argv: list[str] | None = None) -> int:
             ok = False
             continue
         repo, prefix = located
-        reference_path = prefix + spec["reference"]
         vendored_path = prefix + spec["vendored"]
         if args.fetch:
             git(repo, "fetch", "--quiet", "origin")
@@ -283,6 +351,10 @@ def main(argv: list[str] | None = None) -> int:
         generated = spec["generated"].read_text()
 
         vendored = read_at(repo, args.ref, vendored_path)
+        if vendored is None and spec["reference"] is None:
+            print(f"FAIL: {vendored_path} not found at {args.ref}: {lang} must vendor")
+            ok = False
+            continue
         if vendored is not None:
             tag, vendored = split_vendor_header(vendored)
             same = vendored == generated
@@ -292,15 +364,24 @@ def main(argv: list[str] | None = None) -> int:
                 print("  the consumer is pinned to another registry version (lag is allowed)")
                 ok = ok and not args.strict
             hand_written = (
-                read_at(repo, args.ref, reference_path) if lang == "go" and same else None
+                read_at(repo, args.ref, prefix + spec["reference"])
+                if lang == "go" and same
+                else None
             )
             if hand_written is not None and not check_go_hand_written(hand_written, generated):
+                print(f"{lang}: FAIL")
+                ok = False
+                continue
+            if "sources" in spec and not check_plugin_usage(
+                repo, args.ref, spec["sources"], vendored_path, generated
+            ):
                 print(f"{lang}: FAIL")
                 ok = False
                 continue
             print(f"{lang}: {'PASS' if same else 'LAGGING'}")
             continue
 
+        reference_path = prefix + spec["reference"]
         reference = read_at(repo, args.ref, reference_path)
         if reference is None:
             print(f"FAIL: {reference_path} not found at {args.ref}")
