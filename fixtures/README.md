@@ -238,6 +238,7 @@ Each Node family has its own `package.json` with exact pins and a committed
 
 `_media.mjs` holds the media payloads (image, audio, PDF), byte-identical to
 `_media.py`'s (`tests/test_media_payloads.py` compares them).
+It needs Node >= 22.2 (`zlib.crc32`).
 
 `_vercel.mjs` holds the Vercel AI SDK scenarios both Vercel families share;
 each family passes in its own `ai` and `@ai-sdk/openai` modules. The rerank

@@ -31,7 +31,7 @@
         "anthropic_tool_response": "The follow-up: tool_use and tool_result in the input, a text answer out.",
         "anthropic_error": "Anthropic answers 400. Before 0.54.0 the instrumentor re-raises without ending its span, so the scenario exports no span.",
         "traceloop_decorators": "traceloop's @workflow/@agent/@task/@tool decorators around one OpenAI call: the span-kind taxonomy.",
-        "image_base64": "OpenAI chat with text and an image_url part holding a PNG data URL.",
+        "image_base64": "OpenAI chat with text and an image_url part holding a PNG data URL. The instrumentor drops the prompt content: the span keeps gen_ai.prompt.0.role and no gen_ai.prompt.0.content, so no image reaches the span.",
         "image_https_url": "OpenAI chat with text and an image_url part holding an https URL."
       },
       "expected": {
@@ -70,7 +70,7 @@
         "anthropic_tool_response": "The follow-up: tool_use and tool_result in the input, a text answer out.",
         "anthropic_error": "Anthropic answers 400. Before 0.54.0 the instrumentor re-raises without ending its span, so the scenario exports no span.",
         "traceloop_decorators": "traceloop's @workflow/@agent/@task/@tool decorators around one OpenAI call: the span-kind taxonomy.",
-        "image_base64": "OpenAI chat with text and an image_url part holding a PNG data URL.",
+        "image_base64": "OpenAI chat with text and an image_url part holding a PNG data URL. The instrumentor drops the prompt content: the span keeps gen_ai.prompt.0.role and no gen_ai.prompt.0.content, so no image reaches the span.",
         "image_https_url": "OpenAI chat with text and an image_url part holding an https URL."
       },
       "expected": {
@@ -109,7 +109,7 @@
         "anthropic_tool_response": "The follow-up: tool_use and tool_result in the input, a text answer out.",
         "anthropic_error": "Anthropic answers 400. Before 0.54.0 the instrumentor re-raises without ending its span, so the scenario exports no span.",
         "traceloop_decorators": "traceloop's @workflow/@agent/@task/@tool decorators around one OpenAI call: the span-kind taxonomy.",
-        "image_base64": "OpenAI chat with text and an image_url part holding a PNG data URL.",
+        "image_base64": "OpenAI chat with text and an image_url part holding a PNG data URL. The instrumentor drops the prompt content: the span has no gen_ai.input.messages, so no image reaches the span.",
         "image_https_url": "OpenAI chat with text and an image_url part holding an https URL."
       },
       "expected": {

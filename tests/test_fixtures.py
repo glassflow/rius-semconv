@@ -263,7 +263,7 @@ def test_long_non_media_strings_are_not_base64(family):
     ]
     for i, value in enumerate(values):
         _first_span_attr(family / EXPECTED, f"some.attribute.{i}", value)
-    assert check_family(family) == []
+    assert _media_errors(family) == []
 
 
 def _buffer_prompt(data: list[int]) -> str:
@@ -322,3 +322,41 @@ def test_blob_in_an_event_attribute_is_caught(family):
     errors = _media_errors(family)
     assert len(errors) == 1
     assert "event gen_ai.client.inference.operation.details attribute payload" in errors[0]
+
+
+def test_anthropic_base64_source_in_input_value_is_caught(family):
+    """Rule (e): `data` under a `source` with type base64, inside a JSON string."""
+    image = {
+        "type": "image",
+        "source": {"type": "base64", "media_type": "image/png", "data": "iVBORw0KGgo="},
+    }
+    request = {"messages": [{"role": "user", "content": [image]}]}
+    _first_span_attr(family / EXPECTED, "input.value", json.dumps(request))
+    errors = _media_errors(family)
+    assert len(errors) == 1
+    assert "attribute input.value holds base64 media" in errors[0]
+
+
+def test_openai_input_audio_is_caught(family):
+    """Rule (e): `data` under the parent key input_audio."""
+    part = {"type": "input_audio", "input_audio": {"data": "UklGRg==", "format": "wav"}}
+    request = {"messages": [{"role": "user", "content": [part]}]}
+    _first_span_attr(family / EXPECTED, "input.value", json.dumps(request))
+    assert _media_errors(family)
+
+
+def test_suite_payload_prefix_in_plain_text_is_caught(family):
+    """Rule (f): the start of a payload fixtures/_media.py exports, anywhere."""
+    from fixtures import _media
+
+    prefix = _media.b64(_media.PNG_1X1)[:32]
+    _first_span_attr(family / EXPECTED, "output.value", f"the image was {prefix} and so on")
+    errors = _media_errors(family)
+    assert len(errors) == 1
+    assert "attribute output.value holds base64 media" in errors[0]
+
+
+def test_data_key_without_media_context_is_not_media(family):
+    _first_span_attr(family / EXPECTED, "input.value", json.dumps({"data": "hello"}))
+    _first_span_attr(family / EXPECTED, "output.value", json.dumps({"result": {"data": "x"}}))
+    assert _media_errors(family) == []

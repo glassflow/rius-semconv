@@ -16,9 +16,15 @@ start with "_"):
 - in a control family (manifest `"control": true`: spans an SDK already
   normalized), the expected result is the recording itself, since
   normalizing canonical spans must change nothing;
-- an expected result holds no base64 or byte-array media: no blob part with
-  content, no data: URL, no 4096-character base64 run, no non-empty
-  {"type": "Buffer", "data": [...]} byte array (recordings may);
+- an expected result holds no base64 or byte-array media (recordings may):
+  (a) no blob part with content; (b) no data: URL; (c) no 4096-character
+  base64 run; (d) no non-empty {"type": "Buffer", "data": [...]} byte array;
+  (e) no base64 string under data, b64_json or result next to a media type,
+  under input_audio, audio or inline_data, or in a base64 source; and (f) not
+  the first 32 base64 characters of any payload fixtures/_media.py exports,
+  anywhere in the file. Rules (b), (d) and (e) are read from
+  registry/media_parts.yaml raw_payloads.detection, the rules the normalizers
+  strip by;
 - no JSON file in it holds a traceback or a local path from the machine that
   recorded it.
 
@@ -31,6 +37,8 @@ Needs PyYAML, to read the registry.
 
 from __future__ import annotations
 
+import functools
+import importlib.util
 import json
 import re
 import sys
@@ -70,20 +78,58 @@ def _machine_leaks(path: Path) -> list[str]:
 BASE64_RUN = re.compile(r"[A-Za-z0-9+/=]{4096}")
 
 
-def _holds_media(value: Any) -> bool:
+#: How much of a suite payload's base64 form rule (f) looks for.
+PAYLOAD_PREFIX = 32
+
+
+@functools.cache
+def raw_payloads() -> dict:
+    """registry/media_parts.yaml raw_payloads: the detection rules (b), (d), (e)."""
+    return Registry.load().media_parts["raw_payloads"]
+
+
+@functools.cache
+def payload_prefixes() -> dict[str, str]:
+    """Rule (f): name -> the first base64 characters of each payload
+    fixtures/_media.py exports."""
+    spec = importlib.util.spec_from_file_location("_media", ROOT / "fixtures" / "_media.py")
+    assert spec is not None and spec.loader is not None
+    media = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(media)
+    payloads = {
+        "PNG_1X1": media.PNG_1X1,
+        "WAV_SILENT": media.WAV_SILENT,
+        "PDF_ONE_PAGE": media.PDF_ONE_PAGE,
+        "big_png(32000)": media.big_png(32000),
+    }
+    return {name: media.b64(data)[:PAYLOAD_PREFIX] for name, data in payloads.items()}
+
+
+def _holds_payload(text: str) -> bool:
+    return any(prefix in text for prefix in payload_prefixes().values())
+
+
+def _holds_media(value: Any, parent_key: str | None = None) -> bool:
     """Whether a value, or JSON nested in a string in it, holds base64 media."""
+    raw = raw_payloads()
     if isinstance(value, dict):
-        if value.get("type") == "blob" and "content" in value:
+        if value.get("type") == "blob" and "content" in value:  # (a)
             return True
-        if value.get("type") == "Buffer" and isinstance(value.get("data"), list) and value["data"]:
+        if media_parts.is_buffer(raw, value):  # (d)
             return True
-        return any(_holds_media(v) for v in value.values())
+        if media_parts.keyed_base64(raw, value, parent_key):  # (e)
+            return True
+        return any(_holds_media(v, k) for k, v in value.items())
     if isinstance(value, list):
-        return any(_holds_media(v) for v in value)
+        return any(_holds_media(v, parent_key) for v in value)
     if isinstance(value, str):
-        if "data:" in value and ";base64," in value.split("data:", 1)[1]:
+        if media_parts.is_data_url(raw, value):  # (b)
             return True
-        if BASE64_RUN.search(value):
+        if "data:" in value and ";base64," in value.split("data:", 1)[1]:  # (b), inside text
+            return True
+        if BASE64_RUN.search(value):  # (c)
+            return True
+        if _holds_payload(value):  # (f)
             return True
         if value.lstrip()[:1] in ("{", "["):
             try:
@@ -161,8 +207,11 @@ def check_family(family: Path) -> list[str]:
 
     for path in sorted(family.glob("*.expected*.json")):
         if path.name.endswith((EXPECTED_SUFFIX, ROWS_SUFFIX)):
-            for leak in _media_leaks(path):
+            leaks = _media_leaks(path)
+            for leak in leaks:
                 errors.append(f"{label}/{path.name}: {leak} holds base64 media")
+            if not leaks and _holds_payload(path.read_text()):  # (f), outside any attribute
+                errors.append(f"{label}/{path.name}: holds base64 media from fixtures/_media.py")
 
     listed = manifest.get("recordings", {})
     on_disk = {p.name for p in recording_files(family)}
