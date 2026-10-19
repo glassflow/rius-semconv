@@ -166,9 +166,12 @@ def lint_raw_payloads(raw: Any) -> list[str]:
                 errors.append(f"{where} detection rule {rule_id} needs {field}")
     if rules.get("b", {}).get("pattern"):
         try:
-            re.compile(rules["b"]["pattern"])
+            groups = re.compile(rules["b"]["pattern"]).groups
         except re.error as exc:
             errors.append(f"{where} detection rule b pattern does not compile ({exc})")
+        else:
+            if groups != 2:
+                errors.append(f"{where} detection rule b pattern needs 2 groups (mime, base64)")
     return errors
 
 
@@ -204,9 +207,38 @@ def _rules(raw: dict) -> dict[str, dict]:
     return {str(rule["id"]): rule for rule in raw["detection"]}
 
 
+@dataclass(frozen=True)
+class Span:
+    """A data URL token inside a string: its boundaries, mime type and size."""
+
+    start: int
+    end: int
+    mime: str | None
+    byte_size: int
+
+
+def data_url_spans(raw: dict, value: str) -> list[Span]:
+    """Rule b: every data URL token in a string, wherever it sits."""
+    spans = []
+    for match in re.finditer(_rules(raw)["b"]["pattern"], value):
+        run = match.group(2).rstrip("=")
+        spans.append(Span(match.start(), match.end(), match.group(1) or None, len(run) * 3 // 4))
+    return spans
+
+
 def is_data_url(raw: dict, value: str) -> bool:
-    """Rule b."""
-    return re.search(_rules(raw)["b"]["pattern"], value) is not None
+    """Rule b: the string holds a data URL token."""
+    return bool(data_url_spans(raw, value))
+
+
+def strip_data_urls(raw: dict, value: str) -> str:
+    """Rule b's replacement: each data URL token replaced in place, the text
+    around it untouched."""
+    out, last = [], 0
+    for span in data_url_spans(raw, value):
+        out += [value[last : span.start], replacement(raw, span.mime, span.byte_size)]
+        last = span.end
+    return "".join([*out, value[last:]])
 
 
 def is_buffer(raw: dict, value: dict) -> bool:
@@ -248,14 +280,16 @@ def media_tokens(
         for i, child in enumerate(value):
             yield from media_tokens(raw, child, parent_key, (*path, i))
     elif isinstance(value, str):
-        if is_data_url(raw, value):
-            yield Token("b", path)
-        elif value.lstrip()[:1] in ("{", "["):
+        if value.lstrip()[:1] in ("{", "["):
             try:
                 parsed = json.loads(value)
             except ValueError:
+                pass
+            else:
+                yield from media_tokens(raw, parsed, None, path)
                 return
-            yield from media_tokens(raw, parsed, None, path)
+        for span in data_url_spans(raw, value):
+            yield Token("b", (*path, (span.start, span.end)))
 
 
 # --- the fixtures ------------------------------------------------------------
@@ -339,6 +373,15 @@ def _render_raw_payloads(raw: dict) -> list[str]:
         + ", ".join(f'`"{e}"`' for e in replacement_.get("examples") or [])
         + ".",
         "",
+    ]
+    if replacement_.get("in_text"):
+        lines += [
+            "A data URL inside other text: only the token is replaced, so "
+            f"`{replacement_['in_text']['before']}` becomes "
+            f"`{replacement_['in_text']['after']}`.",
+            "",
+        ]
+    lines += [
         "| Token | Replaced | Mime | Byte size |",
         "| -- | -- | -- | -- |",
     ]

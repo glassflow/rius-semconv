@@ -113,17 +113,26 @@ raw_payloads:
     # Written as a JSON string token, quotes included.
     format: '[stripped <mime> <byte_size> bytes]'
     unknown: unknown
+    # The mime type, by token: a data URL's own media type (unknown when
+    # empty); for a keyed base64 string, the sibling media_type, mediaType
+    # or mime_type, else audio/<format> from a format sibling; for a Buffer,
+    # the enclosing object's media_type, mediaType or mime_type. Anything
+    # else is unknown.
     examples:
       - '[stripped image/png 67 bytes]'
       - '[stripped unknown unknown bytes]'
+    # A data URL inside prose: only the token is replaced.
+    in_text:
+      before: 'see data:image/png;base64,iVBORw0KGgo= here'
+      after: 'see [stripped image/png 8 bytes] here'
     tokens:
-      - token: A data URL (rule b)
-        replaced: The whole URL string token.
-        mime: The URL's media type.
-        byte_size: The decoded length of the base64 data.
+      - token: A data URL (rule b), anywhere in a string
+        replaced: 'The data URL token alone: from data: to the end of the base64 run, in place, inside the string. The text around it stays byte-identical; a string that is only the data URL becomes the replacement string.'
+        mime: The URL's media type; unknown when it names none.
+        byte_size: The decoded length of the base64 run, floor(3 * characters without padding / 4).
       - token: A base64 string value (rule e)
         replaced: The string token.
-        mime: The sibling media_type, mediaType or mime_type; audio/<format> for a format sibling; else unknown.
+        mime: The sibling media_type, mediaType or mime_type; else audio/<format> from a format sibling; else unknown.
         byte_size: The decoded length of the base64 data.
       - token: A Buffer object (rule d)
         replaced: The whole object token, by the string.
@@ -132,8 +141,8 @@ raw_payloads:
   detection:
     - id: b
       name: data URL
-      description: A string that is a data:<mime>;base64,... URL.
-      pattern: '^data:[^;,]*;base64,'
+      description: 'A data:<mime>;base64,<base64> token anywhere in a string: the pattern finds each one, group 1 the mime type (empty when none), group 2 the base64 run. A whole-string data URL is the special case.'
+      pattern: 'data:([^;,\s"]*);base64,([A-Za-z0-9+/]*={0,2})'
     - id: d
       name: Buffer object
       description: 'An object {"type": "Buffer", "data": [...]} whose data is a non-empty array.'

@@ -415,3 +415,49 @@ def test_shape_cell_is_code(base_data):
 def test_detection_rules(base_data, value, rules):
     raw = base_data["media_parts"]["raw_payloads"]
     assert {t.rule for t in media_parts.media_tokens(raw, value)} == rules
+
+
+# --- rule (b): a data URL token anywhere in a string -------------------------
+
+
+def test_data_url_in_prose_is_a_token(base_data):
+    raw = base_data["media_parts"]["raw_payloads"]
+    url = "data:image/png;base64,iVBORw0KGgo="
+    text = f"look at {url} please"
+    (span,) = media_parts.data_url_spans(raw, text)
+    assert text[span.start : span.end] == url
+    assert span.mime == "image/png"
+    assert {t.rule for t in media_parts.media_tokens(raw, text)} == {"b"}
+
+
+def test_data_url_replacement_leaves_the_prose_intact(base_data):
+    raw = base_data["media_parts"]["raw_payloads"]
+    text = 'see "data:audio/wav;base64,UklGRg==", then data:;base64,AAAA.'
+    assert media_parts.strip_data_urls(raw, text) == (
+        'see "[stripped audio/wav 4 bytes]", then [stripped unknown 3 bytes].'
+    )
+
+
+def test_whole_string_data_url_is_the_special_case(base_data):
+    raw = base_data["media_parts"]["raw_payloads"]
+    assert (
+        media_parts.strip_data_urls(raw, "data:image/png;base64,iVBORw0KGgo=")
+        == "[stripped image/png 8 bytes]"
+    )
+
+
+def test_a_url_data_url_is_not_a_token(base_data):
+    raw = base_data["media_parts"]["raw_payloads"]
+    assert media_parts.data_url_spans(raw, "data:None;url,None") == []
+
+
+def test_data_url_pattern_needs_its_two_groups(data):
+    (rule,) = [r for r in data["media_parts"]["raw_payloads"]["detection"] if r["id"] == "b"]
+    rule["pattern"] = "data:[^;]*;base64,"
+    assert_flags(media_parts.lint(data["media_parts"]), "pattern needs 2 groups")
+
+
+def test_in_text_example_is_what_the_rule_does(base_data):
+    raw = base_data["media_parts"]["raw_payloads"]
+    example = raw["replacement"]["in_text"]
+    assert media_parts.strip_data_urls(raw, example["before"]) == example["after"]

@@ -123,9 +123,7 @@ def _holds_media(value: Any, parent_key: str | None = None) -> bool:
     if isinstance(value, list):
         return any(_holds_media(v, parent_key) for v in value)
     if isinstance(value, str):
-        if media_parts.is_data_url(raw, value):  # (b)
-            return True
-        if "data:" in value and ";base64," in value.split("data:", 1)[1]:  # (b), inside text
+        if media_parts.is_data_url(raw, value):  # (b), anywhere in the string
             return True
         if BASE64_RUN.search(value):  # (c)
             return True

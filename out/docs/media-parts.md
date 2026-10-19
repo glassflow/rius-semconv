@@ -26,10 +26,12 @@ Raw payloads, never mined for parts: `input.value`, `output.value`, `lmnr.span.i
 
 **Replacement.** The JSON string `"[stripped <mime> <byte_size> bytes]"`, with `unknown` for a mime type or size that is not known: `"[stripped image/png 67 bytes]"`, `"[stripped unknown unknown bytes]"`.
 
+A data URL inside other text: only the token is replaced, so `see data:image/png;base64,iVBORw0KGgo= here` becomes `see [stripped image/png 8 bytes] here`.
+
 | Token | Replaced | Mime | Byte size |
 | -- | -- | -- | -- |
-| A data URL (rule b) | The whole URL string token. | The URL's media type. | The decoded length of the base64 data. |
-| A base64 string value (rule e) | The string token. | The sibling media_type, mediaType or mime_type; audio/&lt;format&gt; for a format sibling; else unknown. | The decoded length of the base64 data. |
+| A data URL (rule b), anywhere in a string | The data URL token alone: from data: to the end of the base64 run, in place, inside the string. The text around it stays byte-identical; a string that is only the data URL becomes the replacement string. | The URL's media type; unknown when it names none. | The decoded length of the base64 run, floor(3 \* characters without padding / 4). |
+| A base64 string value (rule e) | The string token. | The sibling media_type, mediaType or mime_type; else audio/&lt;format&gt; from a format sibling; else unknown. | The decoded length of the base64 data. |
 | A Buffer object (rule d) | The whole object token, by the string. | The enclosing object's media_type, mediaType or mime_type; else unknown. | The length of the data array. |
 
 **Detection rules.** The normalizers strip, and tools/check_fixtures.py refuses
@@ -37,7 +39,7 @@ in an expected result, every token these find (in a string holding JSON too):
 
 | Rule | Name | Matches | Parameters |
 | -- | -- | -- | -- |
-| (b) | data URL | A string that is a data:&lt;mime&gt;;base64,... URL. | pattern: `^data:[^;,]*;base64,` |
+| (b) | data URL | A data:&lt;mime&gt;;base64,&lt;base64&gt; token anywhere in a string: the pattern finds each one, group 1 the mime type (empty when none), group 2 the base64 run. A whole-string data URL is the special case. | pattern: `data:([^;,\s"]*);base64,([A-Za-z0-9+/]*={0,2})` |
 | (d) | Buffer object | An object {"type": "Buffer", "data": [...]} whose data is a non-empty array. | type: `Buffer`; array_key: `data` |
 | (e) | keyed base64 string | A non-empty string under one of the keys, when its object has one of the sibling keys, or its object's parent key is one of the parent keys, or its object is a source with type base64. | keys: `data`, `b64_json`, `result`; sibling_keys: `media_type`, `mediaType`, `mime_type`, `format`; parent_keys: `input_audio`, `audio`, `inline_data`; source_key: `source`; source_type: `base64` |
 
