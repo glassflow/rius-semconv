@@ -220,9 +220,9 @@ attributes:
     type: string
     fill: [native, coding_agents]
     rationale: |
-      Names the distribution that exported the span. Both SDKs set it as an
-      inline literal, "glassflow-rius". The coding-agent plugin sets
-      TELEMETRY_DISTRO_NAME_CODING_AGENTS, and the backend reads
+      Names the distribution that exported the span. Both SDKs set it to
+      "glassflow-rius", a literal with no value row. The coding-agent plugin
+      sets TELEMETRY_DISTRO_NAME_CODING_AGENTS, and the backend reads
       process.working_directory and vcs.ref.head.name as a coding session's
       repo and branch only on spans carrying that value: both keys are general
       OpenTelemetry keys any process may send.
@@ -244,8 +244,7 @@ attributes:
     fill: [native, coding_agents]
     rationale: |
       The version of the distribution that exported the span: the SDK's, or the
-      coding-agent plugin's. Inline literal in both SDKs, like
-      telemetry.distro.name.
+      coding-agent plugin's.
 
   - const: GEN_AI_AGENT_NAME
     key: gen_ai.agent.name

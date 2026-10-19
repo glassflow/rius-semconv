@@ -28,17 +28,16 @@ export const SERVICE_INSTANCE_ID = "service.instance.id";
 // codex.version and cursor.version.
 export const SERVICE_VERSION = ATTR_SERVICE_VERSION;
 
-// Names the distribution that exported the span. Both SDKs set it as an
-// inline literal, "glassflow-rius". The coding-agent plugin sets
-// TELEMETRY_DISTRO_NAME_CODING_AGENTS, and the backend reads
+// Names the distribution that exported the span. Both SDKs set it to
+// "glassflow-rius", a literal with no value row. The coding-agent plugin
+// sets TELEMETRY_DISTRO_NAME_CODING_AGENTS, and the backend reads
 // process.working_directory and vcs.ref.head.name as a coding session's
 // repo and branch only on spans carrying that value: both keys are general
 // OpenTelemetry keys any process may send.
 export const TELEMETRY_DISTRO_NAME = "telemetry.distro.name";
 
 // The version of the distribution that exported the span: the SDK's, or the
-// coding-agent plugin's. Inline literal in both SDKs, like
-// telemetry.distro.name.
+// coding-agent plugin's.
 export const TELEMETRY_DISTRO_VERSION = "telemetry.distro.version";
 
 // The agent this process IS, stamped once on the resource so every span it
