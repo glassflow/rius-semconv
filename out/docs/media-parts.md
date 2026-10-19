@@ -32,13 +32,13 @@ Raw payloads, never mined for parts: `input.value`, `output.value`, `lmnr.span.i
 
 **Precedence.** Values are visited in document order. At each value rule (d) is tried, then (e), then (b), and the first that matches wins. A value inside a replaced token is never visited: once (e) replaces a string, (b) does not look inside it, and nothing inside a replaced Buffer object is looked at. An array element inherits the parent key of its array, so `{"audio":[{"data":"..."}]}` matches (e) through the parent key audio; in the same way, the enclosing object rule (d) takes its mime type from is the nearest object holding the Buffer, directly or through arrays.
 
-**Idempotence.** Every implementation follows this rule: a string that is already a complete replacement, `[stripped <mime> <byte_size> bytes]` whose mime is unknown or matches mime_pattern in full (exactly the mimes a replacement can hold) and whose byte_size is ASCII digits or unknown, is never stripped again, by rule (e) or rule (b). So strip(strip(x)) is strip(x) for every x: the sink re-strips what an SDK already stripped and gets the same bytes. A string that only looks like one is still a token: `[stripped image/png lots bytes]`, or `[stripped a b 3 bytes]` (rule e), or `[stripped data:image/png;base64,... 1 bytes]`, whose data URL rule (b) replaces.
+**Idempotence.** Every implementation follows this rule: a string that is already a complete replacement, `[stripped <mime> <byte_size> bytes]` whose mime is unknown or matches mime_pattern in full (exactly the mimes a replacement can hold) and whose byte_size is ASCII digits or unknown, is never stripped again, by rule (e) or rule (b). Nor is a complete replacement ever context for rule (e): as the value of a sibling (a mime key, format or output_format) it counts neither for whether rule (e) fires nor for the mime type it chooses. So a Buffer that rule (d) turned into a replacement in one pass (`{"mediaType": {"type":"Buffer","data":[1]},"data":"QUFB"}`) makes no token of its siblings in the next. With both, strip(strip(x)) is strip(x) for every x: the sink re-strips what an SDK already stripped and gets the same bytes. A string that only looks like one is still a token: `[stripped image/png lots bytes]`, or `[stripped a b 3 bytes]` (rule e), or `[stripped data:image/png;base64,... 1 bytes]`, whose data URL rule (b) replaces.
 
 **Spans.** Every span is on the original text; nothing is re-serialized. (d) The object token, from its `{` to its matching `}`, is replaced by the replacement as a JSON string literal, quotes included. (e) The string literal, quotes included, is replaced by the replacement as a JSON string literal, quotes included. (b) In a JSON string, only the URL's characters are replaced: the replacement goes inside the existing quotes, with no quotes added. (b) In a string that is not JSON (or did not parse), the URL's characters are replaced by the replacement, with no quotes. Rules (b) and (e) read a JSON string's unescaped value, so a span starts at the first raw character of its first character and ends after the last raw character of its last, escapes included (`data:image\/png` is read as `data:image/png`). Text written into a JSON string is escaped for its level with the minimal escapes JSON.stringify writes, and no others: `\"` for a quote, `\\` for a backslash, `\b` `\f` `\n` `\r` `\t`, `\u00xx` (lowercase hex) for any other control character, `\udxxx` for a lone surrogate. In a JSON string nested in a JSON string, the inner replacement is escaped once per level, and every byte outside the replaced tokens is kept as it was, including escapes the re-encoder would not write (`\u0022`, `\/`).
 
 **Byte size.** Rule (e) computes it on the string's unescaped value, and rule (b) on its base64 run, the same way. Remove space, tab, newline and carriage return. When what is left is not valid base64, byte_size is unknown. Valid means: every character before the padding is from one alphabet, `A-Z a-z 0-9 + /` or `A-Z a-z 0-9 - _` (never `+` or `/` together with `-` or `_`); the padding is at most two `=`, only at the end; and the length, padding counted, is a multiple of 4 (so unpadded base64 is not valid). For valid base64, byte_size is length times 3 / 4, minus the number of `=`. Rule (d) takes the length of its data array.
 
-**Members.** Every member of an object is visited, in document order, duplicate keys included. A condition on a key holds when any member with that key meets it (a type equal to Buffer, blob or base64, a non-empty data array, a sibling), and a value read from a key (a mime type, a format, a Buffer's data array) is that of the first member with that key, in document order, that qualifies. Rule (e) applies to each member under one of its keys that qualifies, duplicates included, all with the context and mime type computed from all the siblings: `{"mediaType":"image/png","data":"QUFB","data":"QkJC"}` strips both data values. A sibling counts as context only when its value is a non-empty string, the same rule as mime selection. `format` is not a sibling key: it counts only under the parent key input_audio or audio (which is context already), where it names audio/&lt;format&gt;, and elsewhere a format sibling is ignored; output_format counts anywhere. The mime type is chosen by the order of the mime key list, not by document order: the first mime key in list order whose value is a non-empty valid mime (see replacement) wins; else the first mime format, in order, whose sibling is a non-empty string and whose mime is valid; else unknown. When a rule (e) key holds an array directly, each string element is its own token (when it is non-empty and not already a complete replacement), with the same context and mime type; any other element is visited as usual, with that key as its parent key.
+**Members.** Every member of an object is visited, in document order, duplicate keys included. A condition on a key holds when any member with that key meets it (a type equal to Buffer, blob or base64, a non-empty data array, a sibling), and a value read from a key (a mime type, a format, a Buffer's data array) is that of the first member with that key, in document order, that qualifies. Rule (e) applies to each member under one of its keys that qualifies, duplicates included, all with the context and mime type computed from all the siblings: `{"mediaType":"image/png","data":"QUFB","data":"QkJC"}` strips both data values. A sibling counts as context only when its value is a non-empty string that is not a complete replacement (see idempotence), the same rule as mime selection. `format` is not a sibling key: it counts only under the parent key input_audio or audio (which is context already), where it names audio/&lt;format&gt;, and elsewhere a format sibling is ignored; output_format counts anywhere. The mime type is chosen by the order of the mime key list, not by document order: the first mime key in list order whose value is a non-empty valid mime (see replacement) wins; else the first mime format, in order, whose sibling is a non-empty string, not a complete replacement, and whose mime is valid; else unknown. When a rule (e) key holds an array directly, each string element is its own token (when it is non-empty and not already a complete replacement), with the same context and mime type; any other element is visited as usual, with that key as its parent key.
 
 **Regex dialect.** The pattern of rule (b) and the replacement's mime_pattern use only constructs Python re, JavaScript RegExp and Go RE2 read the same way: literal characters, character classes with explicit ASCII members and ranges, the escapes `\t` `\n` `\f` `\r`, capturing groups, and the quantifiers `*`, `+` and `{m,n}`. No `\s`, `\d`, `\w`, `\b`, lookaround, backreference, non-capturing group or inline flag: the case-insensitive scheme is written `[dD][aA][tT][aA]:`, and the repeated RFC 2397 parameter is a capturing group. Neither the mime class nor the parameter class holds `;` or `:`. RFC 2045 lists `:` as a tspecial, so it cannot appear in an unquoted mime type or parameter token, and excluding it keeps the search linear: an attempt starts only at a `data:` and never reads past the next `:` (the one in the next `data:`), so no stretch of text is read by more than two attempts, and inside an attempt the text splits into mime and parameters in exactly one way, so backtracking gives back each character at most once. Rule (b) finds matches left to right without overlap (Python finditer, JavaScript matchAll, Go FindAllStringSubmatchIndex). mime_pattern must match the whole value: Python re.fullmatch, or `^` and `$` around it in JavaScript and Go (where, without the m flag, `$` is the end of the text; in Python `$` also matches before a final newline, so use fullmatch).
 
@@ -63,7 +63,7 @@ in an expected result, every token these find (in a string holding JSON too):
 | -- | -- | -- | -- |
 | (b) | data URL | A data:&lt;mime&gt;[;&lt;parameter&gt;]\*;base64,&lt;base64&gt; token anywhere in a string, the scheme in any case (DATA:, Data:) and RFC 2397 parameters allowed before ;base64, (data:image/png;name=a.png;base64,...). The pattern finds each one: group 1 the mime type (empty when none), group 2 the last parameter (unused), group 3 the base64 run (standard or URL-safe). A whole-string data URL is the special case. | pattern: `[dD][aA][tT][aA]:([^;,:\t\n\f\r "]*)(;[^;,:\t\n\f\r "]*)*;base64,([A-Za-z0-9+/_-]*={0,2})` |
 | (d) | Buffer object | An object {"type": "Buffer", "data": [...]} whose data is a non-empty array. | type: `Buffer`; array_key: `data`; mime_keys: `media_type`, `mediaType`, `mime_type`, `mimeType` |
-| (e) | keyed base64 string | A non-empty string (or each string of an array) under one of the keys, when its object has one of the sibling keys with a non-empty string value, or its object's parent key is one of the parent keys, or its object is the value of a source key and has type base64 (the Anthropic {"source":{"type":"base64","media_type":...,"data":...}}: the object holding data is the source itself, not the content block around it); and a non-empty string under content when its object has type blob (the semconv blob part, as in a raw payload like pydantic_ai.all_messages: the raw-payload twin of the check's rule (a)). Never a string that is already a complete replacement (see idempotence). See members for duplicate keys, siblings and arrays. | keys: `data`, `b64_json`, `result`; sibling_keys: `media_type`, `mediaType`, `mime_type`, `mimeType`, `output_format`; parent_keys: `input_audio`, `audio`, `inline_data`, `inlineData`; source_key: `source`; source_type: `base64`; blob_type: `blob`; blob_key: `content`; mime_keys: `media_type`, `mediaType`, `mime_type`, `mimeType`; mime_formats: `output_format` gives `image/<value>`, `format` gives `audio/<value>` under `input_audio`, `audio` |
+| (e) | keyed base64 string | A non-empty string (or each string of an array) under one of the keys, when its object has one of the sibling keys with a non-empty string value that is not a complete replacement, or its object's parent key is one of the parent keys, or its object is the value of a source key and has type base64 (the Anthropic {"source":{"type":"base64","media_type":...,"data":...}}: the object holding data is the source itself, not the content block around it); and a non-empty string under content when its object has type blob (the semconv blob part, as in a raw payload like pydantic_ai.all_messages: the raw-payload twin of the check's rule (a)). Never a string that is already a complete replacement (see idempotence). See members for duplicate keys, siblings and arrays. | keys: `data`, `b64_json`, `result`; sibling_keys: `media_type`, `mediaType`, `mime_type`, `mimeType`, `output_format`; parent_keys: `input_audio`, `audio`, `inline_data`, `inlineData`; source_key: `source`; source_type: `base64`; blob_type: `blob`; blob_key: `content`; mime_keys: `media_type`, `mediaType`, `mime_type`, `mimeType`; mime_formats: `output_format` gives `image/<value>`, `format` gives `audio/<value>` under `input_audio`, `audio` |
 
 ### Golden examples
 
@@ -649,6 +649,42 @@ Output:
 ```
 
 Tokens: (d) unknown, 2 bytes.
+
+#### `a_replaced_buffer_is_not_context`
+
+Rule (d) replaces the Buffer under mediaType, and a complete replacement is never context, so data is no token: this output is final, and a second pass changes nothing. (tools/check_fixtures.py still flags {"mediaType":{"type":"Buffer",...}} before the strip.)
+
+Input:
+
+```text
+{"mediaType":{"type":"Buffer","data":[1]},"data":"QUFB"}
+```
+
+Output:
+
+```text
+{"mediaType":"[stripped unknown 1 bytes]","data":"QUFB"}
+```
+
+Tokens: (d) unknown, 1 bytes.
+
+#### `a_replaced_buffer_next_to_a_replacement_lookalike`
+
+The Buffer gives no context, so data is no rule (e) token; it is not a complete replacement either (its mime is a data URL), so rule (b) replaces the data URL inside it. The output is stable on a second pass.
+
+Input:
+
+```text
+{"mediaType":{"type":"Buffer","data":[1]},"data":"[stripped data:image/png;base64,QUFB 1 bytes]"}
+```
+
+Output:
+
+```text
+{"mediaType":"[stripped unknown 1 bytes]","data":"[stripped [stripped image/png 3 bytes] 1 bytes]"}
+```
+
+Tokens: (d) unknown, 1 bytes, (b) image/png, 3 bytes.
 
 #### `a_sibling_mime_that_is_not_a_token_is_unknown`
 

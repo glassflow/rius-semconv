@@ -399,7 +399,7 @@ def _mime_key(raw: dict, rule: dict, obj: dict | Members) -> str | None:
     """The first mime key, in the rule's list order, with a valid mime value."""
     members = _members(obj)
     for key in rule["mime_keys"]:
-        mime = _first(members, key, lambda v: is_mime(raw, v))
+        mime = _first(members, key, lambda v: _sibling_string(raw, v) and is_mime(raw, v))
         if mime is not None:
             return mime
     return None
@@ -436,6 +436,13 @@ def is_replacement(raw: dict, value: str) -> bool:
     return bool(sep) and (mime == unknown or is_mime(raw, mime)) and (digits or size == unknown)
 
 
+def _sibling_string(raw: dict, value: Any) -> bool:
+    """A sibling value rule e reads (a mime key, format, output_format): a
+    non-empty string that is not a complete replacement. A replacement is never
+    context, so a Buffer rule d replaced in one pass makes no token in the next."""
+    return _non_empty_string(value) and not is_replacement(raw, value)
+
+
 def _keyed_string(raw: dict, value: Any) -> bool:
     """A string rule e replaces: non-empty, and not already a replacement (so
     stripping twice changes nothing)."""
@@ -446,11 +453,12 @@ def keyed_base64(raw: dict, value: dict | Members, parent_key: str | None) -> li
     """Rule e: the positions of the members of `value` that hold base64 media,
     duplicates included: a keyed string, or an array holding one directly.
     Every member counts for the context: a sibling key with a non-empty string
-    value, the parent key, or a base64 source."""
+    value that is not a complete replacement, the parent key, or a base64
+    source."""
     rule = _rules(raw)["e"]
     members = _members(value)
     context = (
-        any(k in rule["sibling_keys"] and _non_empty_string(v) for k, v in members)
+        any(k in rule["sibling_keys"] and _sibling_string(raw, v) for k, v in members)
         or parent_key in rule["parent_keys"]
         or (
             parent_key == rule["source_key"]
@@ -473,8 +481,9 @@ def keyed_base64(raw: dict, value: dict | Members, parent_key: str | None) -> li
 
 def keyed_mime(raw: dict, value: dict | Members, parent_key: str | None) -> str | None:
     """Rule e's mime type: the first mime key with a valid mime, else the first
-    mime_formats entry whose sibling is a non-empty string (and whose parent
-    keys, if any, include the parent) and whose mime is valid."""
+    mime_formats entry whose sibling is a non-empty string and not a complete
+    replacement (and whose parent keys, if any, include the parent) and whose
+    mime is valid."""
     rule = _rules(raw)["e"]
     members = _members(value)
     mime = _mime_key(raw, rule, members)
@@ -483,7 +492,7 @@ def keyed_mime(raw: dict, value: dict | Members, parent_key: str | None) -> str 
     for entry in rule["mime_formats"]:
         if "parent_keys" in entry and parent_key not in entry["parent_keys"]:
             continue
-        sibling = _first(members, entry["key"], _non_empty_string)
+        sibling = _first(members, entry["key"], lambda v: _sibling_string(raw, v))
         if sibling is None:
             continue
         mime = str(entry["mime"]).replace("<value>", sibling)

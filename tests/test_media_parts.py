@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import copy
 import json
+import random
 import re
 import time
 
@@ -577,6 +578,53 @@ def test_golden(base_data, golden):
 def test_stripping_is_idempotent(base_data, golden):
     raw = base_data["media_parts"]["raw_payloads"]
     assert media_parts.strip(raw, golden["output"]) == media_parts.Stripped(golden["output"], [])
+
+
+#: What the random documents are made of: every key the rules read, values
+#: that are or look like replacements, data URLs and base64.
+FUZZ_KEYS = [
+    "data", "content", "type", "mediaType", "mime_type", "media_type", "format",
+    "output_format", "source", "audio", "input_audio", "inlineData", "b64_json", "result", "x",
+]  # fmt: skip
+FUZZ_STRINGS = [
+    "QUFB", "iVBORw0KGgo=", "", "hi", "image/png", "wav", "png", "base64", "blob", "Buffer",
+    "data:image/png;base64,QUFB", "DATA:a/b;x=1;base64,QQ==", "x data:a;b;base64,QQ== y",
+    "data:", "data:a;", "[stripped image/png 3 bytes]", "[stripped unknown unknown bytes]",
+    "[stripped a b 3 bytes]", "[stripped data:image/png;base64,QUFB 1 bytes]",
+    "[stripped image/png lots bytes]", "[stripped [stripped image/png 3 bytes] 1 bytes]",
+]  # fmt: skip
+FUZZ_CASES = 6_000
+
+
+def _fuzz_value(rng: random.Random, depth: int = 0):
+    roll = rng.random()
+    if depth > 4 or roll < 0.35:
+        return rng.choice([*FUZZ_STRINGS, 1, None, True])
+    if roll < 0.45:
+        return json.dumps(_fuzz_value(rng, depth + 1))  # a nested document
+    if roll < 0.55:
+        return {"type": "Buffer", "data": rng.choice([[1], [1, 2, 3], []])}
+    if roll < 0.7:
+        return [_fuzz_value(rng, depth + 1) for _ in range(rng.randint(0, 3))]
+    obj = {rng.choice(FUZZ_KEYS): _fuzz_value(rng, depth + 1) for _ in range(rng.randint(0, 4))}
+    if rng.random() < 0.3:
+        obj["type"] = rng.choice(["blob", "Buffer", "base64"])
+    return obj
+
+
+def test_stripping_twice_is_stripping_once_on_random_documents(base_data):
+    """Seeded: structured documents mixing Buffers, mime keys, format and data
+    URLs, compact and spaced, at the top level and as a JSON string inside."""
+    raw = base_data["media_parts"]["raw_payloads"]
+    rng = random.Random(1505)
+    failures = []
+    for _ in range(FUZZ_CASES):
+        separators = rng.choice([(",", ":"), (", ", ": ")])
+        text = json.dumps(_fuzz_value(rng), separators=separators)
+        once = media_parts.strip_raw_payload(raw, text)
+        if media_parts.strip_raw_payload(raw, once) != once:
+            failures.append(text)
+    assert failures == [], f"{len(failures)} not idempotent, first: {failures[0]}"
 
 
 def test_a_wrong_golden_fails_lint(data):
