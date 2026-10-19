@@ -233,9 +233,10 @@ def test_plugin_must_vendor(tmp_path, capsys):
     assert "plugin must vendor" in capsys.readouterr().out
 
 
-def test_plugin_lag_is_a_warning_unless_strict(tmp_path):
+def test_plugin_lag_is_a_warning_unless_strict(tmp_path, capsys):
     repo = plugin_repo(tmp_path / "plugin", vendored=GENERATED + "# older\n")
     assert run_plugin(repo) == 0
+    assert "plugin: LAGGING" in capsys.readouterr().out
     assert run_plugin(repo, "--strict") == 1
 
 
@@ -243,8 +244,12 @@ def test_plugin_lag_is_a_warning_unless_strict(tmp_path):
     "code",
     [
         "from rius_cc import _semconv_generated as semconv\nX = semconv.GONE_KEY\n",
+        "from . import _semconv_generated\nX = _semconv_generated.GONE_KEY\n",
         "import rius_cc._semconv_generated as sc\nX = sc.GONE_KEY\n",
+        "import rius_cc._semconv_generated\nX = rius_cc._semconv_generated.GONE_KEY\n",
         "from ._semconv_generated import GONE_KEY\n",
+        "from . import _semconv_generated as sc\nX = getattr(sc, 'GONE_KEY')\n",
+        "from . import _semconv_generated as sc\nX = sc.SpanKind.GONE_KEY\n",
     ],
 )
 def test_plugin_fails_on_a_name_the_registry_no_longer_generates(tmp_path, capsys, code):
@@ -252,6 +257,43 @@ def test_plugin_fails_on_a_name_the_registry_no_longer_generates(tmp_path, capsy
     repo = plugin_repo(tmp_path / "plugin", vendored=GENERATED + "# older\n", code=code)
     assert run_plugin(repo) == 1
     assert "GONE_KEY (scripts/rius_cc/spans.py)" in capsys.readouterr().out
+
+
+def test_plugin_reads_enum_members_and_methods_that_exist(tmp_path):
+    code = (
+        "from . import _semconv_generated as sc\n"
+        "X = (sc.SpanKind.TOOL, sc.TRACER_NAME.upper(), getattr(sc, 'TRACER_NAME'))\n"
+    )
+    assert run_plugin(plugin_repo(tmp_path / "plugin", code=code), "--strict") == 0
+
+
+def test_plugin_fails_on_a_star_import(tmp_path, capsys):
+    repo = plugin_repo(tmp_path / "plugin", code="from ._semconv_generated import *\n")
+    assert run_plugin(repo) == 1
+    assert "* (scripts/rius_cc/spans.py)" in capsys.readouterr().out
+
+
+def test_plugin_fails_on_a_file_that_does_not_parse(tmp_path, capsys):
+    repo = plugin_repo(tmp_path / "plugin", code="def f(:\n")
+    assert run_plugin(repo) == 1
+    out = capsys.readouterr().out
+    assert "UNREADABLE" in out and "scripts/rius_cc/spans.py" in out
+    assert "plugin: FAIL" in out
+
+
+def test_plugin_tests_and_paths_with_spaces_are_read(tmp_path, capsys):
+    repo = plugin_repo(tmp_path / "plugin")
+    (repo / "tests").mkdir()
+    (repo / "tests" / "test x.py").write_text(
+        "from rius_cc import _semconv_generated as semconv\nX = semconv.GONE_KEY\n"
+    )
+    subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
+    subprocess.run(
+        ["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "y"],
+        check=True,
+    )
+    assert run_plugin(repo) == 1
+    assert "GONE_KEY (tests/test x.py)" in capsys.readouterr().out
 
 
 def test_used_names_ignores_other_modules():

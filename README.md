@@ -171,7 +171,8 @@ pins an older release, which is allowed, so it is a warning unless
 `semconv.go` still declares must be classified (see [Go](#go)), and none may
 repeat a generated one. The plugin imports the generated module directly, with
 no hand-written module in between, so it must vendor, and every name its code
-reads from the module must still be generated, even while its copy lags: a
+and tests read from the module (`tools/check_parity.py`, `used_names`, lists
+the forms read) must still be generated, even while its copy lags: a
 registry change that drops or renames one fails here, before the plugin's
 next re-vendor. A consumer with no vendored copy is checked by value
 instead: the tool evaluates the generated module and the consumer's

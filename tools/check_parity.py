@@ -43,10 +43,12 @@ them are compared. A difference means the consumer is pinned to an older
 registry version, which is allowed, so it is a warning unless --strict. For the
 backend, when the copy is current, the constants its hand-written semconv.go
 still declares must each be classified, as above, and none may repeat a
-generated one. For the plugin, every name its code reads from the vendored
-module (`semconv.NAME`, or imported from it) must still be generated, even
-when the copy lags: a registry change that drops or renames one would break
-the plugin's next re-vendor, so it fails here first, regardless of --strict.
+generated one. For the plugin, every name its code and tests read from the
+vendored module (`semconv.NAME`, `getattr(semconv, "NAME")`, a class member
+such as `semconv.SpanKind.TOOL`, or imported from it; see used_names for the
+forms read) must still be generated, even when the copy lags: a registry
+change that drops or renames one would break the plugin's next re-vendor, so
+it fails here first, regardless of --strict. A file that does not parse fails.
 
 Exit 0 when every requested consumer passes, 1 otherwise.
 """
@@ -98,14 +100,14 @@ CONSUMERS = {
         "generated": ROOT / "out" / "go" / "semconv_generated.go",
     },
     # Vendors only: no hand-written module re-exports the generated one, its
-    # code imports it directly. `sources` is the tree whose Python must only
-    # read names the generated module still defines.
+    # code imports it directly. `sources` are the trees whose Python must only
+    # read names the generated module defines: the plugin and its tests.
     "plugin": {
         "repo": ROOT.parent / "rius-coding-agents",
         "reference": None,
         "vendored": "scripts/rius_cc/_semconv_generated.py",
         "generated": ROOT / "out" / "python" / "_semconv_generated.py",
-        "sources": "scripts",
+        "sources": ("scripts", "tests"),
     },
 }
 # The generated Python module's name, as a consumer imports it.
@@ -219,51 +221,91 @@ def go_gaps() -> dict[str, dict]:
     return gaps
 
 
+def _dotted(node: ast.expr) -> list[str] | None:
+    """`a.b.c` as ["a", "b", "c"]; None for anything not a plain name chain."""
+    parts: list[str] = []
+    while isinstance(node, ast.Attribute):
+        parts.append(node.attr)
+        node = node.value
+    if not isinstance(node, ast.Name):
+        return None
+    return [node.id, *reversed(parts)]
+
+
 def used_names(source: str) -> set[str]:
-    """The names a Python file reads from the generated module: attributes of
-    a name it binds the module to (`from . import _semconv_generated as
-    semconv`, then `semconv.KEY`), and names it imports from it."""
+    """The names a Python file reads from the generated module, as "KEY" or,
+    for a member of one of its classes, "SpanKind.TOOL". Read through a name
+    bound to the module (`from . import _semconv_generated as semconv`, or an
+    unaliased import, then `semconv.KEY` or `getattr(semconv, "KEY")`) or
+    imported from it. A star import from it is reported as "*": what it reads
+    cannot be told. Aliases are per file, so a local name shadowing one is
+    read as the module."""
     tree = ast.parse(source)
-    aliases: set[str] = set()
+    prefixes: set[tuple[str, ...]] = set()
     used: set[str] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom):
             if (node.module or "").split(".")[-1] == GENERATED_MODULE:
-                used.update(a.name for a in node.names if a.name != "*")
+                used.update(a.name for a in node.names)
             else:
-                aliases.update(a.asname or a.name for a in node.names if a.name == GENERATED_MODULE)
+                prefixes.update(
+                    ((a.asname or a.name),) for a in node.names if a.name == GENERATED_MODULE
+                )
         elif isinstance(node, ast.Import):
-            aliases.update(
-                a.asname
-                for a in node.names
-                if a.asname and a.name.split(".")[-1] == GENERATED_MODULE
-            )
+            for a in node.names:
+                if a.name.split(".")[-1] == GENERATED_MODULE:
+                    prefixes.add((a.asname,) if a.asname else tuple(a.name.split(".")))
     for node in ast.walk(tree):
-        if (
-            isinstance(node, ast.Attribute)
-            and isinstance(node.value, ast.Name)
-            and node.value.id in aliases
+        if isinstance(node, ast.Attribute):
+            chain = _dotted(node) or []
+            for prefix in prefixes:
+                if tuple(chain[: len(prefix)]) == prefix and len(chain) > len(prefix):
+                    used.add(".".join(chain[len(prefix) : len(prefix) + 2]))
+        elif (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "getattr"
+            and len(node.args) >= 2
+            and isinstance(node.args[1], ast.Constant)
+            and isinstance(node.args[1].value, str)
+            and tuple(_dotted(node.args[0]) or []) in prefixes
         ):
-            used.add(node.attr)
+            used.add(node.args[1].value)
     return used
 
 
+def _generated_has(namespace: dict, name: str) -> bool:
+    head, _, member = name.partition(".")
+    return head in namespace and (not member or hasattr(namespace[head], member))
+
+
 def check_plugin_usage(
-    repo: pathlib.Path, ref: str, sources: str, vendored_path: str, generated: str
+    repo: pathlib.Path, ref: str, sources: tuple[str, ...], vendored_path: str, generated: str
 ) -> bool:
-    """Every name the plugin reads from the vendored module is still generated."""
-    listed = git(repo, "ls-tree", "-r", "--name-only", ref, "--", sources).stdout.split()
-    defined = set(python_surface(generated, raw=True))
+    """Every name the plugin reads from the vendored module is generated."""
+    listed = git(repo, "ls-tree", "-r", "-z", "--name-only", ref, "--", *sources).stdout
+    namespace = python_surface(generated, raw=True)
     users: dict[str, list[str]] = {}
-    for path in listed:
+    unreadable: list[str] = []
+    for path in filter(None, listed.split("\0")):
         if not path.endswith(".py") or path == vendored_path:
             continue
-        for name in used_names(read_at(repo, ref, path) or ""):
+        try:
+            names = used_names(read_at(repo, ref, path) or "")
+        except SyntaxError as e:
+            unreadable.append(f"{path}: {e.msg} (line {e.lineno})")
+            continue
+        for name in names:
             users.setdefault(name, []).append(path)
-    missing = sorted(f"{name} ({', '.join(users[name])})" for name in set(users) - defined)
+    missing = sorted(
+        f"{name} ({', '.join(users[name])})"
+        for name in users
+        if name == "*" or not _generated_has(namespace, name)
+    )
     print(f"generated names the plugin reads: {len(users)}")
-    listing("MISSING (the plugin reads it, the registry no longer generates it)", missing)
-    return not missing
+    listing("MISSING (the plugin reads it, the registry does not generate it)", missing)
+    listing("UNREADABLE (does not parse, so its names cannot be checked)", unreadable)
+    return not (missing or unreadable)
 
 
 def check_go(reference: str, generated: str) -> bool:
