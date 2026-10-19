@@ -406,7 +406,11 @@ def test_shape_cell_is_code(base_data):
         ({"source": {"type": "base64", "data": "iVBO"}}, {"e"}),
         ({"input_audio": {"data": "UklGRg==", "format": "wav"}}, {"e"}),
         ({"inline_data": {"data": "UklGRg=="}}, {"e"}),
-        ({"b64_json": "iVBO", "format": "png"}, {"e"}),
+        ({"b64_json": "iVBO", "format": "png"}, set()),
+        ({"b64_json": "iVBO", "output_format": "png"}, {"e"}),
+        ({"data": "QUFB", "mediaType": ""}, set()),
+        ({"data": "QUFB", "mediaType": None}, set()),
+        ({"mediaType": "image/png", "data": ["QUFB", ""]}, {"e"}),
         ({"data": "hello"}, set()),
         ({"result": {"data": "x"}}, set()),
         ({"data": "", "media_type": "image/png"}, set()),
@@ -455,10 +459,36 @@ def test_a_url_data_url_is_not_a_token(base_data):
     assert media_parts.data_url_spans(raw, "data:None;url,None") == []
 
 
-def test_data_url_pattern_needs_its_two_groups(data):
+def test_data_url_pattern_needs_its_three_groups(data):
     (rule,) = [r for r in data["media_parts"]["raw_payloads"]["detection"] if r["id"] == "b"]
-    rule["pattern"] = "data:[^;]*;base64,"
-    assert_flags(media_parts.lint(data["media_parts"]), "pattern needs 2 groups")
+    rule["pattern"] = "data:([^;]*);base64,(x)"
+    assert_flags(media_parts.lint(data["media_parts"]), "pattern needs 3 groups")
+
+
+@pytest.mark.parametrize(
+    ("text", "mime"),
+    [
+        ("data:image/png;base64,AAAA", "image/png"),
+        ("Data:image/png;base64,AAAA", "image/png"),
+        ("data:image/png;name=a.png;charset=x;base64,AAAA", "image/png"),
+        ("data:application/vnd.ms-excel;base64,AAAA", "application/vnd.ms-excel"),
+        ("data:;base64,AAAA", None),
+        ("data:image;base64,AAAA", None),
+        ("data:image/png\\x;base64,AAAA", None),
+        ("data:a/b/c;base64,AAAA", None),
+    ],
+)
+def test_data_url_mime_is_a_token_or_unknown(base_data, text, mime):
+    raw = base_data["media_parts"]["raw_payloads"]
+    (span,) = media_parts.data_url_spans(raw, text)
+    assert (span.start, span.end, span.mime) == (0, len(text), mime)
+
+
+def test_a_long_data_url_without_base64_is_linear(base_data):
+    # The parameter group never overlaps the mime group, so this returns at once.
+    raw = base_data["media_parts"]["raw_payloads"]
+    assert media_parts.data_url_spans(raw, "data:x" + "a" * 200_000) == []
+    assert media_parts.data_url_spans(raw, "data:x" + ";a" * 100_000) == []
 
 
 def test_in_text_example_is_what_the_rule_does(base_data):
@@ -488,6 +518,17 @@ REQUIRED_GOLDEN = {
     "openai_responses_image_generation_result",
     "stripping_twice_changes_nothing",
     "pydantic_ai_blob_part_in_all_messages",
+    "depth_64_parses",
+    "depth_65_is_rule_b_only",
+    "duplicate_keys_strip_every_member",
+    "mime_key_list_order_wins",
+    "string_array_under_a_keyed_key",
+    "a_null_sibling_is_not_context",
+    "format_is_ignored_outside_an_audio_parent",
+    "format_under_input_audio",
+    "uppercase_data_url_scheme",
+    "data_url_with_parameters",
+    "a_sibling_mime_that_is_not_a_token_is_unknown",
 }
 
 
@@ -562,13 +603,84 @@ def test_buffer_inside_a_replaced_buffer_is_not_visited(base_data):
     assert [t.rule for t in result.tokens] == ["d"]
 
 
-def test_replacement_text_is_escaped_for_its_level(base_data):
+def test_a_mime_that_is_not_a_token_never_reaches_the_replacement(base_data):
     raw = base_data["media_parts"]["raw_payloads"]
     # A mime type with a backslash, inside a JSON string, and one level deeper.
     text = '{"a":"data:x\\\\y;base64,AAAA","b":"[\\"data:x\\\\\\\\y;base64,AAAA\\"]"}'
     assert media_parts.strip_raw_payload(raw, text) == (
-        '{"a":"[stripped x\\\\y 3 bytes]","b":"[\\"[stripped x\\\\\\\\y 3 bytes]\\"]"}'
+        '{"a":"[stripped unknown 3 bytes]","b":"[\\"[stripped unknown 3 bytes]\\"]"}'
     )
+
+
+# --- the depth limit -----------------------------------------------------------
+
+
+def _nest(depth: int, inner: str) -> str:
+    """`inner` inside depth - 1 arrays (inner is one more level)."""
+    return "[" * (depth - 1) + inner + "]" * (depth - 1)
+
+
+SOURCE = '{"source":{"type":"base64","data":"QUFB"}}'
+
+
+def test_a_nested_document_continues_the_depth(base_data):
+    raw = base_data["media_parts"]["raw_payloads"]
+    # The string sits inside 2 levels (the object and the array), so a nested
+    # document can be 62 deep: SOURCE is 2 levels, under 60 arrays.
+    for arrays, stripped in ((60, True), (61, False)):
+        nested = "[" * arrays + SOURCE + "]" * arrays
+        text = json.dumps({"a": [nested]})
+        tokens = media_parts.strip(raw, text).tokens
+        assert [t.rule for t in tokens] == (["e"] if stripped else []), arrays
+
+
+def test_a_deep_candidate_parses_only_to_the_limit():
+    assert media_parts.parse_json_candidate(_nest(media_parts.MAX_DEPTH, "[]")) is not None
+    assert media_parts.parse_json_candidate(_nest(media_parts.MAX_DEPTH + 1, "[]")) is None
+    assert media_parts.parse_json_candidate("[[]]", depth=63) is None
+    assert media_parts.parse_json_candidate("[]", depth=63) == []
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "[" * 200_000,
+        "[" * 200_000 + "]" * 200_000,
+        '{"a":' * 100_000 + "1" + "}" * 100_000,
+        json.dumps({"a": "[" * 50_000 + "]" * 50_000}),
+        "[" + "1" * 10_000 + "]",
+    ],
+    ids=["unclosed", "closed", "objects", "nested_string", "huge_number"],
+)
+def test_no_input_raises(base_data, text):
+    raw = base_data["media_parts"]["raw_payloads"]
+    assert media_parts.strip_raw_payload(raw, text) == text
+
+
+# --- members: duplicates, siblings, mime order ---------------------------------
+
+
+def test_duplicate_mime_keys_take_the_first_valid_one(base_data):
+    raw = base_data["media_parts"]["raw_payloads"]
+    text = '{"media_type":"","media_type":"image/png","media_type":"image/gif","data":"QUFB"}'
+    assert media_parts.strip_raw_payload(raw, text) == (
+        '{"media_type":"","media_type":"image/png","media_type":"image/gif",'
+        '"data":"[stripped image/png 3 bytes]"}'
+    )
+
+
+def test_an_invalid_mime_key_falls_through_to_the_next(base_data):
+    raw = base_data["media_parts"]["raw_payloads"]
+    text = '{"media_type":"not a mime","mimeType":"audio/wav","data":"QUFB"}'
+    (token,) = media_parts.strip(raw, text).tokens
+    assert token.mime == "audio/wav"
+
+
+def test_a_format_that_is_not_a_token_is_unknown(base_data):
+    raw = base_data["media_parts"]["raw_payloads"]
+    text = '{"audio":{"data":"QUFB","format":"w a v"}}'
+    (token,) = media_parts.strip(raw, text).tokens
+    assert token.mime is None
 
 
 def test_two_level_nesting_escapes_twice(base_data):
@@ -608,13 +720,15 @@ PORTABLE_ESCAPES = set("tnfr") | set("\\/.-[]()+*?{}|^$")
 
 
 def test_data_url_pattern_is_portable(base_data):
-    (rule,) = [r for r in base_data["media_parts"]["raw_payloads"]["detection"] if r["id"] == "b"]
-    pattern = rule["pattern"]
-    assert "(?" not in pattern, "no lookaround, named group or inline flag"
-    for match in re.finditer(r"\\(.)", pattern):
-        assert match.group(1) in PORTABLE_ESCAPES, f"\\{match.group(1)} is not portable"
-    assert '[^;,\\t\\n\\f\\r "]' in pattern
-    assert "[A-Za-z0-9+/_-]" in pattern
+    raw = base_data["media_parts"]["raw_payloads"]
+    (rule,) = [r for r in raw["detection"] if r["id"] == "b"]
+    for pattern in (rule["pattern"], raw["replacement"]["mime_pattern"]):
+        assert "(?" not in pattern, "no lookaround, named group or inline flag"
+        for match in re.finditer(r"\\(.)", pattern):
+            assert match.group(1) in PORTABLE_ESCAPES, f"\\{match.group(1)} is not portable"
+    assert rule["pattern"].startswith("[dD][aA][tT][aA]:")
+    assert '[^;,\\t\\n\\f\\r "]' in rule["pattern"]
+    assert "[A-Za-z0-9+/_-]" in rule["pattern"]
 
 
 def test_portability_check_bites():

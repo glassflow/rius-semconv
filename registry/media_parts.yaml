@@ -127,13 +127,22 @@ raw_payloads:
     not trimmed), it starts with `{` or `[`. A candidate parses when the whole
     string is one RFC 8259 JSON value, with only those four whitespace characters
     around it (no NaN, Infinity, comments or trailing commas; duplicate keys are
-    allowed, and the last one counts). When it parses, rules (d), (e) and (b)
-    apply to the values inside it; a string value inside it that is itself a JSON
-    candidate is processed by the same rules, recursively, at its escaped
-    location, its own document starting with no parent key. When it does not
-    parse (a truncated payload, say), only rule (b) applies, to the string as it
-    is (for a string inside JSON, to its unescaped value). A string that is not a
-    candidate gets rule (b) only. Object keys are never matched.
+    allowed, and every one is read, see members), nested at most 64 levels deep.
+    Arrays and objects count together, from the candidate's root: the root array
+    or object is level 1, and a candidate nested deeper than 64 levels does not
+    parse. A JSON document in a string inside JSON continues the same count: its
+    root is one level below the deepest array or object holding that string, so
+    a nested document that goes past 64 does not parse (rule (b) only, for it),
+    while the document around it still does. The limit is explicit: an
+    implementation counts the depth itself and never relies on its parser's or
+    its language's recursion limit, so no input makes the strip fail. When it
+    parses, rules (d), (e) and (b) apply to the values inside it; a string value
+    inside it that is itself a JSON candidate is processed by the same rules,
+    recursively, at its escaped location, its own document starting with no
+    parent key. When it does not parse (a truncated payload, say), only rule (b)
+    applies, to the string as it is (for a string inside JSON, to its unescaped
+    value). A string that is not a candidate gets rule (b) only. Object keys are
+    never matched.
   precedence: >-
     Values are visited in document order. At each value rule (d) is tried, then
     (e), then (b), and the first that matches wins. A value inside a replaced
@@ -179,12 +188,53 @@ raw_payloads:
     multiple of 4 (so unpadded base64 is not valid). For valid base64, byte_size
     is length times 3 / 4, minus the number of `=`. Rule (d) takes the length of
     its data array.
+  members: >-
+    Every member of an object is visited, in document order, duplicate keys
+    included. A condition on a key holds when any member with that key meets it
+    (a type equal to Buffer, blob or base64, a non-empty data array, a sibling),
+    and a value read from a key (a mime type, a format, a Buffer's data array) is
+    that of the first member with that key, in document order, that qualifies.
+    Rule (e) applies to each member under one of its keys that qualifies,
+    duplicates included, all with the context and mime type computed from all the
+    siblings: `{"mediaType":"image/png","data":"QUFB","data":"QkJC"}` strips both
+    data values. A sibling counts as context only when its value is a non-empty
+    string, the same rule as mime selection. `format` is not a sibling key: it
+    counts only under the parent key input_audio or audio (which is context
+    already), where it names audio/<format>, and elsewhere a format sibling is
+    ignored; output_format counts anywhere. The mime type is chosen by the order
+    of the mime key list, not by document order: the first mime key in list order
+    whose value is a non-empty valid mime (see replacement) wins; else the first
+    mime format, in order, whose sibling is a non-empty string and whose mime is
+    valid; else unknown. When a rule (e) key holds an array directly, each string
+    element is its own token (when it is non-empty and not already a complete
+    replacement), with the same context and mime type; any other element is
+    visited as usual, with that key as its parent key.
   regex_dialect: >-
-    The pattern of rule (b) uses only constructs Python re, JavaScript RegExp and
-    Go RE2 read the same way: literal characters, character classes with
-    explicit ASCII members and ranges, the escapes `\t` `\n` `\f` `\r`, groups,
-    and the quantifiers `*` and `{m,n}`. No `\s`, `\d`, `\w`, `\b`, lookaround,
-    backreference or inline flag.
+    The pattern of rule (b) and the replacement's mime_pattern use only
+    constructs Python re, JavaScript RegExp and Go RE2 read the same way: literal
+    characters, character classes with explicit ASCII members and ranges, the
+    escapes `\t` `\n` `\f` `\r`, capturing groups, and the quantifiers `*`, `+`
+    and `{m,n}`. No `\s`, `\d`, `\w`, `\b`, lookaround, backreference,
+    non-capturing group or inline flag: the case-insensitive scheme is written
+    `[dD][aA][tT][aA]:`, and the repeated RFC 2397 parameter is a capturing
+    group. Each parameter starts with `;` and holds none, so no match backtracks
+    more than once per character. Rule (b) finds matches left to right without
+    overlap (Python finditer, JavaScript matchAll, Go FindAllStringSubmatchIndex).
+    mime_pattern must match the whole value: Python re.fullmatch, or `^` and `$`
+    around it in JavaScript and Go (where, without the m flag, `$` is the end of
+    the text; in Python `$` also matches before a final newline, so use
+    fullmatch).
+  implementers: >-
+    Do not write the replacement, or any escape, with a
+    standard library JSON encoder: Go's json.Marshal, for example, writes `<`,
+    `>`, `&` and U+2028 as `\u003c`, `\u003e`, `\u0026` and `\u2028`, which no
+    other implementation writes. Do not compute byte_size with a strict standard
+    library base64 decoder either: decoders differ on whitespace, URL-safe input
+    and padding. The escaping rules (spans), the size rules (byte_size) and the
+    mime rule (replacement) here are exhaustive: write exactly what they say, and
+    keep every other byte as it was. Read JSON with a parser that keeps the span
+    of every value on the text and every duplicate member (members), and that
+    counts the depth itself (json_candidate).
   reference: >-
     generators/media_parts.py strip_raw_payload(raw, text) is the reference
     implementation: the one function a normalizer author reproduces. It returns
@@ -200,8 +250,14 @@ raw_payloads:
     # The mime type, by token: a data URL's own media type (unknown when
     # empty); for rule (e), a sibling mime key, else image/<output_format>, else
     # audio/<format> when the parent key is input_audio or audio; for rule (d),
-    # a mime key of the enclosing object. A mime key or format counts only when
-    # its value is a non-empty string. Anything else is unknown.
+    # a mime key of the enclosing object. Mime keys are tried in the order of
+    # the rule's mime_keys list, and a mime key counts only when its value is a
+    # valid mime; a format counts only when its value is a non-empty string and
+    # the mime it gives is valid (see members). Valid means the whole mime
+    # matches mime_pattern: a token/token MIME type. Anything else is unknown,
+    # whatever rule found the token, so text from a sibling (a data URL, a
+    # quote) never reaches a replacement.
+    mime_pattern: '[A-Za-z0-9!#$&^_.+-]+/[A-Za-z0-9!#$&^_.+-]+'
     examples:
       - '[stripped image/png 67 bytes]'
       - '[stripped unknown unknown bytes]'
@@ -211,22 +267,22 @@ raw_payloads:
       after: 'see [stripped image/png 8 bytes] here'
     tokens:
       - token: A data URL (rule b), anywhere in a string
-        replaced: 'The URL characters alone, from data: to the end of the base64 run, with no quotes added. The text around it stays byte-identical; a string that is only the data URL becomes the replacement text.'
-        mime: The URL's media type; unknown when it names none.
+        replaced: 'The URL characters alone, from data: (in any case) to the end of the base64 run, parameters included, with no quotes added. The text around it stays byte-identical; a string that is only the data URL becomes the replacement text.'
+        mime: The URL's media type when it is token/token; unknown when it names none, or anything else.
         byte_size: The base64 run's size, per byte_size; unknown when the run is not valid base64.
       - token: A base64 string value (rule e)
-        replaced: The string literal, quotes included, by the replacement as a JSON string literal.
-        mime: A sibling media_type, mediaType, mime_type or mimeType; else image/<output_format>; else audio/<format> under input_audio or audio; else unknown.
+        replaced: The string literal, quotes included, by the replacement as a JSON string literal; for an array under the key, each string element the same way.
+        mime: The first of media_type, mediaType, mime_type, mimeType, in that order, that holds a token/token mime; else image/<output_format>; else audio/<format> under input_audio or audio; else unknown.
         byte_size: The unescaped value's size, per byte_size; unknown when it is not valid base64.
       - token: A Buffer object (rule d)
         replaced: The whole object token, from { to its matching }, by the replacement as a JSON string literal.
-        mime: The enclosing object's media_type, mediaType, mime_type or mimeType; else unknown.
+        mime: The first of the enclosing object's media_type, mediaType, mime_type, mimeType, in that order, that holds a token/token mime; else unknown.
         byte_size: The length of the data array.
   detection:
     - id: b
       name: data URL
-      description: 'A data:<mime>;base64,<base64> token anywhere in a string: the pattern finds each one, group 1 the mime type (empty when none), group 2 the base64 run (standard or URL-safe). A whole-string data URL is the special case.'
-      pattern: 'data:([^;,\t\n\f\r "]*);base64,([A-Za-z0-9+/_-]*={0,2})'
+      description: 'A data:<mime>[;<parameter>]*;base64,<base64> token anywhere in a string, the scheme in any case (DATA:, Data:) and RFC 2397 parameters allowed before ;base64, (data:image/png;name=a.png;base64,...). The pattern finds each one: group 1 the mime type (empty when none), group 2 the last parameter (unused), group 3 the base64 run (standard or URL-safe). A whole-string data URL is the special case.'
+      pattern: '[dD][aA][tT][aA]:([^;,\t\n\f\r "]*)(;[^;,\t\n\f\r "]*)*;base64,([A-Za-z0-9+/_-]*={0,2})'
     - id: d
       name: Buffer object
       description: 'An object {"type": "Buffer", "data": [...]} whose data is a non-empty array.'
@@ -235,16 +291,18 @@ raw_payloads:
       mime_keys: [media_type, mediaType, mime_type, mimeType]
     - id: e
       name: keyed base64 string
-      description: 'A non-empty string under one of the keys, when its object has one of the sibling keys, or its object''s parent key is one of the parent keys, or its object is a source with type base64; and a non-empty string under content when its object has type blob (the semconv blob part, as in a raw payload like pydantic_ai.all_messages: the raw-payload twin of the check''s rule (a)). Never a string that is already a complete replacement (see idempotence).'
+      description: 'A non-empty string (or each string of an array) under one of the keys, when its object has one of the sibling keys with a non-empty string value, or its object''s parent key is one of the parent keys, or its object is the value of a source key and has type base64 (the Anthropic {"source":{"type":"base64","media_type":...,"data":...}}: the object holding data is the source itself, not the content block around it); and a non-empty string under content when its object has type blob (the semconv blob part, as in a raw payload like pydantic_ai.all_messages: the raw-payload twin of the check''s rule (a)). Never a string that is already a complete replacement (see idempotence). See members for duplicate keys, siblings and arrays.'
       keys: [data, b64_json, result]
-      sibling_keys: [media_type, mediaType, mime_type, mimeType, format, output_format]
+      # format is not one: it counts only under input_audio or audio (see members).
+      sibling_keys: [media_type, mediaType, mime_type, mimeType, output_format]
       parent_keys: [input_audio, audio, inline_data, inlineData]
       source_key: source
       source_type: base64
       blob_type: blob
       blob_key: content
       mime_keys: [media_type, mediaType, mime_type, mimeType]
-      # Tried in order, after the mime keys: <value> is the sibling's value.
+      # Tried in order, after the mime keys: <value> is the sibling's value, and
+      # an entry with parent_keys counts only under one of them.
       mime_formats:
         - key: output_format
           mime: image/<value>
@@ -359,12 +417,22 @@ raw_payloads:
       output: '{"output":[{"type":"image_generation_call","status":"completed","output_format":"png","result":"[stripped image/png 8 bytes]"}]}'
       tokens:
         - {rule: e, mime: image/png, byte_size: 8}
-    - name: format_names_audio_only_under_an_audio_parent
-      note: A format sibling makes the string a token, but audio/<format> applies only under input_audio or audio, so the mime type is unknown.
-      input: '{"b64_json":"iVBORw0KGgo=","format":"png"}'
-      output: '{"b64_json":"[stripped unknown 8 bytes]","format":"png"}'
+    - name: a_null_sibling_is_not_context
+      note: A sibling counts as context only when its value is a non-empty string (and format is not a sibling key at all), so data is left alone.
+      input: '{"data":"hello","format":null}'
+      output: '{"data":"hello","format":null}'
+      tokens: []
+    - name: format_is_ignored_outside_an_audio_parent
+      note: A format sibling counts only under input_audio or audio; here it is ignored, so result is left alone.
+      input: '{"result":"hello","format":"text"}'
+      output: '{"result":"hello","format":"text"}'
+      tokens: []
+    - name: format_under_input_audio
+      note: Under input_audio the parent key is the context, and format names audio/<format>.
+      input: '{"input_audio":{"data":"UklGRg==","format":"wav"}}'
+      output: '{"input_audio":{"data":"[stripped audio/wav 4 bytes]","format":"wav"}}'
       tokens:
-        - {rule: e, mime: unknown, byte_size: 8}
+        - {rule: e, mime: audio/wav, byte_size: 4}
     - name: parent_key_through_an_array
       note: An array element inherits its array's parent key, so audio reaches the object inside the list.
       input: '{"audio":[{"data":"UklGRiQAAABXQVZF"}]}'
@@ -397,6 +465,57 @@ raw_payloads:
       tokens:
         - {rule: b, mime: image/png, byte_size: 3}
         - {rule: b, mime: image/png, byte_size: unknown}
+    - name: depth_64_parses
+      note: 62 arrays, the object and its source object are 64 levels, the limit. It parses, so rule (e) strips data and rule (b) the url inside its JSON string.
+      input: '[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[{"source":{"type":"base64","data":"iVBORw0KGgo=","url":"data:image/png;base64,iVBORw0KGgo="}}]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]'
+      output: '[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[{"source":{"type":"base64","data":"[stripped unknown 8 bytes]","url":"[stripped image/png 8 bytes]"}}]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]'
+      tokens:
+        - {rule: e, mime: unknown, byte_size: 8}
+        - {rule: b, mime: image/png, byte_size: 8}
+    - name: depth_65_is_rule_b_only
+      note: One array more is 65 levels, so the candidate does not parse. Only rule (b) applies, to the raw text; data stays.
+      input: '[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[{"source":{"type":"base64","data":"iVBORw0KGgo=","url":"data:image/png;base64,iVBORw0KGgo="}}]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]'
+      output: '[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[{"source":{"type":"base64","data":"iVBORw0KGgo=","url":"[stripped image/png 8 bytes]"}}]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]'
+      tokens:
+        - {rule: b, mime: image/png, byte_size: 8}
+    - name: duplicate_keys_strip_every_member
+      note: Every member is visited in document order; both data members qualify, with the context and mime type of all the siblings.
+      input: '{"mediaType":"image/png","data":"QUFB","data":"QkJC"}'
+      output: '{"mediaType":"image/png","data":"[stripped image/png 3 bytes]","data":"[stripped image/png 3 bytes]"}'
+      tokens:
+        - {rule: e, mime: image/png, byte_size: 3}
+        - {rule: e, mime: image/png, byte_size: 3}
+    - name: mime_key_list_order_wins
+      note: mime_type comes first in the document, but media_type comes first in the mime key list, so its value is the mime type.
+      input: '{"mime_type":"image/jpeg","media_type":"image/png","data":"QUFB"}'
+      output: '{"mime_type":"image/jpeg","media_type":"image/png","data":"[stripped image/png 3 bytes]"}'
+      tokens:
+        - {rule: e, mime: image/png, byte_size: 3}
+    - name: string_array_under_a_keyed_key
+      note: An array held directly under data; each string element is its own token, with the same context.
+      input: '{"mediaType":"image/png","data":["QUFB"]}'
+      output: '{"mediaType":"image/png","data":["[stripped image/png 3 bytes]"]}'
+      tokens:
+        - {rule: e, mime: image/png, byte_size: 3}
+    - name: uppercase_data_url_scheme
+      note: The data scheme is case-insensitive.
+      input: 'see DATA:image/png;base64,iVBORw0KGgo= here'
+      output: 'see [stripped image/png 8 bytes] here'
+      tokens:
+        - {rule: b, mime: image/png, byte_size: 8}
+    - name: data_url_with_parameters
+      note: RFC 2397 parameters may sit between the mime type and ;base64, and are replaced with the URL.
+      input: '{"url":"data:image/png;name=a.png;base64,iVBORw0KGgo="}'
+      output: '{"url":"[stripped image/png 8 bytes]"}'
+      tokens:
+        - {rule: b, mime: image/png, byte_size: 8}
+    - name: a_sibling_mime_that_is_not_a_token_is_unknown
+      note: The mime_type sibling is a non-empty string, so it is context, but it is not a token/token mime, so the mime type is unknown and none of it reaches the replacement. The sibling itself is a data URL, stripped by rule (b).
+      input: '{"data":"QUFB","mime_type":"data:image/png;base64,QUFB"}'
+      output: '{"data":"[stripped unknown 3 bytes]","mime_type":"[stripped image/png 3 bytes]"}'
+      tokens:
+        - {rule: e, mime: unknown, byte_size: 3}
+        - {rule: b, mime: image/png, byte_size: 3}
 
 rows:
   - source: openai.chat

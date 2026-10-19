@@ -14,7 +14,8 @@ Three questions, three functions:
 media tokens a normalizer replaces in a raw payload, replaced in place. Its
 golden examples are in the file, and `lint` runs them. `is_data_url`,
 `is_buffer` and `keyed_base64` are the detection rules on their own, which
-tools/check_fixtures.py refuses in an expected result.
+tools/check_fixtures.py refuses in an expected result. No input raises out of
+`strip_raw_payload`: the parser's depth limit bounds every recursion.
 """
 
 from __future__ import annotations
@@ -58,7 +59,9 @@ RAW_PAYLOAD_FIELDS = (
     "idempotence",
     "spans",
     "byte_size",
+    "members",
     "regex_dialect",
+    "implementers",
     "reference",
     "replacement",
     "detection",
@@ -75,7 +78,9 @@ RAW_PAYLOAD_PROSE = (
     "idempotence",
     "spans",
     "byte_size",
+    "members",
     "regex_dialect",
+    "implementers",
     "reference",
 )
 DIRECTIONS = {"input", "output"}
@@ -185,6 +190,12 @@ def lint_raw_payloads(raw: Any) -> list[str]:
         errors.append(f"{where} replacement format must name <mime> and <byte_size>")
     if not str(replacement.get("unknown", "")).strip():
         errors.append(f"{where} replacement needs the unknown value")
+    try:
+        re.compile(str(replacement.get("mime_pattern", "")))
+    except re.error as exc:
+        errors.append(f"{where} replacement mime_pattern does not compile ({exc})")
+    if not replacement.get("mime_pattern"):
+        errors.append(f"{where} replacement needs a mime_pattern")
     for token in replacement.get("tokens") or []:
         for field in ("token", "replaced", "mime", "byte_size"):
             if not str(token.get(field, "")).strip():
@@ -205,8 +216,10 @@ def lint_raw_payloads(raw: Any) -> list[str]:
         except re.error as exc:
             errors.append(f"{where} detection rule b pattern does not compile ({exc})")
         else:
-            if groups != 2:
-                errors.append(f"{where} detection rule b pattern needs 2 groups (mime, base64)")
+            if groups != 3:
+                errors.append(
+                    f"{where} detection rule b pattern needs 3 groups (mime, parameters, base64)"
+                )
     for entry in rules.get("e", {}).get("mime_formats") or []:
         if not entry.get("key") or "<value>" not in str(entry.get("mime", "")):
             errors.append(f"{where} detection rule e mime_formats need a key and a <value> mime")
@@ -323,10 +336,22 @@ class Span:
     byte_size: int | None
 
 
+def is_mime(raw: dict, value: Any) -> bool:
+    """Whether a value can go into a replacement as its mime type: a string the
+    whole of which matches replacement.mime_pattern (token/token)."""
+    pattern = str(raw["replacement"]["mime_pattern"])
+    return isinstance(value, str) and re.fullmatch(pattern, value) is not None
+
+
+def _mime_or_unknown(raw: dict, mime: str | None) -> str | None:
+    return mime if is_mime(raw, mime) else None
+
+
 def data_url_spans(raw: dict, value: str) -> list[Span]:
-    """Rule b: every data URL token in a string, wherever it sits."""
+    """Rule b: every data URL token in a string, wherever it sits. A media type
+    that is not token/token is unknown."""
     return [
-        Span(m.start(), m.end(), m.group(1) or None, base64_size(m.group(2)))
+        Span(m.start(), m.end(), _mime_or_unknown(raw, m.group(1)), base64_size(m.group(3)))
         for m in re.finditer(_rules(raw)["b"]["pattern"], value)
     ]
 
@@ -351,18 +376,47 @@ def is_json_candidate(value: str) -> bool:
     return value.lstrip(ASCII_WHITESPACE)[:1] in ("{", "[")
 
 
-def _mime_key(rule: dict, obj: dict) -> str | None:
+#: An object's members in document order, duplicates kept: a dict's items,
+#: or the (key, value) pairs of a parsed object.
+Members = list[tuple[str, Any]]
+
+
+def _members(obj: dict | Members) -> Members:
+    return list(obj.items()) if isinstance(obj, dict) else obj
+
+
+def _first(members: Members, key: str, ok: Any) -> Any:
+    """The value of the first member named `key`, in document order, for which
+    ok(value) holds; None when there is none."""
+    return next((v for k, v in members if k == key and ok(v)), None)
+
+
+def _non_empty_string(value: Any) -> bool:
+    return isinstance(value, str) and bool(value)
+
+
+def _mime_key(raw: dict, rule: dict, obj: dict | Members) -> str | None:
+    """The first mime key, in the rule's list order, with a valid mime value."""
+    members = _members(obj)
     for key in rule["mime_keys"]:
-        if isinstance(obj.get(key), str) and obj[key]:
-            return obj[key]
+        mime = _first(members, key, lambda v: is_mime(raw, v))
+        if mime is not None:
+            return mime
     return None
 
 
-def is_buffer(raw: dict, value: dict) -> bool:
-    """Rule d."""
+def buffer_data(raw: dict, value: dict | Members) -> list | None:
+    """Rule d: the byte array of a Buffer object, or None when it is not one."""
     rule = _rules(raw)["d"]
-    data = value.get(rule["array_key"])
-    return value.get("type") == rule["type"] and isinstance(data, list) and bool(data)
+    members = _members(value)
+    if _first(members, "type", lambda v: v == rule["type"]) is None:
+        return None
+    return _first(members, rule["array_key"], lambda v: isinstance(v, list) and bool(v))
+
+
+def is_buffer(raw: dict, value: dict | Members) -> bool:
+    """Rule d."""
+    return buffer_data(raw, value) is not None
 
 
 def is_replacement(raw: dict, value: str) -> bool:
@@ -381,39 +435,59 @@ def is_replacement(raw: dict, value: str) -> bool:
     return bool(sep and mime) and (digits or size == unknown)
 
 
-def keyed_base64(raw: dict, value: dict, parent_key: str | None) -> list[str]:
-    """Rule e: the keys of `value` that hold a base64 media string (never one
-    that is already a replacement, so stripping twice changes nothing)."""
+def _keyed_string(raw: dict, value: Any) -> bool:
+    """A string rule e replaces: non-empty, and not already a replacement (so
+    stripping twice changes nothing)."""
+    return _non_empty_string(value) and not is_replacement(raw, value)
+
+
+def keyed_base64(raw: dict, value: dict | Members, parent_key: str | None) -> list[int]:
+    """Rule e: the positions of the members of `value` that hold base64 media,
+    duplicates included: a keyed string, or an array holding one directly.
+    Every member counts for the context: a sibling key with a non-empty string
+    value, the parent key, or a base64 source."""
     rule = _rules(raw)["e"]
+    members = _members(value)
     context = (
-        any(k in value for k in rule["sibling_keys"])
+        any(k in rule["sibling_keys"] and _non_empty_string(v) for k, v in members)
         or parent_key in rule["parent_keys"]
-        or (parent_key == rule["source_key"] and value.get("type") == rule["source_type"])
+        or (
+            parent_key == rule["source_key"]
+            and _first(members, "type", lambda v: v == rule["source_type"]) is not None
+        )
     )
-    keys = list(rule["keys"]) if context else []
-    if value.get("type") == rule["blob_type"]:
-        keys.append(rule["blob_key"])
+    keys = set(rule["keys"]) if context else set()
+    if _first(members, "type", lambda v: v == rule["blob_type"]) is not None:
+        keys.add(rule["blob_key"])
     return [
-        k
-        for k in keys
-        if isinstance(value.get(k), str) and value[k] and not is_replacement(raw, value[k])
+        i
+        for i, (k, v) in enumerate(members)
+        if k in keys
+        and (
+            _keyed_string(raw, v)
+            or (isinstance(v, list) and any(_keyed_string(raw, item) for item in v))
+        )
     ]
 
 
-def keyed_mime(raw: dict, value: dict, parent_key: str | None) -> str | None:
-    """Rule e's mime type: a sibling mime key, else the first mime_formats entry
-    whose sibling is set (and whose parent keys, if any, include the parent)."""
+def keyed_mime(raw: dict, value: dict | Members, parent_key: str | None) -> str | None:
+    """Rule e's mime type: the first mime key with a valid mime, else the first
+    mime_formats entry whose sibling is a non-empty string (and whose parent
+    keys, if any, include the parent) and whose mime is valid."""
     rule = _rules(raw)["e"]
-    mime = _mime_key(rule, value)
+    members = _members(value)
+    mime = _mime_key(raw, rule, members)
     if mime:
         return mime
     for entry in rule["mime_formats"]:
-        sibling = value.get(entry["key"])
-        if not isinstance(sibling, str) or not sibling:
-            continue
         if "parent_keys" in entry and parent_key not in entry["parent_keys"]:
             continue
-        return str(entry["mime"]).replace("<value>", sibling)
+        sibling = _first(members, entry["key"], _non_empty_string)
+        if sibling is None:
+            continue
+        mime = str(entry["mime"]).replace("<value>", sibling)
+        if is_mime(raw, mime):
+            return mime
     return None
 
 
@@ -452,12 +526,26 @@ _SHORT_ESCAPES = {
 _HEX = set("0123456789abcdefABCDEF")
 
 
-class _Parser:
-    """Strict RFC 8259: no NaN, Infinity, comments or trailing commas."""
+#: How deep a JSON candidate may nest, arrays and objects counted together
+#: from the candidate's root, continued through nested documents. Deeper is
+#: "does not parse".
+MAX_DEPTH = 64
 
-    def __init__(self, text: str):
+
+class _Parser:
+    """Strict RFC 8259: no NaN, Infinity, comments or trailing commas, and no
+    more than MAX_DEPTH arrays and objects deep (`depth` already enclose the
+    text). The depth limit also bounds the recursion."""
+
+    def __init__(self, text: str, depth: int = 0):
         self.text = text
         self.i = 0
+        self.depth = depth
+
+    def enter(self) -> None:
+        self.depth += 1
+        if self.depth > MAX_DEPTH:
+            raise _NotJson(f"deeper than {MAX_DEPTH} at {self.i}")
 
     def document(self) -> _Value:
         self.space()
@@ -495,11 +583,12 @@ class _Parser:
         if not match:
             raise _NotJson(f"no value at {self.i}")
         self.i = match.end()
-        return _Value(match.start(), match.end(), json.loads(match.group()))
+        return _Value(match.start(), match.end(), _number(match.group()))
 
     def object(self) -> _Value:
         start = self.i
         self.expect("{")
+        self.enter()
         members: list[tuple[str, _Value]] = []
         self.space()
         if self.peek() == "}":
@@ -518,12 +607,15 @@ class _Parser:
                     continue
                 self.expect("}")
                 break
-        # Duplicate keys: the last one counts, as in every JSON parser here.
+        self.depth -= 1
+        # The Python value keeps the last duplicate, as json.loads does; the
+        # rules read `members`, every duplicate in document order.
         return _Value(start, self.i, {k: v.value for k, v in members}, members=members)
 
     def array(self) -> _Value:
         start = self.i
         self.expect("[")
+        self.enter()
         items: list[_Value] = []
         self.space()
         if self.peek() == "]":
@@ -538,6 +630,7 @@ class _Parser:
                     continue
                 self.expect("]")
                 break
+        self.depth -= 1
         return _Value(start, self.i, [v.value for v in items], items=items)
 
     def string(self) -> _Value:
@@ -584,18 +677,29 @@ class _Parser:
         return int(digits, 16)
 
 
-def _parse(text: str) -> _Value | None:
+def _number(text: str) -> int | float:
+    """A JSON number's value. Python refuses to read an int of more than 4300
+    digits; such a number is read as a float, so no number raises."""
     try:
-        return _Parser(text).document()
-    except (_NotJson, RecursionError):
+        return json.loads(text)
+    except ValueError:
+        return float(text)
+
+
+def _parse(text: str, depth: int = 0) -> _Value | None:
+    try:
+        return _Parser(text, depth).document()
+    except _NotJson:
         return None
 
 
-def parse_json_candidate(text: str) -> Any:
-    """A JSON candidate's value when it parses (strict RFC 8259), else None."""
+def parse_json_candidate(text: str, depth: int = 0) -> Any:
+    """A JSON candidate's value when it parses (strict RFC 8259, at most
+    MAX_DEPTH deep counting the `depth` arrays and objects around it), else
+    None."""
     if not is_json_candidate(text):
         return None
-    document = _parse(text)
+    document = _parse(text, depth)
     return None if document is None else document.value
 
 
@@ -622,17 +726,18 @@ def json_escape(text: str) -> str:
 _Edit = tuple[int, int, str]
 
 
-def _strip_text(raw: dict, text: str, tokens: list[Token]) -> list[_Edit]:
+def _strip_text(raw: dict, text: str, tokens: list[Token], depth: int = 0) -> list[_Edit]:
     """The edits on a string's text (a raw attribute, or a JSON string's
-    unescaped value): the JSON walk when it is a candidate that parses, else
-    rule b alone. A complete replacement is never stripped again."""
+    unescaped value inside `depth` arrays and objects): the JSON walk when it is
+    a candidate that parses, else rule b alone. A complete replacement is never
+    stripped again."""
     if is_replacement(raw, text):
         return []
     if is_json_candidate(text):
-        document = _parse(text)
+        document = _parse(text, depth)
         if document is not None:
             edits: list[_Edit] = []
-            _walk(raw, document, None, None, tokens, edits)
+            _walk(raw, document, None, None, depth, tokens, edits)
             return edits
     edits = []
     for span in data_url_spans(raw, text):
@@ -649,42 +754,56 @@ def _walk(
     raw: dict,
     node: _Value,
     parent_key: str | None,
-    holder: dict | None,
+    holder: Members | None,
+    depth: int,
     tokens: list[Token],
     edits: list[_Edit],
 ) -> None:
     """Rules d, then e, then b, on one value, in document order. `holder` is the
-    nearest enclosing object (through arrays), for rule d's mime type."""
-    rules = _rules(raw)
+    nearest enclosing object (through arrays), for rule d's mime type; `depth`
+    is how many arrays and objects enclose the value. The parser's depth limit
+    bounds the recursion."""
     if node.members is not None:
-        obj = node.value
-        if is_buffer(raw, obj):
-            mime = _mime_key(rules["d"], holder or {})
-            size = len(obj[rules["d"]["array_key"]])
-            tokens.append(Token("d", mime, size))
-            edits.append((node.start, node.end, _literal(raw, mime, size)))
+        members = [(key, child.value) for key, child in node.members]
+        data = buffer_data(raw, members)
+        if data is not None:
+            mime = _mime_key(raw, _rules(raw)["d"], holder or [])
+            tokens.append(Token("d", mime, len(data)))
+            edits.append((node.start, node.end, _literal(raw, mime, len(data))))
             return
-        keyed = set(keyed_base64(raw, obj, parent_key))
-        # With duplicate keys only the last member is the value.
-        last = {key: child for key, child in node.members}
-        for key, child in node.members:
-            if key in keyed and last[key] is child:
-                mime = keyed_mime(raw, obj, parent_key)
-                size = base64_size(child.value)
-                tokens.append(Token("e", mime, size))
-                edits.append((child.start, child.end, _literal(raw, mime, size)))
+        keyed = set(keyed_base64(raw, members, parent_key))
+        mime = keyed_mime(raw, members, parent_key) if keyed else None
+        for i, (key, child) in enumerate(node.members):
+            if i not in keyed:
+                _walk(raw, child, key, members, depth + 1, tokens, edits)
+            elif child.items is None:
+                _keyed_token(raw, child, mime, tokens, edits)
             else:
-                _walk(raw, child, key, obj, tokens, edits)
+                # A string array under the key: each string element is a token.
+                for item in child.items:
+                    if _keyed_string(raw, item.value):
+                        _keyed_token(raw, item, mime, tokens, edits)
+                    else:
+                        _walk(raw, item, key, members, depth + 2, tokens, edits)
     elif node.items is not None:
         for child in node.items:
-            _walk(raw, child, parent_key, holder, tokens, edits)
+            _walk(raw, child, parent_key, holder, depth + 1, tokens, edits)
     elif node.chars is not None:
         # A JSON string: strip its unescaped value, then map each edit back to
         # the raw characters and write it escaped for this level.
-        for start, end, text in _strip_text(raw, node.value, tokens):
+        for start, end, text in _strip_text(raw, node.value, tokens, depth):
             raw_start = node.chars[start][0]
             raw_end = node.chars[end - 1][1] if end > start else raw_start
             edits.append((raw_start, raw_end, json_escape(text)))
+
+
+def _keyed_token(
+    raw: dict, node: _Value, mime: str | None, tokens: list[Token], edits: list[_Edit]
+) -> None:
+    """Rule e on one string literal: replaced whole, quotes included."""
+    size = base64_size(node.value)
+    tokens.append(Token("e", mime, size))
+    edits.append((node.start, node.end, _literal(raw, mime, size)))
 
 
 def _apply(text: str, edits: list[_Edit]) -> str:
@@ -806,7 +925,9 @@ def _render_raw_payloads(raw: dict) -> list[str]:
         f"`{replacement_['unknown']}` for a mime type or size that is not known: "
         + ", ".join(f"`{e}`" for e in replacement_.get("examples") or [])
         + ". Rules (d) and (e) write it as a JSON string literal, quotes included;"
-        " rule (b) writes the bare text, inside the quotes already there in a JSON string.",
+        " rule (b) writes the bare text, inside the quotes already there in a JSON string."
+        f" A mime type goes in only when the whole of it matches `{replacement_['mime_pattern']}`"
+        f" (token/token); anything else is `{replacement_['unknown']}`.",
         "",
     ]
     if replacement_.get("in_text"):
