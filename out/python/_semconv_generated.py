@@ -12,8 +12,6 @@ from __future__ import annotations
 
 from enum import Enum
 
-from opentelemetry.trace import SpanKind as OtelSpanKind
-
 # Instrumentation scope name (stamped on every span as otel.scope.name).
 # "rius" since the vendor keys were normalized under the product name; it was
 # "glassflow" before. Wire-visible, but nothing in the backend keys on it: the
@@ -902,14 +900,18 @@ _KIND_BY_OPERATION: dict[str, SpanKind] = {
 # - CHAIN -> INTERNAL: a workflow step by definition.
 # Nothing in the backend groups on this field (it reads the attributes), so
 # the mapping is free to follow the conventions exactly.
-_OTEL_KIND_BY_KIND: dict[SpanKind, OtelSpanKind] = {
-    SpanKind.LLM: OtelSpanKind.CLIENT,
-    SpanKind.EMBEDDING: OtelSpanKind.CLIENT,
-    SpanKind.RETRIEVER: OtelSpanKind.CLIENT,
-    SpanKind.RERANKER: OtelSpanKind.CLIENT,
-    SpanKind.TOOL: OtelSpanKind.INTERNAL,
-    SpanKind.AGENT: OtelSpanKind.INTERNAL,
-    SpanKind.CHAIN: OtelSpanKind.INTERNAL,
+# Python holds the kind's NAME ("CLIENT"), so the generated module imports
+# nothing and a producer without the OpenTelemetry SDK can vendor it: the SDK
+# turns a name into the enum with OtelSpanKind[name], and a producer writing
+# OTLP itself maps it to the wire's numbering, which differs from the API's.
+_OTEL_KIND_BY_KIND: dict[SpanKind, str] = {
+    SpanKind.LLM: "CLIENT",
+    SpanKind.EMBEDDING: "CLIENT",
+    SpanKind.RETRIEVER: "CLIENT",
+    SpanKind.RERANKER: "CLIENT",
+    SpanKind.TOOL: "INTERNAL",
+    SpanKind.AGENT: "INTERNAL",
+    SpanKind.CHAIN: "INTERNAL",
 }
 
 # Which attribute names the target of a span's `{operation} {target}` name,

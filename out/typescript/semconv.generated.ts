@@ -920,6 +920,10 @@ export const KIND_BY_OPERATION: Record<string, SpanKind> = {
 // - CHAIN -> INTERNAL: a workflow step by definition.
 // Nothing in the backend groups on this field (it reads the attributes), so
 // the mapping is free to follow the conventions exactly.
+// Python holds the kind's NAME ("CLIENT"), so the generated module imports
+// nothing and a producer without the OpenTelemetry SDK can vendor it: the SDK
+// turns a name into the enum with OtelSpanKind[name], and a producer writing
+// OTLP itself maps it to the wire's numbering, which differs from the API's.
 export const OTEL_KIND_BY_KIND: Record<SpanKind, OtelSpanKind> = {
   [SpanKind.LLM]: OtelSpanKind.CLIENT,
   [SpanKind.EMBEDDING]: OtelSpanKind.CLIENT,

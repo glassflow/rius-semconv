@@ -40,7 +40,7 @@
 {% endfor %}
 )
 {% endmacro %}
-{% macro fmt(value, how) %}{% if how == "kind" %}{{ kind_type }}.{{ value }}{% elif how == "otel" %}OtelSpanKind.{{ value }}{% elif how == "ref" %}{{ value }}{% else %}{{ lit(value) }}{% endif %}{% endmacro %}
+{% macro fmt(value, how) %}{% if how == "kind" %}{{ kind_type }}.{{ value }}{% elif how == "ref" %}{{ value }}{% else %}{{ lit(value) }}{% endif %}{% endmacro %}
 """{{ pre.python.docstring.rstrip("\n") }}
 """
 
@@ -48,10 +48,6 @@
 from __future__ import annotations
 
 from enum import Enum
-{% if "otel_kind_by_kind" in ctx.tables %}
-
-from opentelemetry.trace import SpanKind as OtelSpanKind
-{% endif %}
 {% for row in ctx.rows %}
 {% if row.section or row.rationale %}
 
@@ -123,7 +119,7 @@ class {{ kind_type }}(str, Enum):
 {% for t in [
     ["operation_by_kind", "kind", "literal", "dict[" ~ kind_type ~ ", str]"],
     ["kind_by_operation", "literal", "kind", "dict[str, " ~ kind_type ~ "]"],
-    ["otel_kind_by_kind", "kind", "otel", "dict[" ~ kind_type ~ ", OtelSpanKind]"],
+    ["otel_kind_by_kind", "kind", "literal", "dict[" ~ kind_type ~ ", str]"],
     ["name_target_by_kind", "kind", "ref", "dict[" ~ kind_type ~ ", str]"],
 ] if t[0] in ctx.tables %}
 {% set table = ctx.tables[t[0]] %}
