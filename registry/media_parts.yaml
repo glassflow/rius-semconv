@@ -125,6 +125,11 @@ raw_payloads:
     content member, while in any other attribute or column a blob part's content
     may be a complete replacement, the one rule (e) writes there.
     tools/check_fixtures.py rule (a) holds expected results to exactly this.
+    Within one pass, every rule reads the text as it was before the pass: rule
+    (e) takes its context and its mime type from each object's member values as
+    they were, never from a sibling the same pass has already rewritten (see
+    members). A walker that rewrites the document in place must keep reading the
+    original values.
   json_candidate: >-
     A string value is a JSON candidate when, after trimming leading space, tab,
     newline and carriage return (ASCII only: U+00A0 and other Unicode spaces are
@@ -214,17 +219,23 @@ raw_payloads:
     `{"mediaType":"image/png","data":"QUFB","data":"QkJC"}` strips both data
     values. A sibling counts as context only when its value is a non-empty
     string that is not a complete replacement (see idempotence), the same rule
-    as mime selection. `format` is not a sibling key: it counts only under the
-    parent key input_audio or audio (which is context already), where it names
-    audio/<format>, and elsewhere a format sibling is ignored; output_format
-    counts anywhere. The mime type is chosen by the order of the mime key list,
-    not by document order: the first mime key in list order whose value is a
-    non-empty valid mime (see replacement) wins; else the first mime format, in
-    order, whose sibling is a non-empty string, not a complete replacement, and
-    whose mime is valid; else unknown. When a rule (e) key holds an array
-    directly, each string element is its own token (when it is non-empty and not
-    already a complete replacement), with the same context and mime type; any
-    other element is visited as usual, with that key as its parent key.
+    as mime selection. Context and mime type are read from the member values as
+    they were before the pass, so document order does not matter: in
+    `{"mediaType":"data:image/png;base64,QUFB","data":"QkJC"}` mediaType is
+    context, though rule (b) rewrites it in the same pass, and data is a token
+    whichever comes first; its mime type is unknown, since the original
+    mediaType is not a valid mime. `format` is not a sibling key: it counts only
+    under the parent key input_audio or audio (which is context already), where
+    it names audio/<format>, and elsewhere a format sibling is ignored;
+    output_format counts anywhere. The mime type is chosen by the order of the
+    mime key list, not by document order: the first mime key in list order whose
+    value is a non-empty valid mime (see replacement) wins; else the first mime
+    format, in order, whose sibling is a non-empty string, not a complete
+    replacement, and whose mime is valid; else unknown. When a rule (e) key
+    holds an array directly, each string element is its own token (when it is
+    non-empty and not already a complete replacement), with the same context and
+    mime type; any other element is visited as usual, with that key as its
+    parent key.
   regex_dialect: >-
     The pattern of rule (b) and the replacement's mime_pattern use only
     constructs Python re, JavaScript RegExp and Go RE2 read the same way:
@@ -561,6 +572,27 @@ raw_payloads:
       tokens:
         - {rule: d, mime: unknown, byte_size: 1}
         - {rule: b, mime: image/png, byte_size: 3}
+    - name: context_is_read_before_the_pass
+      note: mediaType is a non-empty string before the pass, so it is context for data, though rule (b) rewrites it in the same pass; the mime type is unknown, since the original value is not a valid mime. Stable on a second pass.
+      input: '{"mediaType":"data:image/png;base64,QUFB","data":"QkJC"}'
+      output: '{"mediaType":"[stripped image/png 3 bytes]","data":"[stripped unknown 3 bytes]"}'
+      tokens:
+        - {rule: b, mime: image/png, byte_size: 3}
+        - {rule: e, mime: unknown, byte_size: 3}
+    - name: context_is_read_before_the_pass_in_any_order
+      note: The same members the other way round give the same bytes for each; only the token order follows the document.
+      input: '{"data":"QkJC","mediaType":"data:image/png;base64,QUFB"}'
+      output: '{"data":"[stripped unknown 3 bytes]","mediaType":"[stripped image/png 3 bytes]"}'
+      tokens:
+        - {rule: e, mime: unknown, byte_size: 3}
+        - {rule: b, mime: image/png, byte_size: 3}
+    - name: output_format_is_read_before_the_pass
+      note: output_format is context before rule (b) rewrites it; image/<value> is not a valid mime for a data URL value, so the mime type is unknown.
+      input: '{"output_format":"data:image/png;base64,QUFB","b64_json":"QkJC"}'
+      output: '{"output_format":"[stripped image/png 3 bytes]","b64_json":"[stripped unknown 3 bytes]"}'
+      tokens:
+        - {rule: b, mime: image/png, byte_size: 3}
+        - {rule: e, mime: unknown, byte_size: 3}
     - name: a_sibling_mime_that_is_not_a_token_is_unknown
       note: The mime_type sibling is a non-empty string, so it is context, but it is not a token/token mime, so the mime type is unknown and none of it reaches the replacement. The sibling itself is a data URL, stripped by rule (b).
       input: '{"data":"QUFB","mime_type":"data:image/png;base64,QUFB"}'

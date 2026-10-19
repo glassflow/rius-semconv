@@ -558,6 +558,11 @@ REQUIRED_GOLDEN = {
     "a_replacement_holding_a_data_url_is_not_complete",
     "a_replacement_with_a_mime_that_is_not_a_token_is_a_token",
     "a_nested_document_has_no_enclosing_object",
+    "a_replaced_buffer_is_not_context",
+    "a_replaced_buffer_next_to_a_replacement_lookalike",
+    "context_is_read_before_the_pass",
+    "context_is_read_before_the_pass_in_any_order",
+    "output_format_is_read_before_the_pass",
 }
 
 
