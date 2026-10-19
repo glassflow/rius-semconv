@@ -467,13 +467,19 @@ params:
     reason: As cache_read_tokens, for cache writes.
   - key: gen_ai.usage.details.audio_tokens
     decision: ignored
-    reason: No canonical key; modality splits are not priced separately.
+    reason: |
+      No single direction: pydantic-ai writes it with no input or output in
+      the name, so it cannot map to either audio key.
   - key: gen_ai.usage.input_token_details.audio_tokens
-    decision: ignored
+    decision: mapped
+    target: gen_ai.usage.audio.input_tokens
+    mapped_by:
+    - python
+    - typescript
     reason: |
       @ai-sdk/otel's flattening of a provider's input_token_details on a
-      transcription span (OpenAI's gpt-4o-transcribe). No canonical key is
-      read for it; modality splits are not priced separately.
+      transcription span (OpenAI's gpt-4o-transcribe). A subset of the input
+      count, never added to it.
   - key: gen_ai.usage.input_token_details.text_tokens
     decision: ignored
     reason: As input_token_details.audio_tokens, for the text part of the input.
