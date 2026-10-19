@@ -1658,7 +1658,7 @@ attributes:
     namespace_exception: &cc_namespace |
       Named after the coding agent that produced it (cc is Claude Code), like
       every key the coding-agent plugin writes for a fact only that agent has.
-      Shipped before the plugin was registered here, and the backend reads it.
+      Shipped before the plugin was registered here.
     kinds: [CHAIN]
     category: identity
     level: vendor

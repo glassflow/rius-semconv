@@ -36,14 +36,14 @@ conversation's.
 
 Namespace exception: Named after the coding agent that produced it (cc is Claude Code), like
 every key the coding-agent plugin writes for a fact only that agent has.
-Shipped before the plugin was registered here, and the backend reads it.
+Shipped before the plugin was registered here.
 
 **[2] `cc.continued_from`:** Paired with cc.claude_session_id, which says why neither is
 session.previous_id.
 
 Namespace exception: Named after the coding agent that produced it (cc is Claude Code), like
 every key the coding-agent plugin writes for a fact only that agent has.
-Shipped before the plugin was registered here, and the backend reads it.
+Shipped before the plugin was registered here.
 
 **[3] `cc.cwd`:** Kept so a reader of older coding-agent traces can tell what the key was.
 
@@ -53,7 +53,7 @@ Shipped before the plugin was registered here, and the backend reads it.
 
 Namespace exception: Named after the coding agent that produced it (cc is Claude Code), like
 every key the coding-agent plugin writes for a fact only that agent has.
-Shipped before the plugin was registered here, and the backend reads it.
+Shipped before the plugin was registered here.
 
 **[6] `cc.subagent.id`:** Identifies one subagent run within a session. Not gen_ai.agent.id: the
 conventions keep that for the stable id of a hosted agent resource and
@@ -62,7 +62,7 @@ what this is.
 
 Namespace exception: Named after the coding agent that produced it (cc is Claude Code), like
 every key the coding-agent plugin writes for a fact only that agent has.
-Shipped before the plugin was registered here, and the backend reads it.
+Shipped before the plugin was registered here.
 
 **[7] `cc.turn.source`:** user when the turn opened with text the user typed, system when Claude
 Code opened it (a command's output, a reminder). Decided from the start
@@ -71,6 +71,6 @@ apart in a session.
 
 Namespace exception: Named after the coding agent that produced it (cc is Claude Code), like
 every key the coding-agent plugin writes for a fact only that agent has.
-Shipped before the plugin was registered here, and the backend reads it.
+Shipped before the plugin was registered here.
 
 **[8] `cc.version`:** Kept so a reader of older coding-agent traces can tell what the key was.
