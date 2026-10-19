@@ -16,4 +16,4 @@ dependencies:
   # semantic-conventions-genai cuts no releases or tags: pinned to a full
   # commit. The schema_url is the one that commit's own manifest declares.
   - schema_url: https://opentelemetry.io/schemas/gen-ai-dev/1.42.0-dev
-    registry_path: https://github.com/open-telemetry/semantic-conventions-genai@07794021bfe46e1c241408b6f55cb4354bd28318[model]
+    registry_path: https://github.com/open-telemetry/semantic-conventions-genai@547934afa90a34298441caf80c43b27255c3a292[model]
