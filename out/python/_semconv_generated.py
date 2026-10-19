@@ -32,7 +32,23 @@ SERVICE_INSTANCE_ID = "service.instance.id"
 # is deliberately no placeholder default, because a fake one merges every
 # deployment into a single bucket, the same mistake `unknown_service` makes
 # for service.name.
+# The coding-agent plugin stamps the coding agent's own version here (Claude
+# Code, Codex or Cursor, which service.name names), replacing cc.version,
+# codex.version and cursor.version.
 SERVICE_VERSION = "service.version"
+
+# The directory a coding-agent session runs in, as the agent reports it.
+# The OTel process convention's key for the fact, replacing cc.cwd,
+# codex.cwd and cursor.cwd. The backend shows a trace's repository from
+# it, reading the old per-agent spellings for traces stored before.
+PROCESS_WORKING_DIRECTORY = "process.working_directory"
+
+# The git branch a coding-agent session runs on, as the agent reports it.
+# The OTel VCS convention's key for the current reference, the one Claude
+# Code's own telemetry uses too, replacing cc.git_branch, codex.git_branch
+# and cursor.git_branch. The backend reads the old per-agent spellings for
+# traces stored before.
+VCS_REF_HEAD_NAME = "vcs.ref.head.name"
 
 # The agent this process IS, stamped once on the resource so every span it
 # emits groups under the same name its heartbeats do. Without it the backend
@@ -407,6 +423,138 @@ LLM_INVOCATION_PARAMETERS = "llm.invocation_parameters"
 # the manual span helpers see nothing but the kind. A literal beats an empty
 # name.
 CHAIN_SPAN_NAME = "chain"
+
+# --- Coding-agent plugin ---
+# Classified on the user's machine from the command line, which is never
+# sent: test, build, lint, package, git, or other. Lets a trace show what a
+# running or failed shell call was doing without exporting the command.
+# Claude Code's own telemetry has a similar bash_command_class; no
+# convention defines the fact.
+RIUS_COMMAND_CLASS = "rius.command.class"
+RIUS_COMMAND_CLASS_TEST = "test"
+RIUS_COMMAND_CLASS_BUILD = "build"
+RIUS_COMMAND_CLASS_LINT = "lint"
+RIUS_COMMAND_CLASS_PACKAGE = "package"
+RIUS_COMMAND_CLASS_GIT = "git"
+RIUS_COMMAND_CLASS_OTHER = "other"
+
+# A shell tool call's exit code, when the agent reports one. Written next to
+# rius.command.class, so a failed test run reads as such without the
+# command or its output.
+PROCESS_EXIT_CODE = "process.exit.code"
+
+# user when the turn opened with text the user typed, system when Claude
+# Code opened it (a command's output, a reminder). Decided from the start
+# of the turn's text only. The backend reads it to tell the user's turns
+# apart in a session.
+CC_TURN_SOURCE = "cc.turn.source"
+CC_TURN_SOURCE_USER = "user"
+CC_TURN_SOURCE_SYSTEM = "system"
+
+# Identifies one subagent run within a session. Not gen_ai.agent.id: the
+# conventions keep that for the stable id of a hosted agent resource and
+# advise against recording in-memory agent instance ids there, which is
+# what this is.
+CC_SUBAGENT_ID = "cc.subagent.id"
+
+# Nesting depth of a subagent, counted from the main session's agent.
+CC_SUBAGENT_DEPTH = "cc.subagent.depth"
+
+# Claude Code can carry a conversation on under a new session id. The plugin
+# keeps the conversation one trace and one session: session.id stays the
+# conversation's first id, and a turn after the move records the id it ran
+# under here and the id it moved from in cc.continued_from. Not
+# session.id with session.previous_id: those name the current session and
+# the one before it, and must differ, while session.id here stays the
+# conversation's.
+CC_CLAUDE_SESSION_ID = "cc.claude_session_id"
+
+# Paired with cc.claude_session_id, which says why neither is
+# session.previous_id.
+CC_CONTINUED_FROM = "cc.continued_from"
+
+# Copied from the session's metadata in Codex's rollout file (the CLI, codex
+# exec, an IDE). Codex tags its own metrics with the same word.
+CODEX_ORIGINATOR = "codex.originator"
+
+# As cc.subagent.id, for Codex, and not gen_ai.agent.id for the same reason.
+CODEX_SUBAGENT_ID = "codex.subagent.id"
+
+# The turn id Codex writes in its rollout file, on the finished turn span,
+# so a span can be matched to the rollout it came from.
+CODEX_TURN_ID = "codex.turn.id"
+
+# Codex's own measurement, kept beside the span's start and end, which the
+# plugin derives from rollout timestamps.
+CODEX_TURN_DURATION_MS = "codex.turn.duration_ms"
+
+# Measured per turn, not per model call, so it is not
+# gen_ai.response.time_to_first_chunk, which belongs on an inference span
+# and is in seconds.
+CODEX_TURN_TTFT_MS = "codex.turn.ttft_ms"
+
+# The reason Codex gives for aborting the turn, or "aborted" when it gives
+# none. Absent on a turn that finished. A string despite the name, because
+# it carries the reason.
+CODEX_TURN_ABORTED = "codex.turn.aborted"
+
+# Copied from Cursor's sessionStart hook (agent, ask, edit), onto the
+# session's root span.
+CURSOR_COMPOSER_MODE = "cursor.composer_mode"
+
+# Cursor's is_background_agent, onto the session's root span.
+CURSOR_BACKGROUND = "cursor.background"
+
+# Copied from Cursor's sessionEnd hook (completed, aborted, error,
+# window_close, user_close). An error reason also sets the root span's
+# status.
+CURSOR_SESSION_REASON = "cursor.session.reason"
+
+# Copied from Cursor's sessionEnd hook. Cursor documents no values for it.
+CURSOR_SESSION_FINAL_STATUS = "cursor.session.final_status"
+
+# Copied from Cursor's stop hook (completed, aborted, error); it also sets
+# the turn span's status.
+CURSOR_TURN_STATUS = "cursor.turn.status"
+
+# Copied from Cursor's stop hook.
+CURSOR_TURN_LOOP_COUNT = "cursor.turn.loop_count"
+
+# Cursor reports thinking time, not thinking tokens, so this cannot be
+# gen_ai.usage.reasoning.output_tokens.
+CURSOR_THINKING_DURATION_MS = "cursor.thinking.duration_ms"
+
+# Copied from Cursor's preCompact hook onto the model call it interrupted.
+# A measure of the context window, not of one request's input, so not
+# gen_ai.usage.input_tokens.
+CURSOR_CONTEXT_TOKENS = "cursor.context.context_tokens"
+
+# Copied from Cursor's preCompact hook, beside cursor.context.context_tokens.
+CURSOR_CONTEXT_WINDOW_SIZE = "cursor.context.context_window_size"
+
+# Copied from Cursor's preCompact hook, which documents it as a number.
+# Cursor sends whole numbers today, so the plugin must write it as a double
+# even when the value has no fraction.
+CURSOR_CONTEXT_USAGE_PERCENT = "cursor.context.context_usage_percent"
+
+# As cc.subagent.id, for Cursor, and not gen_ai.agent.id for the same
+# reason.
+CURSOR_SUBAGENT_ID = "cursor.subagent.id"
+
+# Copied from Cursor's subagentStop hook (completed, error, aborted).
+CURSOR_SUBAGENT_STATUS = "cursor.subagent.status"
+
+# Copied from Cursor's subagentStop hook.
+CURSOR_SUBAGENT_TOOL_CALL_COUNT = "cursor.subagent.tool_call_count"
+
+# Copied from Cursor's subagentStop hook.
+CURSOR_SUBAGENT_MESSAGE_COUNT = "cursor.subagent.message_count"
+
+# Set only when true.
+CURSOR_TOOL_INTERRUPTED = "cursor.tool.interrupted"
+
+# Set only when true. The call's outcome is unknown, not successful.
+CURSOR_TOOL_CLOSED_AT_SESSION_END = "cursor.tool.closed_at_session_end"
 
 # Request parameters the GenAI conventions define, mapped from every spelling
 # we recognise to the canonical attribute key. Verified against
@@ -929,12 +1077,41 @@ _NAME_TARGET_BY_KIND: dict[SpanKind, str] = {
 }
 
 __all__ = [
+    "CC_CLAUDE_SESSION_ID",
+    "CC_CONTINUED_FROM",
+    "CC_SUBAGENT_DEPTH",
+    "CC_SUBAGENT_ID",
+    "CC_TURN_SOURCE",
+    "CC_TURN_SOURCE_SYSTEM",
+    "CC_TURN_SOURCE_USER",
     "CHAIN_SPAN_NAME",
+    "CODEX_ORIGINATOR",
+    "CODEX_SUBAGENT_ID",
+    "CODEX_TURN_ABORTED",
+    "CODEX_TURN_DURATION_MS",
+    "CODEX_TURN_ID",
+    "CODEX_TURN_TTFT_MS",
     "CONTENT_ATTRIBUTES",
     "CONTENT_ATTRIBUTE_PREFIXED_SUFFIXES",
     "CONTENT_ATTRIBUTE_PREFIXES",
     "CONTENT_ATTRIBUTE_SUFFIXES",
     "CONTENT_PREFIX_IDENTITY_ATTRIBUTES",
+    "CURSOR_BACKGROUND",
+    "CURSOR_COMPOSER_MODE",
+    "CURSOR_CONTEXT_TOKENS",
+    "CURSOR_CONTEXT_USAGE_PERCENT",
+    "CURSOR_CONTEXT_WINDOW_SIZE",
+    "CURSOR_SESSION_FINAL_STATUS",
+    "CURSOR_SESSION_REASON",
+    "CURSOR_SUBAGENT_ID",
+    "CURSOR_SUBAGENT_MESSAGE_COUNT",
+    "CURSOR_SUBAGENT_STATUS",
+    "CURSOR_SUBAGENT_TOOL_CALL_COUNT",
+    "CURSOR_THINKING_DURATION_MS",
+    "CURSOR_TOOL_CLOSED_AT_SESSION_END",
+    "CURSOR_TOOL_INTERRUPTED",
+    "CURSOR_TURN_LOOP_COUNT",
+    "CURSOR_TURN_STATUS",
     "ERROR_TYPE",
     "ERROR_TYPE_TOOL_ERROR",
     "EXCEPTION_EVENT",
@@ -996,7 +1173,16 @@ __all__ = [
     "OUTPUT_VALUE",
     "PENDING_IDENTITY_ATTRIBUTES",
     "PENDING_IDENTITY_PREFIXES",
+    "PROCESS_EXIT_CODE",
+    "PROCESS_WORKING_DIRECTORY",
     "RIUS_AGGREGATED_USAGE_PREFIX",
+    "RIUS_COMMAND_CLASS",
+    "RIUS_COMMAND_CLASS_BUILD",
+    "RIUS_COMMAND_CLASS_GIT",
+    "RIUS_COMMAND_CLASS_LINT",
+    "RIUS_COMMAND_CLASS_OTHER",
+    "RIUS_COMMAND_CLASS_PACKAGE",
+    "RIUS_COMMAND_CLASS_TEST",
     "RIUS_CONTEXT_SIZES",
     "RIUS_MAIN_AGENT_DESCRIPTION",
     "RIUS_MAIN_AGENT_ID",
@@ -1014,5 +1200,6 @@ __all__ = [
     "THIRD_PARTY_CONTENT_ATTRIBUTES",
     "TRACER_NAME",
     "USER_ID",
+    "VCS_REF_HEAD_NAME",
     "WORKSPACE_ROUTE",
 ]

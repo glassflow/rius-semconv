@@ -23,6 +23,9 @@ export const SERVICE_INSTANCE_ID = "service.instance.id";
 // is deliberately no placeholder default, because a fake one merges every
 // deployment into a single bucket, the same mistake `unknown_service` makes
 // for service.name.
+// The coding-agent plugin stamps the coding agent's own version here (Claude
+// Code, Codex or Cursor, which service.name names), replacing cc.version,
+// codex.version and cursor.version.
 export const SERVICE_VERSION = ATTR_SERVICE_VERSION;
 
 // The agent this process IS, stamped once on the resource so every span it

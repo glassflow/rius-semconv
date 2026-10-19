@@ -23,6 +23,8 @@ params:
   - const: SERVICE_NAME
   - const: SERVICE_INSTANCE_ID
   - const: SERVICE_VERSION
+  - const: PROCESS_WORKING_DIRECTORY
+  - const: VCS_REF_HEAD_NAME
   - const: TELEMETRY_DISTRO_NAME
   - const: TELEMETRY_DISTRO_VERSION
   - const: GEN_AI_AGENT_NAME
@@ -278,6 +280,115 @@ params:
       from. The conventions define no operation for a generic workflow step, and
       the manual span helpers see nothing but the kind. A literal beats an empty
       name.
+  - const: RIUS_COMMAND_CLASS
+  - const: RIUS_COMMAND_CLASS_TEST
+    key: test
+    symbol: value
+    of: RIUS_COMMAND_CLASS
+    shipped_in:
+    - python
+    - go
+    divergence: |
+      Only the coding-agent plugin (Python) writes it, and only the Rius
+      backend (Go) reads it. No TypeScript consumer has a use for it.
+  - const: RIUS_COMMAND_CLASS_BUILD
+    key: build
+    symbol: value
+    of: RIUS_COMMAND_CLASS
+    shipped_in:
+    - python
+    - go
+    divergence: |
+      Only the coding-agent plugin (Python) writes it, and only the Rius
+      backend (Go) reads it. No TypeScript consumer has a use for it.
+  - const: RIUS_COMMAND_CLASS_LINT
+    key: lint
+    symbol: value
+    of: RIUS_COMMAND_CLASS
+    shipped_in:
+    - python
+    - go
+    divergence: |
+      Only the coding-agent plugin (Python) writes it, and only the Rius
+      backend (Go) reads it. No TypeScript consumer has a use for it.
+  - const: RIUS_COMMAND_CLASS_PACKAGE
+    key: package
+    symbol: value
+    of: RIUS_COMMAND_CLASS
+    shipped_in:
+    - python
+    - go
+    divergence: |
+      Only the coding-agent plugin (Python) writes it, and only the Rius
+      backend (Go) reads it. No TypeScript consumer has a use for it.
+  - const: RIUS_COMMAND_CLASS_GIT
+    key: git
+    symbol: value
+    of: RIUS_COMMAND_CLASS
+    shipped_in:
+    - python
+    - go
+    divergence: |
+      Only the coding-agent plugin (Python) writes it, and only the Rius
+      backend (Go) reads it. No TypeScript consumer has a use for it.
+  - const: RIUS_COMMAND_CLASS_OTHER
+    key: other
+    symbol: value
+    of: RIUS_COMMAND_CLASS
+    shipped_in:
+    - python
+    - go
+    divergence: |
+      Only the coding-agent plugin (Python) writes it, and only the Rius
+      backend (Go) reads it. No TypeScript consumer has a use for it.
+  - const: PROCESS_EXIT_CODE
+  - const: CC_TURN_SOURCE
+  - const: CC_TURN_SOURCE_USER
+    key: user
+    symbol: value
+    of: CC_TURN_SOURCE
+    shipped_in:
+    - python
+    - go
+    divergence: |
+      Only the coding-agent plugin (Python) writes it, and only the Rius
+      backend (Go) reads it. No TypeScript consumer has a use for it.
+  - const: CC_TURN_SOURCE_SYSTEM
+    key: system
+    symbol: value
+    of: CC_TURN_SOURCE
+    shipped_in:
+    - python
+    - go
+    divergence: |
+      Only the coding-agent plugin (Python) writes it, and only the Rius
+      backend (Go) reads it. No TypeScript consumer has a use for it.
+  - const: CC_SUBAGENT_ID
+  - const: CC_SUBAGENT_DEPTH
+  - const: CC_CLAUDE_SESSION_ID
+  - const: CC_CONTINUED_FROM
+  - const: CODEX_ORIGINATOR
+  - const: CODEX_SUBAGENT_ID
+  - const: CODEX_TURN_ID
+  - const: CODEX_TURN_DURATION_MS
+  - const: CODEX_TURN_TTFT_MS
+  - const: CODEX_TURN_ABORTED
+  - const: CURSOR_COMPOSER_MODE
+  - const: CURSOR_BACKGROUND
+  - const: CURSOR_SESSION_REASON
+  - const: CURSOR_SESSION_FINAL_STATUS
+  - const: CURSOR_TURN_STATUS
+  - const: CURSOR_TURN_LOOP_COUNT
+  - const: CURSOR_THINKING_DURATION_MS
+  - const: CURSOR_CONTEXT_TOKENS
+  - const: CURSOR_CONTEXT_WINDOW_SIZE
+  - const: CURSOR_CONTEXT_USAGE_PERCENT
+  - const: CURSOR_SUBAGENT_ID
+  - const: CURSOR_SUBAGENT_STATUS
+  - const: CURSOR_SUBAGENT_TOOL_CALL_COUNT
+  - const: CURSOR_SUBAGENT_MESSAGE_COUNT
+  - const: CURSOR_TOOL_INTERRUPTED
+  - const: CURSOR_TOOL_CLOSED_AT_SESSION_END
   normalizer_inputs:
   - key: gen_ai.usage.cache_creation.input_tokens
     decision: mapped

@@ -59,6 +59,7 @@ attribute_groups:
         type: string
         fill:
         - native
+        - coding_agents
         ts_alias:
           name: ATTR_SERVICE_VERSION
           from: '@opentelemetry/semantic-conventions'
@@ -68,6 +69,58 @@ attribute_groups:
           is deliberately no placeholder default, because a fake one merges every
           deployment into a single bucket, the same mistake `unknown_service` makes
           for service.name.
+          The coding-agent plugin stamps the coding agent's own version here (Claude
+          Code, Codex or Cursor, which service.name names), replacing cc.version,
+          codex.version and cursor.version.
+  - ref: process.working_directory
+    requirement_level: recommended
+    annotations:
+      rius:
+        const: PROCESS_WORKING_DIRECTORY
+        key: process.working_directory
+        symbol: attribute
+        origin: otel
+        kinds: resource
+        level: recommended
+        type: string
+        fill:
+        - coding_agents
+        shipped_in:
+        - python
+        - go
+        divergence: |
+          Only the coding-agent plugin (Python) writes it, and only the Rius
+          backend (Go) reads it. No TypeScript consumer has a use for it.
+        rationale: |
+          The directory a coding-agent session runs in, as the agent reports it.
+          The OTel process convention's key for the fact, replacing cc.cwd,
+          codex.cwd and cursor.cwd. The backend shows a trace's repository from
+          it, reading the old per-agent spellings for traces stored before.
+  - ref: vcs.ref.head.name
+    requirement_level: recommended
+    annotations:
+      rius:
+        const: VCS_REF_HEAD_NAME
+        key: vcs.ref.head.name
+        symbol: attribute
+        origin: otel
+        kinds: resource
+        level: recommended
+        type: string
+        fill:
+        - coding_agents
+        shipped_in:
+        - python
+        - go
+        divergence: |
+          Only the coding-agent plugin (Python) writes it, and only the Rius
+          backend (Go) reads it. No TypeScript consumer has a use for it.
+        rationale: |
+          The git branch a coding-agent session runs on, as the agent reports it.
+          The OTel VCS convention's key for the current reference, the one Claude
+          Code's own telemetry uses too, replacing cc.git_branch, codex.git_branch
+          and cursor.git_branch. The backend reads the old per-agent spellings for
+          traces stored before.
   - ref: telemetry.distro.name
     requirement_level: required
     annotations:
@@ -1151,6 +1204,31 @@ attribute_groups:
         - openinference
         - vercel
         note: an attribute of the exception EVENT, not of the span
+  - ref: process.exit.code
+    requirement_level: recommended
+    annotations:
+      rius:
+        const: PROCESS_EXIT_CODE
+        key: process.exit.code
+        symbol: attribute
+        origin: otel
+        kinds:
+        - TOOL
+        category: metadata
+        level: recommended
+        type: int
+        fill:
+        - coding_agents
+        shipped_in:
+        - python
+        - go
+        divergence: |
+          Only the coding-agent plugin (Python) writes it, and only the Rius
+          backend (Go) reads it. No TypeScript consumer has a use for it.
+        rationale: |
+          A shell tool call's exit code, when the agent reports one. Written next to
+          rius.command.class, so a failed test run reads as such without the
+          command or its output.
 - id: rius.passthrough
   visibility: public
   stability: development

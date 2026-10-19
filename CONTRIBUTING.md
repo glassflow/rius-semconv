@@ -53,14 +53,15 @@ from it: never edit `out/` by hand.
    such as `gen_ai.*`: the convention is free to define that key later and
    mean something else. Never use `glassflow.*`. The linter rejects
    `glassflow.*` keys, and an `origin: rius` key outside `rius.*` needs a
-   written `namespace_exception`. Only two keys have one, and they are the
-   only keys this registry defines in a convention's namespace: the
-   `mcp.result_type` attribute and the `gen_ai.first_token` event name, and
-   both are deprecated: nothing reads `mcp.result_type`, and the backend
-   derives `gen_ai.first_token` from `gen_ai.response.time_to_first_chunk`.
-   Every
+   written `namespace_exception`. Two of those are the only keys this
+   registry defines in a convention's namespace: the `mcp.result_type`
+   attribute and the `gen_ai.first_token` event name, and both are
+   deprecated: nothing reads `mcp.result_type`, and the backend derives
+   `gen_ai.first_token` from `gen_ai.response.time_to_first_chunk`. Every
    other key in those namespaces is referenced from the upstream registry,
-   never defined here.
+   never defined here. The rest are the coding-agent plugin's `cc.*`,
+   `codex.*` and `cursor.*` keys, which shipped before the plugin was
+   registered here; a new key the plugin needs goes under `rius.*`.
 3. **Add or change the row** in `registry/attributes.yaml`. The file's header
    lists every column; the README's "What a row says" explains the ones that
    matter most. Give a span attribute its category, level and kinds, and write

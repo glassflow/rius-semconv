@@ -87,7 +87,8 @@ description and examples:
 | Page | What it holds |
 | -- | -- |
 | [`rius`](docs/registry/rius.md) | The namespace this registry owns. A retired spelling, such as `glassflow.span.pending`, is named on the row of the key that replaced it. |
-| [`gen_ai`](docs/registry/gen_ai.md), [`mcp`](docs/registry/mcp.md) | The two Rius keys outside `rius.*`, each under its namespace exception. Both are deprecated. |
+| [`gen_ai`](docs/registry/gen_ai.md), [`mcp`](docs/registry/mcp.md) | The two Rius keys in an OpenTelemetry namespace, each under its namespace exception. Both are deprecated. |
+| [`cc`](docs/registry/cc.md), [`codex`](docs/registry/codex.md), [`cursor`](docs/registry/cursor.md) | The keys the coding-agent plugin writes for facts only one agent has (Claude Code, Codex, Cursor), each under a namespace exception. |
 | [Upstream keys](docs/registry/upstream.md) | The OpenTelemetry keys the SDKs emit or read, linked to their definitions in the pinned upstream registries, with the requirement level Rius gives each. |
 | [Keys other producers write](docs/registry/normalizer-inputs.md) | The OpenInference, OpenLLMetry, Vercel AI SDK and pydantic-ai keys the SDKs emit or the normalizers read, with each decision. |
 
