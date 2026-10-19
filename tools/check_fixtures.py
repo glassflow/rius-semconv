@@ -19,12 +19,14 @@ start with "_"):
 - an expected result holds no base64 or byte-array media (recordings may):
   (a) no blob part with content; (b) no data: URL; (c) no 4096-character
   base64 run; (d) no non-empty {"type": "Buffer", "data": [...]} byte array;
-  (e) no base64 string under data, b64_json or result next to a media type,
-  under input_audio, audio or inline_data, or in a base64 source; and (f) not
+  (e) no base64 string under data, b64_json or result next to a media type or
+  format, under input_audio, audio, inline_data or inlineData, or in a base64
+  source (a replacement string is not one); and (f) not
   the first 32 base64 characters of any payload fixtures/_media.py exports,
   anywhere in the file. Rules (b), (d) and (e) are read from
   registry/media_parts.yaml raw_payloads.detection, the rules the normalizers
-  strip by;
+  strip by, and a string holding JSON is read as they read it (ASCII
+  whitespace before { or [, strict RFC 8259);
 - no JSON file in it holds a traceback or a local path from the machine that
   recorded it.
 
@@ -129,11 +131,9 @@ def _holds_media(value: Any, parent_key: str | None = None) -> bool:
             return True
         if _holds_payload(value):  # (f)
             return True
-        if value.lstrip()[:1] in ("{", "["):
-            try:
-                return _holds_media(json.loads(value))
-            except ValueError:
-                return False
+        parsed = media_parts.parse_json_candidate(value)
+        if parsed is not None:
+            return _holds_media(parsed)
     return False
 
 
