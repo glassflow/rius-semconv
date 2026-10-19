@@ -362,15 +362,22 @@ def test_data_key_without_media_context_is_not_media(family):
     assert _media_errors(family) == []
 
 
-def test_a_blob_part_whose_content_is_the_replacement_is_media_only_in_a_raw_payload():
+def test_a_blob_part_whose_content_is_the_replacement_is_media_only_in_a_message_key():
     from tools.check_fixtures import _holds_media
 
     replaced = {"type": "blob", "content": "[stripped image/png 8 bytes]"}
-    for key in ("pydantic_ai.all_messages", "input.value", "InputValue", "OutputValue"):
+    for key in ("pydantic_ai.all_messages", "input.value", "InputValue", "some.attribute", None):
         assert not _holds_media(replaced, key=key), key
         assert _holds_media({"type": "blob", "content": "iVBORw0KGgo="}, key=key), key
         assert _holds_media({"type": "blob", "content": "[stripped image/png lots bytes]"}, key=key)
-    for key in ("gen_ai.input.messages", "InputMessages", "some.attribute", None):
+    for key in (
+        "gen_ai.input.messages",
+        "gen_ai.output.messages",
+        "gen_ai.system_instructions",
+        "llm.input_messages.0.message.contents",
+        "InputMessages",
+        "OutputMessages",
+    ):
         assert _holds_media(replaced, key=key), key
 
 
@@ -386,6 +393,12 @@ def test_a_replaced_blob_in_a_message_key_is_caught(family):
 
 def test_a_replaced_blob_in_a_raw_payload_is_not_media(family):
     _first_span_attr(family / EXPECTED, "pydantic_ai.all_messages", _messages(REPLACED_BLOB))
+    assert _media_errors(family) == []
+
+
+def test_a_replaced_blob_in_a_tool_result_is_not_media(family):
+    part = {"type": "blob", "mime_type": "image/png", "content": "[stripped image/png 8 bytes]"}
+    _first_span_attr(family / EXPECTED, "gen_ai.tool.call.result", json.dumps([part]))
     assert _media_errors(family) == []
 
 

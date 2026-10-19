@@ -17,10 +17,10 @@ start with "_"):
   normalized), the expected result is the recording itself, since
   normalizing canonical spans must change nothing;
 - an expected result holds no base64 or byte-array media (recordings may):
-  (a) no blob part with content, except a replacement string in a raw payload
-  (an attribute of raw_payloads.raw_keys, or the sink's InputValue and
-  OutputValue columns), whose blob part keeps it; in a message key the
-  normalized blob part has no content at all; (b) no data: URL; (c) no
+  (a) no blob part with content in a message key (raw_payloads.message_keys,
+  and the sink's InputMessages and OutputMessages columns), where the
+  normalized blob part has none; anywhere else, no blob part whose content is
+  not a complete replacement (the strip writes one there); (b) no data: URL; (c) no
   4096-character base64 run; (d) no non-empty {"type": "Buffer", "data":
   [...]} byte array; (e) no base64 string under data, b64_json or result next
   to a media type or output format, under input_audio, audio, inline_data or
@@ -110,6 +110,16 @@ def payload_prefixes() -> dict[str, str]:
     return {name: media.b64(data)[:PAYLOAD_PREFIX] for name, data in payloads.items()}
 
 
+#: The sink's columns that hold normalized messages, like a message key.
+MESSAGE_COLUMNS = ("InputMessages", "OutputMessages")
+
+
+def _is_message_key(key: str | None) -> bool:
+    return key is not None and (
+        key in MESSAGE_COLUMNS or media_parts.is_message_key(raw_payloads(), key)
+    )
+
+
 def _holds_payload(text: str) -> bool:
     return any(prefix in text for prefix in payload_prefixes().values())
 
@@ -122,8 +132,8 @@ def _holds_media(
     depth: int | None = None,
 ) -> bool:
     """Whether a value, or JSON nested in a string in it, holds base64 media.
-    `key` is the attribute or column the value is under: only a raw payload's
-    blob part may keep content, and only as a replacement (rule a). `depth` is
+    `key` is the attribute or column the value is under: in a message key a
+    blob part has no content; elsewhere its content may be a replacement (rule a). `depth` is
     how many JSON arrays and objects enclose the value, None outside JSON."""
     raw = raw_payloads()
     inner = None if depth is None else depth + 1
@@ -131,7 +141,7 @@ def _holds_media(
         if value.get("type") == "blob" and "content" in value:  # (a)
             content = value["content"]
             replaced = isinstance(content, str) and media_parts.is_replacement(raw, content)
-            if not (replaced and key in raw["raw_keys"]):
+            if _is_message_key(key) or not replaced:
                 return True
         if media_parts.is_buffer(raw, value):  # (d)
             return True
