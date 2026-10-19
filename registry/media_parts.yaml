@@ -159,8 +159,8 @@ rows:
     normalized: uri
     modality: from_mime
     paths: [passthrough, openllmetry, laminar]
-    fixtures: [openinference-anthropic/image_url, openinference-js-anthropic/image_url]
-    note: OpenInference Python flattens a url source into the placeholder data:None;url,None; OpenInference JS flattens it to an image part with no image keys. In both the URL survives only in the request JSON of input.value.
+    fixtures: []
+    reason: No recorded family; covered by the SDK pass-through unit tests.
 
   - source: anthropic.messages
     shape: image / document with source.type = file

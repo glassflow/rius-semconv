@@ -266,6 +266,27 @@ def test_long_non_media_strings_are_not_base64(family):
     assert check_family(family) == []
 
 
+def _buffer_prompt(data: list[int]) -> str:
+    part = {
+        "type": "file",
+        "data": {"type": "Buffer", "data": data},
+        "mediaType": "image/png",
+    }
+    return json.dumps({"messages": [{"role": "user", "content": [part]}]})
+
+
+def test_buffer_byte_array_is_caught(family):
+    _first_span_attr(family / EXPECTED, "ai.prompt", _buffer_prompt([137, 80, 78, 71]))
+    errors = _media_errors(family)
+    assert len(errors) == 1
+    assert "attribute ai.prompt holds base64 media" in errors[0]
+
+
+def test_empty_buffer_is_not_media(family):
+    _first_span_attr(family / EXPECTED, "ai.prompt", _buffer_prompt([]))
+    assert _media_errors(family) == []
+
+
 def test_base64_in_sink_rows_is_caught(sink_family):
     blob = {"type": "blob", "modality": "image", "content": "iVBORw0K"}
 

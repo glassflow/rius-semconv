@@ -103,3 +103,13 @@ def test_registry_lint_includes_media_parts(data):
 def test_no_ticket_ids(data):
     data["media_parts"]["rows"][0]["reason"] = "see RIUS-1"
     assert_flags(Registry(copy.deepcopy(data)).lint(), "ticket id RIUS-1")
+
+
+def test_anthropic_url_row_cites_no_openinference_fixture(base_data):
+    (row,) = [
+        r
+        for r in base_data["media_parts"]["rows"]
+        if r["source"] == "anthropic.messages" and "source.type = url" in r["shape"]
+    ]
+    assert row["fixtures"] == []
+    assert row["reason"]

@@ -16,8 +16,9 @@ start with "_"):
 - in a control family (manifest `"control": true`: spans an SDK already
   normalized), the expected result is the recording itself, since
   normalizing canonical spans must change nothing;
-- an expected result holds no base64 media: no blob part with content, no
-  data: URL, no 4096-character base64 run (recordings may);
+- an expected result holds no base64 or byte-array media: no blob part with
+  content, no data: URL, no 4096-character base64 run, no non-empty
+  {"type": "Buffer", "data": [...]} byte array (recordings may);
 - no JSON file in it holds a traceback or a local path from the machine that
   recorded it.
 
@@ -73,6 +74,8 @@ def _holds_media(value: Any) -> bool:
     """Whether a value, or JSON nested in a string in it, holds base64 media."""
     if isinstance(value, dict):
         if value.get("type") == "blob" and "content" in value:
+            return True
+        if value.get("type") == "Buffer" and isinstance(value.get("data"), list) and value["data"]:
             return True
         return any(_holds_media(v) for v in value.values())
     if isinstance(value, list):
