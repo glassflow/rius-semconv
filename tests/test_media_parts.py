@@ -7,6 +7,7 @@ asserts the break is named.
 from __future__ import annotations
 
 import copy
+import json
 import re
 
 import pytest
@@ -461,3 +462,161 @@ def test_in_text_example_is_what_the_rule_does(base_data):
     raw = base_data["media_parts"]["raw_payloads"]
     example = raw["replacement"]["in_text"]
     assert media_parts.strip_data_urls(raw, example["before"]) == example["after"]
+
+
+# --- strip_raw_payload: the golden examples ------------------------------------
+
+GOLDEN = Registry.load().media_parts["raw_payloads"]["golden"]
+
+#: The cases the contract must pin, by golden name.
+REQUIRED_GOLDEN = {
+    "anthropic_base64_image_pretty_printed",
+    "openai_input_audio_wav",
+    "vercel_buffer_in_ai_prompt",
+    "data_url_in_prose",
+    "data_url_in_json_string",
+    "keyed_data_url_rule_e_wins",
+    "truncated_json_rule_b_only",
+    "json_nested_in_a_json_string",
+    "nested_json_with_escapes_a_reencoder_would_not_write",
+    "invalid_base64_under_keyed_data",
+    "unicode_space_before_brace_is_not_json",
+    "gemini_inline_data_camel_case",
+    "openai_responses_image_generation_result",
+    "stripping_twice_changes_nothing",
+}
+
+
+def test_golden_covers_the_required_cases():
+    assert {g["name"] for g in GOLDEN} >= REQUIRED_GOLDEN
+
+
+@pytest.mark.parametrize("golden", GOLDEN, ids=[g["name"] for g in GOLDEN])
+def test_golden(base_data, golden):
+    raw = base_data["media_parts"]["raw_payloads"]
+    result = media_parts.strip(raw, golden["input"])
+    assert result.text == golden["output"]
+    assert media_parts.strip_raw_payload(raw, golden["input"]) == golden["output"]
+    assert [t.as_dict() for t in result.tokens] == golden["tokens"]
+
+
+@pytest.mark.parametrize("golden", GOLDEN, ids=[g["name"] for g in GOLDEN])
+def test_stripping_is_idempotent(base_data, golden):
+    raw = base_data["media_parts"]["raw_payloads"]
+    assert media_parts.strip(raw, golden["output"]) == media_parts.Stripped(golden["output"], [])
+
+
+def test_a_wrong_golden_fails_lint(data):
+    data["media_parts"]["raw_payloads"]["golden"][0]["output"] = "{}"
+    errors = media_parts.lint(data["media_parts"])
+    assert_flags(errors, "golden anthropic_base64_image_pretty_printed")
+
+
+def test_golden_tokens_are_checked(data):
+    data["media_parts"]["raw_payloads"]["golden"][1]["tokens"] = []
+    assert_flags(media_parts.lint(data["media_parts"]), "golden openai_input_audio_wav")
+
+
+def test_golden_rendered(base_data):
+    table = media_parts.render_table(base_data["media_parts"])
+    assert "### Golden examples" in table
+    for golden in GOLDEN:
+        assert f"`{golden['name']}`" in table
+
+
+def test_the_prose_rulings_are_required(data):
+    del data["media_parts"]["raw_payloads"]["precedence"]
+    assert_flags(media_parts.lint(data["media_parts"]), "raw_payloads needs precedence")
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        '[NaN, {"source": {"type": "base64", "data": "iVBORw0KGgo="}}]',
+        '{"source": {"type": "base64", "data": "iVBORw0KGgo="}} // comment',
+        '{"source": {"type": "base64", "data": "iVBORw0KGgo="},}',
+    ],
+)
+def test_not_rfc_8259_json_gets_rule_b_only(base_data, text):
+    raw = base_data["media_parts"]["raw_payloads"]
+    assert media_parts.strip_raw_payload(raw, text) == text
+
+
+def test_ascii_whitespace_before_json_is_trimmed(base_data):
+    raw = base_data["media_parts"]["raw_payloads"]
+    text = ' \t\r\n{"source": {"type": "base64", "data": "iVBORw0KGgo="}} \n'
+    assert media_parts.strip_raw_payload(raw, text) == (
+        ' \t\r\n{"source": {"type": "base64", "data": "[stripped unknown 8 bytes]"}} \n'
+    )
+
+
+def test_buffer_inside_a_replaced_buffer_is_not_visited(base_data):
+    raw = base_data["media_parts"]["raw_payloads"]
+    text = '{"type":"Buffer","data":[1,2],"x":{"type":"Buffer","data":[3]}}'
+    result = media_parts.strip(raw, text)
+    assert result.text == '"[stripped unknown 2 bytes]"'
+    assert [t.rule for t in result.tokens] == ["d"]
+
+
+def test_replacement_text_is_escaped_for_its_level(base_data):
+    raw = base_data["media_parts"]["raw_payloads"]
+    # A mime type with a backslash, inside a JSON string, and one level deeper.
+    text = '{"a":"data:x\\\\y;base64,AAAA","b":"[\\"data:x\\\\\\\\y;base64,AAAA\\"]"}'
+    assert media_parts.strip_raw_payload(raw, text) == (
+        '{"a":"[stripped x\\\\y 3 bytes]","b":"[\\"[stripped x\\\\\\\\y 3 bytes]\\"]"}'
+    )
+
+
+def test_two_level_nesting_escapes_twice(base_data):
+    raw = base_data["media_parts"]["raw_payloads"]
+    inner = json.dumps({"source": {"type": "base64", "data": "iVBORw0KGgo="}})
+    text = json.dumps({"outer": json.dumps({"inner": inner})})
+    stripped = media_parts.strip_raw_payload(raw, text)
+    decoded = json.loads(json.loads(json.loads(stripped)["outer"])["inner"])
+    assert decoded == {"source": {"type": "base64", "data": "[stripped unknown 8 bytes]"}}
+
+
+@pytest.mark.parametrize(
+    ("value", "size"),
+    [
+        ("iVBORw0KGgo=", 8),
+        ("UklGRg==", 4),
+        ("AAAA", 3),
+        ("-_-_", 3),
+        (" AA\tAA\r\n", 3),
+        ("", 0),
+        ("+_AA", None),
+        ("AAA", None),
+        ("AA=A", None),
+        ("A===", None),
+        ("AA AA", None),
+        ("hello", None),
+    ],
+)
+def test_byte_size(value, size):
+    assert media_parts.base64_size(value) == size
+
+
+# --- the rule (b) pattern means the same in Python, JavaScript and Go ----------
+
+#: The escapes all three engines read the same way.
+PORTABLE_ESCAPES = set("tnfr") | set("\\/.-[]()+*?{}|^$")
+
+
+def test_data_url_pattern_is_portable(base_data):
+    (rule,) = [r for r in base_data["media_parts"]["raw_payloads"]["detection"] if r["id"] == "b"]
+    pattern = rule["pattern"]
+    assert "(?" not in pattern, "no lookaround, named group or inline flag"
+    for match in re.finditer(r"\\(.)", pattern):
+        assert match.group(1) in PORTABLE_ESCAPES, f"\\{match.group(1)} is not portable"
+    assert '[^;,\\t\\n\\f\\r "]' in pattern
+    assert "[A-Za-z0-9+/_-]" in pattern
+
+
+def test_portability_check_bites():
+    for bad in ("\\s", "\\d", "\\w", "(?<=x)", "\\1"):
+        pattern = f"data:([^;,]*{bad});base64,(x)"
+        bites = "(?" in pattern or any(
+            m.group(1) not in PORTABLE_ESCAPES for m in re.finditer(r"\\(.)", pattern)
+        )
+        assert bites, bad
