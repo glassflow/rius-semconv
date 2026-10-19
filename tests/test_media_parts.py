@@ -7,6 +7,9 @@ asserts the break is named.
 from __future__ import annotations
 
 import copy
+import re
+
+import pytest
 
 from conftest import ROOT
 from generators import media_parts
@@ -27,7 +30,7 @@ def test_committed_file_is_clean(base_data):
 
 def test_every_row_has_a_source_shape_and_direction(base_data):
     rows = base_data["media_parts"]["rows"]
-    assert len(rows) == 25
+    assert len(rows) == 27
     assert {r["direction"] for r in rows} == {"input", "output"}
 
 
@@ -113,3 +116,246 @@ def test_anthropic_url_row_cites_no_openinference_fixture(base_data):
     ]
     assert row["fixtures"] == []
     assert row["reason"]
+
+
+# --- the stripped_reason vocabulary -------------------------------------------
+
+
+def test_stripped_reasons_are_exactly_the_two(data):
+    assert set(data["media_parts"]["stripped_reasons"]) == {"not_captured", "redacted_upstream"}
+    data["media_parts"]["stripped_reasons"]["too_big"] = "Too big."
+    assert_flags(media_parts.lint(data["media_parts"]), "stripped_reasons must be exactly")
+
+
+def test_missing_stripped_reason_fails(data):
+    data["media_parts"]["stripped_reasons"].pop("redacted_upstream")
+    assert_flags(media_parts.lint(data["media_parts"]), "stripped_reasons must be exactly")
+
+
+# --- normalized: none ---------------------------------------------------------
+
+
+def test_none_is_a_normalized_outcome(base_data):
+    rows = [r for r in base_data["media_parts"]["rows"] if r["normalized"] == "none"]
+    assert rows
+    table = media_parts.render_table(base_data["media_parts"])
+    assert "no part (raw payload stripped)" in table
+
+
+def test_none_cannot_be_combined(data):
+    data["media_parts"]["rows"][0]["normalized"] = ["none", "blob"]
+    assert_flags(media_parts.lint(data["media_parts"]), "none stands alone")
+
+
+def _outcomes_by_fixture(rows: list[dict]) -> dict[str, set[frozenset]]:
+    out: dict[str, set[frozenset]] = {}
+    for row in rows:
+        for ref in row.get("fixtures") or []:
+            out.setdefault(ref, set()).add(frozenset(media_parts.normalized_of(row)))
+    return out
+
+
+def test_no_fixture_proves_two_different_outcomes(base_data):
+    """A scenario cited by two rows must make the same kind of part in both:
+    one recording cannot both produce a part and produce none."""
+    for ref, outcomes in _outcomes_by_fixture(base_data["media_parts"]["rows"]).items():
+        if len(outcomes) > 1:
+            listed = sorted(map(sorted, outcomes))
+            assert not any(o == {"none"} for o in outcomes), f"{ref}: {listed}"
+
+
+def test_openinference_raw_only_media_makes_no_part(base_data):
+    rows = base_data["media_parts"]["rows"]
+    (row,) = [r for r in rows if r["source"] == "openinference.llm" and r["normalized"] == "none"]
+    assert sorted(row["fixtures"]) == sorted(
+        [
+            "openinference-openai/input_audio",
+            "openinference-openai/audio_output",
+            "openinference-js-openai/input_audio",
+            "openinference-js-openai/audio_output",
+            "openinference-anthropic/document_pdf",
+            "openinference-js-anthropic/document_pdf",
+        ]
+    )
+
+
+def test_openllmetry_data_url_makes_no_part(base_data):
+    rows = base_data["media_parts"]["rows"]
+    (row,) = [r for r in rows if r["source"] == "openllmetry.openai"]
+    assert row["normalized"] == "none"
+    assert row["fixtures"] == ["openllmetry/image_base64"]
+    (data_url,) = [
+        r
+        for r in rows
+        if r["source"] == "openai.chat" and r["shape"].startswith("image_url.url = data")
+    ]
+    assert "openllmetry" not in data_url["paths"]
+
+
+def test_laminar_input_is_a_raw_payload(base_data):
+    media = base_data["media_parts"]
+    (row,) = [r for r in media["rows"] if r["source"] == "laminar.openhands"]
+    assert row["normalized"] == "none"
+    assert "InputValue" in row["note"]
+    assert "lmnr.span.input" in media["raw_payloads"]["raw_keys"]
+    assert "lmnr.span.input" not in media["raw_payloads"]["message_keys"]
+
+
+def test_openinference_path_only_where_an_openinference_fixture_proves_it(base_data):
+    for row in base_data["media_parts"]["rows"]:
+        cited = any(f.startswith("openinference-") for f in row["fixtures"])
+        assert ("openinference" in row["paths"]) == cited, media_parts.row_name(row)
+
+
+# --- the source rule: parts come from message keys only ----------------------
+
+
+def _scenario_spans(ref: str) -> list[dict]:
+    import json
+
+    family, _, scenario = ref.partition("/")
+    spans = []
+    for path in sorted((FIXTURES / family).glob("*.json")):
+        if path.name in {"manifest.json", "package.json", "package-lock.json"}:
+            continue
+        if path.name.endswith((".expected.json", ".expected-row.json")):
+            continue
+        for recording in json.loads(path.read_text())["recordings"]:
+            if recording["scenario"] == scenario:
+                spans += [entry["span"] for entry in recording["spans"]]
+    assert spans, ref
+    return spans
+
+
+def _media_in_message_keys(ref: str, raw: dict) -> bool:
+    """Whether a message key (raw_payloads.message_keys) of a recorded
+    scenario carries a media part, flattened or as JSON."""
+    import json
+
+    for span in _scenario_spans(ref):
+        for attribute in span.get("attributes") or []:
+            key = attribute["key"]
+            if not media_parts.is_message_key(raw, key):
+                continue
+            value = attribute["value"].get("stringValue", "")
+            if re.search(r"\.(image|audio|file|document)\.", key) or (
+                key.endswith("message_content.type") and value in MEDIA_KINDS
+            ):
+                return True
+            try:
+                parsed = json.loads(value)
+            except ValueError:
+                continue
+            if _holds_media_part(parsed):
+                return True
+    return False
+
+
+MEDIA_KINDS = {"image", "image_url", "input_audio", "audio", "file", "document", "blob", "uri"}
+
+
+def _holds_media_part(value) -> bool:
+    if isinstance(value, dict):
+        if value.get("type") in MEDIA_KINDS:
+            return True
+        return any(_holds_media_part(v) for v in value.values())
+    if isinstance(value, list):
+        return any(_holds_media_part(v) for v in value)
+    return False
+
+
+def test_every_part_row_is_proved_by_a_message_key(base_data):
+    """R7: a fixture proving a part must carry the media in a message key,
+    never only in a raw payload such as input.value."""
+    media = base_data["media_parts"]
+    for row in media["rows"]:
+        if not set(media_parts.normalized_of(row)) & {"blob", "uri", "file"}:
+            continue
+        for ref in row["fixtures"]:
+            assert _media_in_message_keys(ref, media["raw_payloads"]), (
+                f"{media_parts.row_name(row)} {ref} has no media in a message key"
+            )
+
+
+def test_a_scenario_proving_only_no_part_has_no_media_in_message_keys(base_data):
+    media = base_data["media_parts"]
+    outcomes = _outcomes_by_fixture(media["rows"])
+    for ref, kinds in outcomes.items():
+        if kinds == {frozenset({"none"})}:
+            assert not _media_in_message_keys(ref, media["raw_payloads"]), ref
+
+
+# --- raw payloads -------------------------------------------------------------
+
+
+def test_raw_payloads_name_the_raw_keys(base_data):
+    raw = base_data["media_parts"]["raw_payloads"]
+    assert set(raw["raw_keys"]) >= {
+        "input.value",
+        "output.value",
+        "lmnr.span.input",
+        "lmnr.span.output",
+        "ai.prompt",
+        "pydantic_ai.all_messages",
+        "InputValue",
+        "OutputValue",
+    }
+    assert {rule["id"] for rule in raw["detection"]} == {"b", "d", "e"}
+
+
+def test_raw_payloads_need_detection_rules(data):
+    data["media_parts"]["raw_payloads"]["detection"] = [
+        r for r in data["media_parts"]["raw_payloads"]["detection"] if r["id"] != "e"
+    ]
+    assert_flags(media_parts.lint(data["media_parts"]), "detection must define rules")
+
+
+def test_raw_key_cannot_be_a_message_key(data):
+    raw = data["media_parts"]["raw_payloads"]
+    raw["message_keys"].append("input.value")
+    assert_flags(media_parts.lint(data["media_parts"]), "both a message key and a raw key")
+
+
+def test_replacement_names_mime_and_size(data):
+    data["media_parts"]["raw_payloads"]["replacement"]["format"] = "[stripped]"
+    assert_flags(media_parts.lint(data["media_parts"]), "replacement format")
+
+
+def test_replacement_renders(base_data):
+    raw = base_data["media_parts"]["raw_payloads"]
+    assert media_parts.replacement(raw, "image/png", 67) == "[stripped image/png 67 bytes]"
+    assert media_parts.replacement(raw, None, None) == "[stripped unknown unknown bytes]"
+
+
+def test_docs_render_raw_payloads(base_data):
+    table = media_parts.render_table(base_data["media_parts"])
+    assert "## Raw payloads" in table
+    assert "`input.value`" in table
+    assert "[stripped image/png 67 bytes]" in table
+
+
+def test_shape_cell_is_code(base_data):
+    table = media_parts.render_table(base_data["media_parts"])
+    assert "`image_url.url = data:<mime>;base64,...`" in table
+
+
+@pytest.mark.parametrize(
+    ("value", "rules"),
+    [
+        ("data:image/png;base64,iVBORw0KGgo=", {"b"}),
+        ({"type": "Buffer", "data": [1, 2]}, {"d"}),
+        ({"type": "Buffer", "data": []}, set()),
+        ({"source": {"type": "base64", "media_type": "image/png", "data": "iVBO"}}, {"e"}),
+        ({"source": {"type": "base64", "data": "iVBO"}}, {"e"}),
+        ({"input_audio": {"data": "UklGRg==", "format": "wav"}}, {"e"}),
+        ({"inline_data": {"data": "UklGRg=="}}, {"e"}),
+        ({"b64_json": "iVBO", "format": "png"}, {"e"}),
+        ({"data": "hello"}, set()),
+        ({"result": {"data": "x"}}, set()),
+        ({"data": "", "media_type": "image/png"}, set()),
+        ('{"audio": {"data": "UklGRg=="}}', {"e"}),
+    ],
+)
+def test_detection_rules(base_data, value, rules):
+    raw = base_data["media_parts"]["raw_payloads"]
+    assert {t.rule for t in media_parts.media_tokens(raw, value)} == rules

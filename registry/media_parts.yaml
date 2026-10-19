@@ -30,7 +30,11 @@
 #   modalities        The modality vocabulary (the upstream enum).
 #   stripped_reasons  The `stripped_reason` vocabulary on a blob, with what
 #                     each means. A Rius vocabulary on a free-form upstream
-#                     field.
+#                     field: exactly not_captured and redacted_upstream.
+#   raw_payloads      Where parts come from (message keys only), and how a
+#                     raw request or response payload is stripped of media in
+#                     place. Its detection rules are the ones
+#                     tools/check_fixtures.py applies to expected results.
 #   source     producer.api: who writes the shape, and through which API.
 #   shape      The source shape, as the producer writes it.
 #   direction  input | output. Whether the shape is in a request message or
@@ -38,14 +42,17 @@
 #   normalized What the part becomes: blob, uri, file, text (it is text to
 #              the model, so it becomes text parts) or generic. A list when
 #              the shape normalizes to more than one of these, depending on
-#              its value.
+#              its value. none (on its own) when no part is made: the media
+#              is only in a raw payload, or the instrumentor dropped it, and
+#              any raw payload holding it is stripped per raw_payloads.
 #   modality   image, video, audio or document, or from_mime: the modality
-#              rule above. Not needed when normalized is text.
+#              rule above. Not needed when normalized is text or none.
 #   paths      Which paths deliver the shape today: passthrough (the SDK
 #              helpers, set_input / setInput with raw provider dicts),
 #              openinference (flattened message contents), openllmetry,
 #              laminar (provider blocks), vercel (ai.prompt.messages),
-#              native (semconv parts).
+#              native (semconv parts). openinference is named only where an
+#              OpenInference fixture proves the row.
 #   fixtures   Scenario ids, <family>/<scenario>: a directory under
 #              fixtures/ and a key of recordings.<file>.scenarios in that
 #              family's manifest.json. Each must exist.
@@ -57,7 +64,82 @@ modalities: [image, video, audio, document]
 
 stripped_reasons:
   not_captured: Our default policy removed the inline bytes.
-  redacted_upstream: The instrumentor had already replaced the payload (OpenInference __REDACTED__).
+  redacted_upstream: The instrumentor dropped or replaced the payload before we saw it (OpenInference __REDACTED__, a data URL with no bytes, an image with no url).
+
+raw_payloads:
+  source_rule: >-
+    Normalized message parts come only from message keys: gen_ai.input.messages,
+    gen_ai.output.messages and gen_ai.system_instructions, or the flattened
+    instrumentor message keys each normalizer already maps (OpenInference
+    llm.input_messages.* and llm.output_messages.*, OpenLLMetry gen_ai.prompt.*
+    and gen_ai.completion.*, Vercel ai.prompt.messages). Raw request and response
+    payloads are never mined to rebuild parts.
+  # Exact keys, or prefixes ending in a dot.
+  message_keys:
+    - gen_ai.input.messages
+    - gen_ai.output.messages
+    - gen_ai.system_instructions
+    - llm.input_messages.
+    - llm.output_messages.
+    - gen_ai.prompt.
+    - gen_ai.completion.
+    - ai.prompt.messages
+  # Span attributes, and the sink's stored columns, that hold a raw payload.
+  raw_keys:
+    - input.value
+    - output.value
+    - lmnr.span.input
+    - lmnr.span.output
+    - ai.prompt
+    - pydantic_ai.all_messages
+    - InputValue
+    - OutputValue
+  strip_rule: >-
+    In every string attribute value on every span and span event, and in the
+    sink's stored columns, each media token (found by the detection rules below)
+    is replaced in place. Every other byte of the string stays identical:
+    normalizers must not parse and re-serialize the JSON. Byte equality across
+    the Python SDK, the TypeScript SDK and the Go sink depends on this. Message
+    parts in gen_ai.*.messages keep the stripped blob part shape instead; the
+    replacement string is only for raw payloads.
+  replacement:
+    # Written as a JSON string token, quotes included.
+    format: '[stripped <mime> <byte_size> bytes]'
+    unknown: unknown
+    examples:
+      - '[stripped image/png 67 bytes]'
+      - '[stripped unknown unknown bytes]'
+    tokens:
+      - token: A data URL (rule b)
+        replaced: The whole URL string token.
+        mime: The URL's media type.
+        byte_size: The decoded length of the base64 data.
+      - token: A base64 string value (rule e)
+        replaced: The string token.
+        mime: The sibling media_type, mediaType or mime_type; audio/<format> for a format sibling; else unknown.
+        byte_size: The decoded length of the base64 data.
+      - token: A Buffer object (rule d)
+        replaced: The whole object token, by the string.
+        mime: The enclosing object's media_type, mediaType or mime_type; else unknown.
+        byte_size: The length of the data array.
+  detection:
+    - id: b
+      name: data URL
+      description: A string that is a data:<mime>;base64,... URL.
+      pattern: '^data:[^;,]*;base64,'
+    - id: d
+      name: Buffer object
+      description: 'An object {"type": "Buffer", "data": [...]} whose data is a non-empty array.'
+      type: Buffer
+      array_key: data
+    - id: e
+      name: keyed base64 string
+      description: A non-empty string under one of the keys, when its object has one of the sibling keys, or its object's parent key is one of the parent keys, or its object is a source with type base64.
+      keys: [data, b64_json, result]
+      sibling_keys: [media_type, mediaType, mime_type, format]
+      parent_keys: [input_audio, audio, inline_data]
+      source_key: source
+      source_type: base64
 
 rows:
   - source: openai.chat
@@ -65,7 +147,7 @@ rows:
     direction: input
     normalized: blob
     modality: image
-    paths: [passthrough, openllmetry, laminar]
+    paths: [passthrough, openinference, laminar]
     fixtures: [openinference-openai/image_data_url, openinference-js-openai/image_data_url]
     note: The mime type comes from the data URL. OpenInference (Python and JS) flattens it into the message contents, and its input.value keeps the request JSON.
 
@@ -74,7 +156,7 @@ rows:
     direction: input
     normalized: uri
     modality: image
-    paths: [passthrough, openllmetry, laminar]
+    paths: [passthrough, openinference, openllmetry, laminar]
     fixtures: [openinference-openai/image_https_url, openinference-js-openai/image_https_url, openllmetry/image_https_url]
     note: OpenLLMetry before 0.62 writes the content array as a JSON string in gen_ai.prompt.N.content. From 0.62 it writes a native uri part.
 
@@ -84,8 +166,9 @@ rows:
     normalized: blob
     modality: audio
     paths: [passthrough, openllmetry, laminar]
-    fixtures: [openinference-openai/input_audio, openinference-js-openai/input_audio]
-    note: The mime type is audio/<format>. OpenInference (Python and JS) leaves the audio out of the flattened message contents and keeps it only in the request JSON of input.value.
+    fixtures: []
+    reason: No recorded family writes it in a message key (OpenInference keeps it only in input.value; see the OpenInference raw-payload row); covered by the SDK pass-through unit tests.
+    note: The mime type is audio/<format>.
 
   - source: openai.chat
     shape: file {file_id}
@@ -112,8 +195,9 @@ rows:
     normalized: blob
     modality: audio
     paths: [passthrough, openllmetry, laminar]
-    fixtures: [openinference-openai/audio_output, openinference-js-openai/audio_output]
-    note: A text part with the transcript follows the blob. OpenInference (Python and JS) leaves the audio out of the flattened output messages and keeps it only in the response JSON of output.value.
+    fixtures: []
+    reason: No recorded family writes it in a message key (OpenInference keeps it only in output.value; see the OpenInference raw-payload row); covered by the SDK pass-through unit tests.
+    note: A text part with the transcript follows the blob.
 
   - source: openai.responses
     shape: input_image {image_url | file_id}
@@ -149,9 +233,9 @@ rows:
     direction: input
     normalized: blob
     modality: from_mime
-    paths: [passthrough, openllmetry, laminar]
-    fixtures: [openinference-anthropic/image_base64, openinference-anthropic/document_pdf, openinference-js-anthropic/image_base64, openinference-js-anthropic/document_pdf]
-    note: The mime type comes from source.media_type. OpenInference Python flattens an image into a data URL; OpenInference JS flattens it to image.media_type and image.type with no data at all. Both drop a document from the flattened messages. Both keep the base64 data only in the request JSON of input.value.
+    paths: [passthrough, openinference, openllmetry, laminar]
+    fixtures: [openinference-anthropic/image_base64, openinference-js-anthropic/image_base64]
+    note: The mime type comes from source.media_type. OpenInference Python flattens an image into a data URL in the message contents; OpenInference JS flattens it to image.media_type and image.type with no data at all (a blob with stripped_reason redacted_upstream). A document is dropped from the flattened messages, so it makes no part (see the OpenInference raw-payload row).
 
   - source: anthropic.messages
     shape: image / document with source.type = url
@@ -251,16 +335,15 @@ rows:
     modality: image
     paths: [openinference]
     fixtures: [openinference-anthropic/image_url]
-    note: What OpenInference's Anthropic instrumentor writes for an image with a url source; the URL itself is lost. The data URL names no mime type and holds no bytes, so the blob has neither mime_type nor byte_size, and its stripped_reason is not_captured.
+    note: What OpenInference's Anthropic instrumentor writes for an image with a url source; the URL itself is lost. The data URL names no mime type and holds no bytes, so the blob has neither mime_type nor byte_size, and its stripped_reason is redacted_upstream.
 
   - source: laminar.openhands
     shape: ImageContent with image_urls in lmnr.span.input
     direction: input
-    normalized: [blob, uri]
-    modality: image
+    normalized: none
     paths: [laminar]
     fixtures: [laminar/image_base64, laminar/image_https_url]
-    note: A data URL becomes a blob, an http(s) URL a uri. Written on the conversation.send_message span's input; the LLM span drops the image when the model has no vision support.
+    note: lmnr.span.input is a raw payload, not a message key, so it makes no part. A data URL in it is stripped per raw_payloads; an http(s) URL stays. Written on the conversation.send_message span's input, and the sink keeps it in InputValue. The LLM span drops the image when the model has no vision support.
 
   - source: vercel.ai
     shape: file part with Buffer data in ai.prompt
@@ -269,7 +352,7 @@ rows:
     modality: from_mime
     paths: [vercel]
     fixtures: [vercel-ai-v5/image_file, vercel-ai-v5/pdf_file, vercel-ai-v5/text_plain_file, vercel-ai-v5/audio_file, vercel-ai-v6/image_file, vercel-ai-v6/pdf_file, vercel-ai-v6/text_plain_file, vercel-ai-v6/audio_file]
-    note: On the operation span (ai.generateText) the prompt is JSON, and a file given as a Buffer is written as an object of type Buffer whose data is a JSON array of byte values, not base64 (a Uint8Array becomes an object keyed by index). The blob is stripped like any other, and its byte_size is the array length.
+    note: On the operation span (ai.generateText) the prompt is JSON, and a file given as a Buffer is written as an object of type Buffer whose data is a JSON array of byte values, not base64. The blob is stripped like any other, and its byte_size is the array length.
 
   - source: vercel.ai_otel
     shape: blob part with modality image for a non-image file, in gen_ai.input.messages
@@ -287,4 +370,20 @@ rows:
     modality: image
     paths: [openinference]
     fixtures: [openinference-js-anthropic/image_base64, openinference-js-anthropic/image_url]
-    note: What OpenInference's JS Anthropic instrumentor writes for an image. A base64 source leaves image.media_type (the mime type) and image.type = base64 but no data; a url source leaves only message_content.type = image. The blob carries the mime type when given, no byte_size, and stripped_reason not_captured.
+    note: What OpenInference's JS Anthropic instrumentor writes for an image. A base64 source leaves image.media_type (the mime type) and image.type = base64 but no data; a url source leaves only message_content.type = image. The blob carries the mime type when given, no byte_size, and stripped_reason redacted_upstream.
+
+  - source: openinference.llm
+    shape: media present only in input.value / output.value (audio input, audio output, PDF document)
+    direction: input
+    normalized: none
+    paths: [openinference]
+    fixtures: [openinference-openai/input_audio, openinference-openai/audio_output, openinference-js-openai/input_audio, openinference-js-openai/audio_output, openinference-anthropic/document_pdf, openinference-js-anthropic/document_pdf]
+    note: OpenInference (Python and JS) leaves OpenAI input_audio, an OpenAI message.audio response and an Anthropic base64 document out of the flattened messages, and keeps them only in the request or response JSON of input.value / output.value. No part is made; the raw payload is stripped per raw_payloads.
+
+  - source: openllmetry.openai
+    shape: 'image as a data URL: the instrumentor drops the prompt content; nothing to normalize'
+    direction: input
+    normalized: none
+    paths: [openllmetry]
+    fixtures: [openllmetry/image_base64]
+    note: Before 0.62 the span keeps only gen_ai.prompt.0.role, with no content; 0.62 writes no gen_ai.input.messages at all. Every recorded version.
