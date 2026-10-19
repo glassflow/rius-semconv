@@ -58,6 +58,13 @@
 #              family's manifest.json. Each must exist.
 #   reason     Why no fixture proves the row yet. Required when fixtures is
 #              empty.
+#   raw_payload  On a none row that describes a raw payload: the attribute
+#              key (or a list of keys) holding it, each one of
+#              raw_payloads.raw_keys. The payload is stripped per
+#              raw_payloads and makes no part, so its fixtures may also be
+#              cited by a row for the part the same scenario's message keys
+#              make. Not used on a none row whose message source makes
+#              nothing (the instrumentor dropped the media).
 #   note       Optional detail on how the shape normalizes.
 
 modalities: [image, video, audio, document]
@@ -341,6 +348,7 @@ rows:
     shape: ImageContent with image_urls in lmnr.span.input
     direction: input
     normalized: none
+    raw_payload: lmnr.span.input
     paths: [laminar]
     fixtures: [laminar/image_base64, laminar/image_https_url]
     note: lmnr.span.input is a raw payload, not a message key, so it makes no part. A data URL in it is stripped per raw_payloads; an http(s) URL stays. Written on the conversation.send_message span's input, and the sink keeps it in InputValue. The LLM span drops the image when the model has no vision support.
@@ -348,11 +356,11 @@ rows:
   - source: vercel.ai
     shape: file part with Buffer data in ai.prompt
     direction: input
-    normalized: blob
-    modality: from_mime
+    normalized: none
+    raw_payload: ai.prompt
     paths: [vercel]
     fixtures: [vercel-ai-v5/image_file, vercel-ai-v5/pdf_file, vercel-ai-v5/text_plain_file, vercel-ai-v5/audio_file, vercel-ai-v6/image_file, vercel-ai-v6/pdf_file, vercel-ai-v6/text_plain_file, vercel-ai-v6/audio_file]
-    note: On the operation span (ai.generateText) the prompt is JSON, and a file given as a Buffer is written as an object of type Buffer whose data is a JSON array of byte values, not base64. The blob is stripped like any other, and its byte_size is the array length.
+    note: On the operation span (ai.generateText) the prompt is JSON, and a file given as a Buffer is written as an object of type Buffer whose data is a JSON array of byte values, not base64. ai.prompt is a raw payload, so it makes no part; the Buffer object is replaced per raw_payloads, with byte_size the array length. The part comes from ai.prompt.messages on the model-call span (the image / file parts row).
 
   - source: vercel.ai_otel
     shape: blob part with modality image for a non-image file, in gen_ai.input.messages
@@ -376,6 +384,7 @@ rows:
     shape: media present only in input.value / output.value (audio input, audio output, PDF document)
     direction: input
     normalized: none
+    raw_payload: [input.value, output.value]
     paths: [openinference]
     fixtures: [openinference-openai/input_audio, openinference-openai/audio_output, openinference-js-openai/input_audio, openinference-js-openai/audio_output, openinference-anthropic/document_pdf, openinference-js-anthropic/document_pdf]
     note: OpenInference (Python and JS) leaves OpenAI input_audio, an OpenAI message.audio response and an Anthropic base64 document out of the flattened messages, and keeps them only in the request or response JSON of input.value / output.value. No part is made; the raw payload is stripped per raw_payloads.

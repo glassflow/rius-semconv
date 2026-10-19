@@ -58,6 +58,14 @@ def normalized_of(row: dict) -> list[str]:
     return list(value) if isinstance(value, list) else [value]
 
 
+def raw_payload_of(row: dict) -> list[str]:
+    """The raw payload keys a none row describes; empty for any other row."""
+    value = row.get("raw_payload")
+    if not value:
+        return []
+    return [str(v) for v in value] if isinstance(value, list) else [str(value)]
+
+
 # --- the file ----------------------------------------------------------------
 
 
@@ -91,6 +99,13 @@ def lint(data: dict) -> list[str]:
             errors.append(f"{label} normalized must be one of {sorted(NORMALIZED)}")
         if NONE in normalized and len(normalized) > 1:
             errors.append(f"{label} normalized {NONE} stands alone")
+        raw_keys = set((data.get("raw_payloads") or {}).get("raw_keys") or [])
+        payload_keys = raw_payload_of(row)
+        if payload_keys and normalized != [NONE]:
+            errors.append(f"{label} raw_payload only on a none row")
+        for key in payload_keys:
+            if key not in raw_keys:
+                errors.append(f"{label} raw_payload {key} is not one of raw_payloads.raw_keys")
         modality = row.get("modality")
         if modality is None:
             if normalized not in (["text"], [NONE]):
@@ -290,11 +305,15 @@ def _prose(text: object) -> str:
     return line.replace("__", "\\_\\_")
 
 
-#: How the table writes `normalized: none`.
-NONE_LABEL = "no part (raw payload stripped)"
+#: How the table writes `normalized: none`; a raw_payload row names its keys.
+NONE_LABEL = "no part"
+RAW_PAYLOAD_LABEL = "no part (raw payload stripped: {keys})"
 
 
 def _becomes(row: dict) -> str:
+    keys = raw_payload_of(row)
+    if keys:
+        return RAW_PAYLOAD_LABEL.format(keys=_code_list(keys))
     return " / ".join(NONE_LABEL if n == NONE else n for n in normalized_of(row))
 
 

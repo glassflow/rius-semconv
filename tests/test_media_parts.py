@@ -139,7 +139,8 @@ def test_none_is_a_normalized_outcome(base_data):
     rows = [r for r in base_data["media_parts"]["rows"] if r["normalized"] == "none"]
     assert rows
     table = media_parts.render_table(base_data["media_parts"])
-    assert "no part (raw payload stripped)" in table
+    assert "no part (raw payload stripped: `input.value`, `output.value`)" in table
+    assert "| no part |" in table
 
 
 def test_none_cannot_be_combined(data):
@@ -147,21 +148,76 @@ def test_none_cannot_be_combined(data):
     assert_flags(media_parts.lint(data["media_parts"]), "none stands alone")
 
 
-def _outcomes_by_fixture(rows: list[dict]) -> dict[str, set[frozenset]]:
+def _outcomes_by_fixture(rows: list[dict], include_raw: bool = False) -> dict[str, set[frozenset]]:
+    """fixture id -> the outcomes the rows citing it say it makes. Only the
+    message-source rows, unless include_raw: raw_payload rows too."""
     out: dict[str, set[frozenset]] = {}
     for row in rows:
+        if row.get("raw_payload") and not include_raw:
+            continue
         for ref in row.get("fixtures") or []:
             out.setdefault(ref, set()).add(frozenset(media_parts.normalized_of(row)))
     return out
 
 
 def test_no_fixture_proves_two_different_outcomes(base_data):
-    """A scenario cited by two rows must make the same kind of part in both:
-    one recording cannot both produce a part and produce none."""
+    """A scenario cited by two message-source rows must make the same kind of
+    part in both: it cannot both produce a part and produce none. A raw_payload
+    row is exempt: a scenario yields a stripped raw payload and a part from
+    its message keys."""
     for ref, outcomes in _outcomes_by_fixture(base_data["media_parts"]["rows"]).items():
         if len(outcomes) > 1:
             listed = sorted(map(sorted, outcomes))
             assert not any(o == {"none"} for o in outcomes), f"{ref}: {listed}"
+
+
+def test_the_check_catches_a_conflict(data):
+    rows = data["media_parts"]["rows"]
+    (oo,) = [r for r in rows if r["source"] == "openllmetry.openai"]
+    oo["fixtures"] = ["openllmetry/image_https_url"]
+    outcomes = _outcomes_by_fixture(rows)["openllmetry/image_https_url"]
+    assert frozenset({"none"}) in outcomes and len(outcomes) > 1
+
+
+def _raw_payload_keys(row: dict) -> list[str]:
+    value = row.get("raw_payload")
+    return list(value) if isinstance(value, list) else [value] if value else []
+
+
+def test_raw_payload_rows(base_data):
+    rows = base_data["media_parts"]["rows"]
+    by_source = {
+        (r["source"], r["shape"]): _raw_payload_keys(r) for r in rows if r.get("raw_payload")
+    }
+    assert by_source == {
+        ("laminar.openhands", "ImageContent with image_urls in lmnr.span.input"): [
+            "lmnr.span.input"
+        ],
+        (
+            "openinference.llm",
+            "media present only in input.value / output.value "
+            "(audio input, audio output, PDF document)",
+        ): ["input.value", "output.value"],
+        ("vercel.ai", "file part with Buffer data in ai.prompt"): ["ai.prompt"],
+    }
+    (oo,) = [r for r in rows if r["source"] == "openllmetry.openai"]
+    assert "raw_payload" not in oo
+
+
+def test_raw_payload_only_on_a_none_row(data):
+    data["media_parts"]["rows"][0]["raw_payload"] = "input.value"
+    assert_flags(media_parts.lint(data["media_parts"]), "raw_payload only on a none row")
+
+
+def test_raw_payload_must_be_a_raw_key(data):
+    (row,) = [r for r in data["media_parts"]["rows"] if r["source"] == "laminar.openhands"]
+    row["raw_payload"] = "gen_ai.input.messages"
+    assert_flags(media_parts.lint(data["media_parts"]), "raw_payload gen_ai.input.messages")
+
+
+def test_raw_payload_is_rendered(base_data):
+    table = media_parts.render_table(base_data["media_parts"])
+    assert "no part (raw payload stripped: `ai.prompt`)" in table
 
 
 def test_openinference_raw_only_media_makes_no_part(base_data):
@@ -279,7 +335,7 @@ def test_every_part_row_is_proved_by_a_message_key(base_data):
 
 def test_a_scenario_proving_only_no_part_has_no_media_in_message_keys(base_data):
     media = base_data["media_parts"]
-    outcomes = _outcomes_by_fixture(media["rows"])
+    outcomes = _outcomes_by_fixture(media["rows"], include_raw=True)
     for ref, kinds in outcomes.items():
         if kinds == {frozenset({"none"})}:
             assert not _media_in_message_keys(ref, media["raw_payloads"]), ref
