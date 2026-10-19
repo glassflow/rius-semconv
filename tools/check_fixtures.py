@@ -17,7 +17,8 @@ start with "_"):
   normalized), the expected result is the recording itself, since
   normalizing canonical spans must change nothing;
 - an expected result holds no base64 or byte-array media (recordings may):
-  (a) no blob part with content; (b) no data: URL; (c) no 4096-character
+  (a) no blob part with content (other than a replacement string, which a
+  raw payload's blob part keeps); (b) no data: URL; (c) no 4096-character
   base64 run; (d) no non-empty {"type": "Buffer", "data": [...]} byte array;
   (e) no base64 string under data, b64_json or result next to a media type or
   format, under input_audio, audio, inline_data or inlineData, or in a base64
@@ -116,7 +117,10 @@ def _holds_media(value: Any, parent_key: str | None = None) -> bool:
     raw = raw_payloads()
     if isinstance(value, dict):
         if value.get("type") == "blob" and "content" in value:  # (a)
-            return True
+            content = value["content"]
+            # A raw payload's blob part keeps its content as the replacement.
+            if not (isinstance(content, str) and media_parts.is_replacement(raw, content)):
+                return True
         if media_parts.is_buffer(raw, value):  # (d)
             return True
         if media_parts.keyed_base64(raw, value, parent_key):  # (e)

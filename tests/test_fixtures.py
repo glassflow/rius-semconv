@@ -360,3 +360,11 @@ def test_data_key_without_media_context_is_not_media(family):
     _first_span_attr(family / EXPECTED, "input.value", json.dumps({"data": "hello"}))
     _first_span_attr(family / EXPECTED, "output.value", json.dumps({"result": {"data": "x"}}))
     assert _media_errors(family) == []
+
+
+def test_a_blob_part_whose_content_is_the_replacement_is_not_media():
+    from tools.check_fixtures import _holds_media
+
+    assert _holds_media({"type": "blob", "content": "iVBORw0KGgo="})
+    assert not _holds_media({"type": "blob", "content": "[stripped image/png 8 bytes]"})
+    assert _holds_media({"type": "blob", "content": "[stripped image/png lots bytes]"})
