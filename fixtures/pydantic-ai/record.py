@@ -31,13 +31,14 @@ time.perf_counter = lambda: next(_ticks) / 1000
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import httpx2 as httpx  # noqa: E402  (openai >= 3 uses the httpx2 fork)
+from _media import PNG_1X1  # noqa: E402
 from _recording import ScriptedProvider, record_all, recorder_resource, sse  # noqa: E402
 from opentelemetry.sdk.trace import TracerProvider  # noqa: E402
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor  # noqa: E402
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import (  # noqa: E402
     InMemorySpanExporter,
 )
-from pydantic_ai import Agent  # noqa: E402
+from pydantic_ai import Agent, BinaryContent  # noqa: E402
 from pydantic_ai.exceptions import ModelHTTPError  # noqa: E402
 from pydantic_ai.models.instrumented import InstrumentationSettings  # noqa: E402
 from pydantic_ai.models.openai import OpenAIChatModel  # noqa: E402
@@ -211,6 +212,17 @@ def error() -> None:
         pass
     else:
         raise AssertionError("the scripted 400 did not raise")
+
+
+@scenario
+def image_binary() -> None:
+    script.answer(
+        CHAT,
+        httpx.Response(200, json=completion({"role": "assistant", "content": "A tiny image."})),
+    )
+    agent().run_sync(
+        ["What is in this image?", BinaryContent(data=PNG_1X1, media_type="image/png")]
+    )
 
 
 if __name__ == "__main__":

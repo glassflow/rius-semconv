@@ -207,3 +207,214 @@ def test_a_control_must_come_out_unchanged(control_family):
 
     edit(control_family / CONTROL_EXPECTED, rename_model)
     assert any("must come out unchanged" in e for e in check_family(control_family))
+
+
+def _first_span_attr(path: Path, key: str, value: str) -> None:
+    """Set a string attribute on the first expected span."""
+
+    def change(data):
+        attributes = data["recordings"][0]["spans"][0]["span"]["attributes"]
+        attributes[:] = [a for a in attributes if a["key"] != key]
+        attributes.append({"key": key, "value": {"stringValue": value}})
+
+    edit(path, change)
+
+
+def _media_errors(family: Path) -> list[str]:
+    return [e for e in check_family(family) if "holds base64 media" in e]
+
+
+def _messages(part: dict) -> str:
+    return json.dumps([{"role": "user", "parts": [part]}])
+
+
+def test_blob_content_inside_messages_json_is_caught(family):
+    blob = {"type": "blob", "modality": "image", "content": "iVBORw0K"}
+    _first_span_attr(family / EXPECTED, "gen_ai.input.messages", _messages(blob))
+    errors = _media_errors(family)
+    assert len(errors) == 1
+    assert "attribute gen_ai.input.messages holds base64 media" in errors[0]
+
+
+def test_empty_blob_content_is_still_content(family):
+    blob = {"type": "blob", "modality": "image", "content": ""}
+    _first_span_attr(family / EXPECTED, "gen_ai.input.messages", _messages(blob))
+    assert _media_errors(family)
+
+
+def test_data_url_is_caught(family):
+    part = {"type": "text", "content": "see data:image/png;base64,AAAA"}
+    _first_span_attr(family / EXPECTED, "gen_ai.input.messages", _messages(part))
+    assert _media_errors(family)
+
+
+def test_long_base64_run_is_caught(family):
+    _first_span_attr(family / EXPECTED, "some.attribute", "A" * 4096)
+    assert _media_errors(family)
+
+
+def test_long_non_media_strings_are_not_base64(family):
+    args = json.dumps({"query": "word " * 400})
+    values = [
+        "a" * 32 + "0123456789abcdef" * 2,
+        "123e4567-e89b-12d3-a456-426614174000",
+        args[:2000].ljust(2000, " "),
+        "lorem ipsum " * 417,
+    ]
+    for i, value in enumerate(values):
+        _first_span_attr(family / EXPECTED, f"some.attribute.{i}", value)
+    assert _media_errors(family) == []
+
+
+def _buffer_prompt(data: list[int]) -> str:
+    part = {
+        "type": "file",
+        "data": {"type": "Buffer", "data": data},
+        "mediaType": "image/png",
+    }
+    return json.dumps({"messages": [{"role": "user", "content": [part]}]})
+
+
+def test_buffer_byte_array_is_caught(family):
+    _first_span_attr(family / EXPECTED, "ai.prompt", _buffer_prompt([137, 80, 78, 71]))
+    errors = _media_errors(family)
+    assert len(errors) == 1
+    assert "attribute ai.prompt holds base64 media" in errors[0]
+
+
+def test_empty_buffer_is_not_media(family):
+    _first_span_attr(family / EXPECTED, "ai.prompt", _buffer_prompt([]))
+    assert _media_errors(family) == []
+
+
+def test_base64_in_sink_rows_is_caught(sink_family):
+    blob = {"type": "blob", "modality": "image", "content": "iVBORw0K"}
+
+    def change(data):
+        data["recordings"][0]["rows"][0]["InputMessages"] = _messages(blob)
+
+    edit(sink_family / SINK_ROWS, change)
+    errors = _media_errors(sink_family)
+    assert len(errors) == 1
+    assert "attribute InputMessages holds base64 media" in errors[0]
+
+
+def test_recordings_may_hold_base64(family):
+    blob = {"type": "blob", "modality": "image", "content": "iVBORw0K"}
+    _first_span_attr(family / RECORDING, "gen_ai.input.messages", _messages(blob))
+    assert not _media_errors(family)
+
+
+def test_blob_in_an_event_attribute_is_caught(family):
+    blob = {"type": "blob", "modality": "image", "content": "x"}
+
+    def change(data):
+        span = data["recordings"][0]["spans"][0]["span"]
+        span["events"] = [
+            {
+                "timeUnixNano": "1",
+                "name": "gen_ai.client.inference.operation.details",
+                "attributes": [{"key": "payload", "value": {"stringValue": _messages(blob)}}],
+            }
+        ]
+
+    edit(family / EXPECTED, change)
+    errors = _media_errors(family)
+    assert len(errors) == 1
+    assert "event gen_ai.client.inference.operation.details attribute payload" in errors[0]
+
+
+def test_anthropic_base64_source_in_input_value_is_caught(family):
+    """Rule (e): `data` under a `source` with type base64, inside a JSON string."""
+    image = {
+        "type": "image",
+        "source": {"type": "base64", "media_type": "image/png", "data": "iVBORw0KGgo="},
+    }
+    request = {"messages": [{"role": "user", "content": [image]}]}
+    _first_span_attr(family / EXPECTED, "input.value", json.dumps(request))
+    errors = _media_errors(family)
+    assert len(errors) == 1
+    assert "attribute input.value holds base64 media" in errors[0]
+
+
+def test_openai_input_audio_is_caught(family):
+    """Rule (e): `data` under the parent key input_audio."""
+    part = {"type": "input_audio", "input_audio": {"data": "UklGRg==", "format": "wav"}}
+    request = {"messages": [{"role": "user", "content": [part]}]}
+    _first_span_attr(family / EXPECTED, "input.value", json.dumps(request))
+    assert _media_errors(family)
+
+
+def test_suite_payload_prefix_in_plain_text_is_caught(family):
+    """Rule (f): the start of a payload fixtures/_media.py exports, anywhere."""
+    from fixtures import _media
+
+    prefix = _media.b64(_media.PNG_1X1)[:32]
+    _first_span_attr(family / EXPECTED, "output.value", f"the image was {prefix} and so on")
+    errors = _media_errors(family)
+    assert len(errors) == 1
+    assert "attribute output.value holds base64 media" in errors[0]
+
+
+def test_data_key_without_media_context_is_not_media(family):
+    _first_span_attr(family / EXPECTED, "input.value", json.dumps({"data": "hello"}))
+    _first_span_attr(family / EXPECTED, "output.value", json.dumps({"result": {"data": "x"}}))
+    assert _media_errors(family) == []
+
+
+def test_a_blob_part_whose_content_is_the_replacement_is_media_only_in_a_message_key():
+    from tools.check_fixtures import _holds_media
+
+    replaced = {"type": "blob", "content": "[stripped image/png 8 bytes]"}
+    for key in ("pydantic_ai.all_messages", "input.value", "InputValue", "some.attribute", None):
+        assert not _holds_media(replaced, key=key), key
+        assert _holds_media({"type": "blob", "content": "iVBORw0KGgo="}, key=key), key
+        assert _holds_media({"type": "blob", "content": "[stripped image/png lots bytes]"}, key=key)
+    for key in (
+        "gen_ai.input.messages",
+        "gen_ai.output.messages",
+        "gen_ai.system_instructions",
+        "llm.input_messages.0.message.contents",
+        "InputMessages",
+        "OutputMessages",
+    ):
+        assert _holds_media(replaced, key=key), key
+
+
+REPLACED_BLOB = {"type": "blob", "modality": "image", "content": "[stripped image/png 3 bytes]"}
+
+
+def test_a_replaced_blob_in_a_message_key_is_caught(family):
+    _first_span_attr(family / EXPECTED, "gen_ai.input.messages", _messages(REPLACED_BLOB))
+    errors = _media_errors(family)
+    assert len(errors) == 1
+    assert "attribute gen_ai.input.messages holds base64 media" in errors[0]
+
+
+def test_a_replaced_blob_in_a_raw_payload_is_not_media(family):
+    _first_span_attr(family / EXPECTED, "pydantic_ai.all_messages", _messages(REPLACED_BLOB))
+    assert _media_errors(family) == []
+
+
+def test_a_replaced_blob_in_a_tool_result_is_not_media(family):
+    part = {"type": "blob", "mime_type": "image/png", "content": "[stripped image/png 8 bytes]"}
+    _first_span_attr(family / EXPECTED, "gen_ai.tool.call.result", json.dumps([part]))
+    assert _media_errors(family) == []
+
+
+def test_a_replaced_blob_in_a_sink_column(sink_family):
+    def change(data):
+        row = data["recordings"][0]["rows"][0]
+        row["InputValue"] = _messages(REPLACED_BLOB)
+        row["SpanAttributes"]["pydantic_ai.all_messages"] = _messages(REPLACED_BLOB)
+
+    edit(sink_family / SINK_ROWS, change)
+    assert _media_errors(sink_family) == []
+
+    def to_messages(data):
+        data["recordings"][0]["rows"][0]["OutputMessages"] = _messages(REPLACED_BLOB)
+
+    edit(sink_family / SINK_ROWS, to_messages)
+    errors = _media_errors(sink_family)
+    assert len(errors) == 1
+    assert "attribute OutputMessages holds base64 media" in errors[0]

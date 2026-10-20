@@ -21,6 +21,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from _media import PNG_1X1, WAV_SILENT, b64, big_png, data_url  # noqa: E402
 from _recording import (  # noqa: E402
     ScriptedProvider,
     record_all,
@@ -262,6 +263,86 @@ def embeddings() -> None:
         ),
     )
     client.embeddings.create(model="text-embedding-3-small", input="Capital of France?")
+
+
+def ask_about_image(url: str) -> None:
+    script.answer(
+        CHAT,
+        httpx.Response(200, json=completion({"role": "assistant", "content": "A tiny image."})),
+    )
+    client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "What is in this image?"},
+                    {"type": "image_url", "image_url": {"url": url}},
+                ],
+            }
+        ],
+    )
+
+
+@scenario
+def image_data_url() -> None:
+    ask_about_image(data_url("image/png", PNG_1X1))
+
+
+@scenario
+def image_https_url() -> None:
+    ask_about_image("https://example.com/cat.png")
+
+
+@scenario
+def image_redacted() -> None:
+    # Over OpenInference's 32,000-character limit: the instrumentor writes
+    # __REDACTED__ instead of the data URL.
+    ask_about_image(data_url("image/png", big_png(32_000)))
+
+
+@scenario
+def input_audio() -> None:
+    script.answer(
+        CHAT,
+        httpx.Response(200, json=completion({"role": "assistant", "content": "Silence."})),
+    )
+    client.chat.completions.create(
+        model="gpt-4o-audio-preview",
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "What do you hear?"},
+                    {
+                        "type": "input_audio",
+                        "input_audio": {"data": b64(WAV_SILENT), "format": "wav"},
+                    },
+                ],
+            }
+        ],
+    )
+
+
+@scenario
+def audio_output() -> None:
+    answer = {
+        "role": "assistant",
+        "content": None,
+        "audio": {
+            "id": "audio_rec1",
+            "data": b64(WAV_SILENT),
+            "transcript": "Hello there.",
+            "expires_at": 1700003600,
+        },
+    }
+    script.answer(CHAT, httpx.Response(200, json=completion(answer)))
+    client.chat.completions.create(
+        model="gpt-4o-audio-preview",
+        modalities=["text", "audio"],
+        audio={"voice": "alloy", "format": "wav"},
+        messages=[{"role": "user", "content": "Say hello."}],
+    )
 
 
 if __name__ == "__main__":

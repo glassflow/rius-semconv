@@ -15,6 +15,7 @@ import {
   InMemorySpanExporter,
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-base";
+import { PDF_ONE_PAGE, PNG_1X1, b64 } from "../_media.mjs";
 import { RECORDER_RESOURCE, ScriptedProvider, json, recordAll, sse } from "../_recording.mjs";
 
 const PACKAGES = [
@@ -63,6 +64,16 @@ const message = (content, stopReason = "end_turn") => ({
 });
 
 const TOOL_USE = { type: "tool_use", id: "toolu_rec1", name: "get_weather", input: { city: "Paris" } };
+
+
+async function askAbout(block, question) {
+  script.answer(MESSAGES, json(message([{ type: "text", text: "A tiny image." }])));
+  await client.messages.create({
+    model: MODEL,
+    max_tokens: 64,
+    messages: [{ role: "user", content: [{ type: "text", text: question }, block] }],
+  });
+}
 
 const scenarios = {
   async chat() {
@@ -145,6 +156,26 @@ const scenarios = {
       return;
     }
     throw new Error("the scripted 400 did not reject");
+  },
+  async image_base64() {
+    await askAbout(
+      { type: "image", source: { type: "base64", media_type: "image/png", data: b64(PNG_1X1) } },
+      "What is in this image?",
+    );
+  },
+
+  async image_url() {
+    await askAbout(
+      { type: "image", source: { type: "url", url: "https://example.com/cat.png" } },
+      "What is in this image?",
+    );
+  },
+
+  async document_pdf() {
+    await askAbout(
+      { type: "document", source: { type: "base64", media_type: "application/pdf", data: b64(PDF_ONE_PAGE) } },
+      "Summarize this document.",
+    );
   },
 };
 

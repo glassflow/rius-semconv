@@ -242,6 +242,42 @@ export const GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS = "gen_ai.usage.cache_read.inp
 // cache fields first shipped; no released SDK version carries the old name.
 export const GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS = "gen_ai.usage.cache_write.input_tokens";
 export const GEN_AI_USAGE_REASONING_OUTPUT_TOKENS = "gen_ai.usage.reasoning.output_tokens";
+
+// A per-modality subset of gen_ai.usage.input_tokens: never summed
+// into it.
+export const GEN_AI_USAGE_TEXT_INPUT_TOKENS = "gen_ai.usage.text.input_tokens";
+
+// A per-modality subset of gen_ai.usage.output_tokens: never summed
+// into it.
+export const GEN_AI_USAGE_TEXT_OUTPUT_TOKENS = "gen_ai.usage.text.output_tokens";
+
+// A per-modality subset of gen_ai.usage.cache_read.input_tokens: never summed
+// into it.
+export const GEN_AI_USAGE_TEXT_CACHE_READ_INPUT_TOKENS = "gen_ai.usage.text.cache_read.input_tokens";
+
+// A per-modality subset of gen_ai.usage.input_tokens: never summed
+// into it.
+export const GEN_AI_USAGE_IMAGE_INPUT_TOKENS = "gen_ai.usage.image.input_tokens";
+
+// A per-modality subset of gen_ai.usage.output_tokens: never summed
+// into it.
+export const GEN_AI_USAGE_IMAGE_OUTPUT_TOKENS = "gen_ai.usage.image.output_tokens";
+
+// A per-modality subset of gen_ai.usage.cache_read.input_tokens: never summed
+// into it.
+export const GEN_AI_USAGE_IMAGE_CACHE_READ_INPUT_TOKENS = "gen_ai.usage.image.cache_read.input_tokens";
+
+// A per-modality subset of gen_ai.usage.input_tokens: never summed
+// into it.
+export const GEN_AI_USAGE_AUDIO_INPUT_TOKENS = "gen_ai.usage.audio.input_tokens";
+
+// A per-modality subset of gen_ai.usage.output_tokens: never summed
+// into it.
+export const GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS = "gen_ai.usage.audio.output_tokens";
+
+// A per-modality subset of gen_ai.usage.cache_read.input_tokens: never summed
+// into it.
+export const GEN_AI_USAGE_AUDIO_CACHE_READ_INPUT_TOKENS = "gen_ai.usage.audio.cache_read.input_tokens";
 export const GEN_AI_INPUT_MESSAGES = "gen_ai.input.messages";
 export const GEN_AI_OUTPUT_MESSAGES = "gen_ai.output.messages";
 export const GEN_AI_RESPONSE_FINISH_REASONS = "gen_ai.response.finish_reasons";
@@ -372,6 +408,9 @@ export const RIUS_AGGREGATED_USAGE_PREFIX = "rius.aggregated_usage.";
 // output_messages (literal role, parts typed text / tool_call /
 // tool_call_response with bytes and tool name), cache_marker, and a folded
 // summary of older input.
+// A media part (blob / uri / file) carries its modality (image, video,
+// audio or document) and, when known, byte_size, never bytes: the size of
+// the media itself, not of any content, which a blob does not carry.
 // A Rius vendor attribute, NOT a convention:
 // the backend reads it to attribute gen_ai.usage.input_tokens across the
 // context, and no convention describes context composition. Deliberately

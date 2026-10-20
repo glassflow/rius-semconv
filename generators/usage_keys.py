@@ -291,8 +291,13 @@ def _one_line(text: str | None) -> str:
     return re.sub(r"\s+", " ", text or "").strip().replace("|", "\\|")
 
 
-def render_table(data: dict, result: Scan) -> str:
-    """out/docs/usage-keys.md: every decision, what each normalizer does, where it was seen."""
+def render_table(data: dict, result: Scan, planned: frozenset[str] = frozenset()) -> str:
+    """out/docs/usage-keys.md: every decision, what each normalizer does, where it was seen.
+
+    `planned` names keys whose attribute row is `status: planned`: decided, but
+    no normalizer emits them yet, so the table says so instead of showing
+    `canonical` as if all three implementations produced them today.
+    """
     normalizers = data["normalizers"]
     lines = [
         "<!-- Generated from registry/usage_keys.yaml and the recordings under",
@@ -332,7 +337,16 @@ def render_table(data: dict, result: Scan) -> str:
                 f"`{entry_name(entry)}`",
                 *(_cell(entry, n) for n in normalizers),
                 seen,
-                _one_line(entry.get("reason")),
+                _one_line(
+                    " ".join(
+                        t
+                        for t in (
+                            "Planned, not emitted yet." if entry_name(entry) in planned else "",
+                            entry.get("reason") or "",
+                        )
+                        if t
+                    )
+                ),
             ]
             lines.append("| " + " | ".join(cells) + " |")
         lines.append("")

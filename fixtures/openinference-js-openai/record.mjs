@@ -16,6 +16,7 @@ import {
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-base";
 import OpenAI from "openai";
+import { PNG_1X1, WAV_SILENT, b64, bigPng, dataUrl } from "../_media.mjs";
 import { RECORDER_RESOURCE, ScriptedProvider, json, recordAll, sse } from "../_recording.mjs";
 
 const PACKAGES = [
@@ -77,6 +78,23 @@ const TOOL_CALL = {
   type: "function",
   function: { name: "get_weather", arguments: '{"city":"Paris"}' },
 };
+
+
+async function askAboutImage(url) {
+  script.answer(CHAT, json(completion({ role: "assistant", content: "A tiny image." })));
+  await client.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "What is in this image?" },
+          { type: "image_url", image_url: { url } },
+        ],
+      },
+    ],
+  });
+}
 
 const scenarios = {
   async chat() {
@@ -191,6 +209,50 @@ const scenarios = {
       model: "text-embedding-3-small",
       input: "Capital of France?",
       encoding_format: "float",
+    });
+  },
+  async image_data_url() {
+    await askAboutImage(dataUrl("image/png", PNG_1X1));
+  },
+
+  async image_https_url() {
+    await askAboutImage("https://example.com/cat.png");
+  },
+
+  // Over OpenInference's 32,000-character limit: the instrumentor writes
+  // __REDACTED__ instead of the data URL.
+  async image_redacted() {
+    await askAboutImage(dataUrl("image/png", bigPng(32_000)));
+  },
+
+  async input_audio() {
+    script.answer(CHAT, json(completion({ role: "assistant", content: "Silence." })));
+    await client.chat.completions.create({
+      model: "gpt-4o-audio-preview",
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "What do you hear?" },
+            { type: "input_audio", input_audio: { data: b64(WAV_SILENT), format: "wav" } },
+          ],
+        },
+      ],
+    });
+  },
+
+  async audio_output() {
+    const answer = {
+      role: "assistant",
+      content: null,
+      audio: { id: "audio_rec1", data: b64(WAV_SILENT), transcript: "Hello there.", expires_at: 1700003600 },
+    };
+    script.answer(CHAT, json(completion(answer)));
+    await client.chat.completions.create({
+      model: "gpt-4o-audio-preview",
+      modalities: ["text", "audio"],
+      audio: { voice: "alloy", format: "wav" },
+      messages: [{ role: "user", content: "Say hello." }],
     });
   },
 };

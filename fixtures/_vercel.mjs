@@ -8,6 +8,7 @@
 // chat-completions API, so the scripted responses are the same OpenAI JSON the
 // other families use.
 
+import { PDF_ONE_PAGE, PNG_1X1, WAV_SILENT } from "./_media.mjs";
 import { json, sse } from "./_recording.mjs";
 
 const CHAT = "https://api.openai.com/v1/chat/completions";
@@ -358,6 +359,59 @@ export function vercelDecideAudioScenarios({ ai, createOpenAI, script, telemetry
       for await (const _ of result.fullStream) {
         // drain
       }
+    },
+  };
+}
+
+/**
+ * Files in a user message: the AI SDK's `file` part (data and a media type),
+ * which the chat-completions provider sends as an image, a PDF or audio. The
+ * `text/plain` file is one the provider cannot send, so the call rejects after
+ * the AI SDK has already recorded the prompt. Recorded by ./vercel-ai-v5,
+ * ./vercel-ai-v6 and ./vercel-ai-otel after their other scenarios.
+ */
+export function vercelMediaScenarios({ ai, createOpenAI, script, telemetry }) {
+  const openai = createOpenAI({ apiKey: "sk-test", fetch: script.fetch });
+
+  const askAboutFile = async (data, mediaType, question, { rejected = false } = {}) => {
+    if (!rejected) script.answer(CHAT, json(completion({ role: "assistant", content: "A tiny file." })));
+    try {
+      await ai.generateText({
+        model: openai.chat("gpt-4o-mini"),
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: question },
+              { type: "file", data, mediaType },
+            ],
+          },
+        ],
+        maxRetries: 0,
+        ...telemetry,
+      });
+    } catch (error) {
+      if (!rejected) throw error;
+      return;
+    }
+    if (rejected) throw new Error(`the ${mediaType} file was not rejected`);
+  };
+
+  return {
+    async image_file() {
+      await askAboutFile(PNG_1X1, "image/png", "What is in this image?");
+    },
+
+    async pdf_file() {
+      await askAboutFile(PDF_ONE_PAGE, "application/pdf", "Summarize this document.");
+    },
+
+    async text_plain_file() {
+      await askAboutFile(Buffer.from("Paris is the capital of France.\n"), "text/plain", "Summarize this file.", { rejected: true });
+    },
+
+    async audio_file() {
+      await askAboutFile(WAV_SILENT, "audio/wav", "What do you hear?");
     },
   };
 }
