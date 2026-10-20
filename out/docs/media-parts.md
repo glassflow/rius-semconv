@@ -26,12 +26,15 @@ A normalized part in a message key is written with exactly these members, in ord
 - A member whose value is unknown is omitted, never written as null. This applies to mime_type and byte_size.
 - mime_type is written only when it is a valid token/token MIME type, matching the replacement's mime_pattern in full. Anything else is omitted.
 - The modality is taken from the prefix of the MIME type, matched case-insensitively. image/\* is image, audio/\* audio, video/\* video, anything else document.
-- Every native media part in a message key (blob, uri or file) is always rebuilt into its canonical shape: members in the pinned order, extra members dropped, and every member that is unknown omitted. The only exception is a uri part with no usable uri, or a file part with no usable file_id: it is left as it came. Every other normalized media part carries a modality.
-- The modality that the part already has is kept. Otherwise it is taken from the MIME type, then from the filename extension (see extensions), then from the part kind the provider gives it (an image, audio, video, file or document item is a hint), and otherwise it is document. A file part, or any part with no MIME type and no other hint, therefore gets document.
-- A blob that carries `content` is rebuilt with stripped_reason not_captured and a byte_size taken from the content under the size rule of the strip (omitted when the size is unknown). With no MIME type and no modality its modality is document. A blob in a message key never carries content.
-- A uri part, or a provider uri such as a Gemini file_data, whose URI is a data URL is never a uri: it becomes a blob under the data URL rules below.
+- Every native media part in a message key (blob, uri or file) is always rebuilt into its canonical shape: members in the pinned order, extra members dropped, and every member that is unknown omitted. The only exception is a uri part whose uri is not a string, or a file part whose file_id is not a string: it is left as it came. Any string is a usable uri or file_id, the empty string included. Every other normalized media part carries a modality.
+- Parts are rebuilt only in a message-key value that parses as JSON and nests at most 1000 levels deep. Arrays and objects count together from the value's root, which is level 1: the message array, a message, its parts array and a tool call part are 4 levels. A value nested deeper (a tool call whose arguments add 997 more arrays makes 1001 levels) is left as it came, every part in it included; at 1000 levels its parts are rebuilt. The implementation counts the depth itself and never relies on its parser's or its language's recursion limit. The strip still runs on a value left this way.
+- The modality that the part already has is kept, when it is one of modalities (any other value is ignored), except for a blob carrying content and a uri holding a data URL (below). Otherwise it is taken from the MIME type, then from the filename extension (see extensions), then from the part kind the provider gives it (an image, audio, video, file or document item is a hint), and otherwise it is document. A file part, or any part with no MIME type and no other hint, therefore gets document.
+- A blob whose `content` is a string is rebuilt with stripped_reason not_captured and a byte_size taken from the content under the size rule of the strip (omitted when the size is unknown). Its modality comes from its MIME type first, then from the modality it has, then document: a PDF blob labelled image is a document. A content string that is itself a data URL follows the data URL rules below, with the part's mime_type as the hint and the same modality order. A blob in a message key never carries content.
+- A blob with no string `content` keeps a stripped_reason that is one of stripped_reasons. Otherwise its stripped_reason is redacted_upstream when it has no content member or a null one, and not_captured when its content is any other value. It keeps a byte_size that is a whole, non-negative number no larger than 2^53 - 1 (8, 8.0 and 8e0 alike, written 8); any other byte_size is omitted.
+- A uri part, or a provider uri such as a Gemini file_data, whose URI is a data URL is never a uri: it becomes a blob under the data URL rules below. A native uri part takes that blob's modality as a blob carrying content does: from the MIME type first, then the modality it has, then document.
 - When a part has duplicate `type` members, the last one wins, as in a standard JSON decoder. The strip is different: there, a condition on `type` holds when any member qualifies.
-- A data URL that is not base64 (`data:<mime>,<payload>`) becomes a blob with the stripped_reason not_captured and no byte_size. When its payload is empty or `None`, it becomes a blob with the stripped_reason redacted_upstream.
+- A base64 data URL (rule (b)'s pattern matching the whole string) becomes a blob with the stripped_reason not_captured. Its mime type is the URL's when that is a valid token/token MIME type, else the hint (a native part's mime_type). Its byte_size is that of the base64 run under the size rule of the strip: an empty run is 0 bytes, and an invalid run has no byte_size.
+- A data URL that is not base64 (`data:<mime>,<payload>`) becomes a blob with the stripped_reason not_captured and no byte_size. Its mime type is the URL's when that is a valid token/token MIME type, else the hint. When its payload is empty or `None`, it becomes a blob with the stripped_reason redacted_upstream.
 - When a normalizer rebuilds a native part inside an existing message-key value, it edits in place: only that part object token is replaced by its canonical compact serialization (no spaces, the minimal escaping of the strip), and every other byte of the value stays as it came. A value with nothing to rebuild stays byte for byte. Messages a normalizer builds itself are serialized compactly.
 
 Filename extensions (lower case) that give a modality:
@@ -78,6 +81,38 @@ The data URL data:image/png, with no payload.
 #### `blob_with_content_and_no_hint`
 
 A native blob part with a content member holding the base64 iVBORw0KGgo= and neither a MIME type nor a modality.
+
+```json
+{"type":"blob","modality":"document","byte_size":8,"stripped_reason":"not_captured"}
+```
+
+#### `blob_with_content_labelled_image_for_a_pdf`
+
+A native blob part with a content member holding the base64 JVBERi0=, the mime_type application/pdf and the modality image, as @ai-sdk/otel writes a PDF: the MIME type wins over the modality it has.
+
+```json
+{"type":"blob","modality":"document","mime_type":"application/pdf","byte_size":5,"stripped_reason":"not_captured"}
+```
+
+#### `blob_with_content_that_is_an_empty_base64_data_url`
+
+A native blob part with the mime_type image/png and a content member holding data:;base64, which names no mime type and has an empty run: the part's mime_type is the hint.
+
+```json
+{"type":"blob","modality":"image","mime_type":"image/png","byte_size":0,"stripped_reason":"not_captured"}
+```
+
+#### `blob_with_no_content_and_no_stripped_reason`
+
+A native blob part with the modality audio and neither content nor stripped_reason.
+
+```json
+{"type":"blob","modality":"audio","stripped_reason":"redacted_upstream"}
+```
+
+#### `blob_with_content_that_is_not_a_string`
+
+A native blob part whose content is the number 5 and whose byte_size is 8.0, with no stripped_reason.
 
 ```json
 {"type":"blob","modality":"document","byte_size":8,"stripped_reason":"not_captured"}
@@ -165,7 +200,7 @@ Raw payloads, never mined for parts: `input.value`, `output.value`, `lmnr.span.i
 
 **Strip rule.** Each media token (found by the detection rules below) is replaced in place. Every other byte of the string stays identical: normalizers must not parse and re-serialize the JSON. Byte equality across the Python SDK, the TypeScript SDK and the Go sink depends on this. Message parts in gen_ai.\*.messages keep the stripped blob part shape instead; the replacement string is only for raw payloads.
 
-**Scope.** The SDKs strip every string value, and every element of a string-array value, of the span attributes, the span event attributes and the span link attributes. They do not strip resource or scope attributes: a span processor cannot rewrite them. The sink applies the same rules to its stored columns InputValue, OutputValue, InputMessages and OutputMessages and to the values of SpanAttributes. tools/check_fixtures.py scans more than the strip covers: it also scans the resource and scope attributes of a recording. That scan is a check, not a strip rule, and media in those attributes would still be a bug.
+**Scope.** The SDKs strip every string value, and every element of a string-array value, of the span attributes, the span event attributes and the span link attributes. They do not strip resource or scope attributes: a span processor cannot rewrite them. The sink applies the same rules to its stored columns InputValue, OutputValue, InputMessages and OutputMessages and to the values of SpanAttributes. tools/check_fixtures.py scans more than the strip covers: it also scans the resource and scope attributes of a recording. That scan is a check, not a strip rule, and media in those attributes would still be a bug. An SDK may bound the work it spends on one very large value. Past that bound no media survives, but byte identity with the other implementations is not promised.
 
 **Order.** A normalizer first builds parts from the message keys (the source rule). Stripping runs last, over every string attribute in scope, including the message-key attributes it keeps and the gen_ai.\*.messages it produced. A stripped blob part carries no content, so nothing in it matches; a text part holding a data URL gets rule (b) in place. So in a message key (and in the sink's InputMessages and OutputMessages columns) a blob part never has a content member, while in any other attribute or column a blob part's content may be a complete replacement, the one rule (e) writes there. The fixture check holds expected results to exactly this: a normalized blob part carries no content. Within one pass, every rule reads the text as it was before the pass: rule (e) takes its context and its mime type from each object's member values as they were, never from a sibling the same pass has already rewritten (see members). A walker that rewrites the document in place must keep reading the original values.
 
@@ -925,6 +960,78 @@ Output:
 
 Tokens: (e) unknown, 3 bytes, (b) image/png, 3 bytes.
 
+#### `a_mime_with_a_colon_is_no_data_url`
+
+The mime type of rule (b) cannot hold a colon, so the first data: is no token start: the match begins at the second data: and the first stays as text.
+
+Input:
+
+```text
+data:data:image/png;base64,QUFB
+```
+
+Output:
+
+```text
+data:[stripped image/png 3 bytes]
+```
+
+Tokens: (b) image/png, 3 bytes.
+
+#### `a_colon_inside_the_mime_leaves_the_data_url`
+
+Because the mime type cannot hold a colon, a data URL whose mime type or parameter has one (text/x:y) is not matched and stays as it came. This is the cost of keeping rule (b) linear.
+
+Input:
+
+```text
+data:text/x:y;base64,QUFB
+```
+
+Output:
+
+```text
+data:text/x:y;base64,QUFB
+```
+
+Tokens: none.
+
+#### `duplicate_mime_keys_take_the_first_that_qualifies`
+
+Both members are mediaType. The first is not a valid mime, so the second, the first that qualifies, gives the mime type.
+
+Input:
+
+```text
+{"mediaType":"a b","mediaType":"image/png","data":"QUFB"}
+```
+
+Output:
+
+```text
+{"mediaType":"a b","mediaType":"image/png","data":"[stripped image/png 3 bytes]"}
+```
+
+Tokens: (e) image/png, 3 bytes.
+
+#### `duplicate_type_any_member_makes_a_buffer`
+
+In the strip a condition on type holds when any member meets it, so one type member equal to Buffer makes this a Buffer object whatever the others say. Part building reads only the last type member instead (see part_shapes).
+
+Input:
+
+```text
+{"file":{"type":"text","type":"Buffer","data":[1]}}
+```
+
+Output:
+
+```text
+{"file":"[stripped unknown 1 bytes]"}
+```
+
+Tokens: (d) unknown, 1 bytes.
+
 ## Input
 
 | Source | Shape | Becomes | Modality | Paths | Fixtures | Notes |
@@ -945,8 +1052,8 @@ Tokens: (e) unknown, 3 bytes, (b) image/png, 3 bytes.
 | `openinference.llm` | `message_content.type = image, image.image.url = data URL \| http(s) \| __REDACTED__` | blob / uri | image | openinference | `openinference-openai/image_data_url`, `openinference-openai/image_https_url`, `openinference-openai/image_redacted`, `openinference-anthropic/image_base64`, `openinference-js-openai/image_data_url`, `openinference-js-openai/image_https_url`, `openinference-js-openai/image_redacted` | A data URL becomes a blob, an http(s) URL a uri, and \_\_REDACTED\_\_ a blob with stripped_reason redacted_upstream. Python and JS; the JS instrumentor redacts above the same 32,000 characters. |
 | `vercel.ai` | `image / file parts in ai.prompt.messages` | blob / uri | from_mime | vercel | `vercel-ai-v5/image_file`, `vercel-ai-v5/pdf_file`, `vercel-ai-v5/text_plain_file`, `vercel-ai-v5/audio_file`, `vercel-ai-v6/image_file`, `vercel-ai-v6/pdf_file`, `vercel-ai-v6/text_plain_file`, `vercel-ai-v6/audio_file` | The existing blob and uri mapping, with the modality rule. A blob is stripped. TypeScript SDK and sink. The AI SDK writes a file part as a part of type file with mediaType and base64 data in ai.prompt.messages (the model call), whatever the media type. A PDF and a text/plain file are not images. |
 | `semconv.native` | `blob part with content` | blob | from_mime | native | `pydantic-ai/image_binary` | The same blob, stripped. pydantic-ai writes it in gen_ai.input.messages and pydantic_ai.all_messages. This applies to any OTel GenAI instrumentation that writes blob parts. |
-| `semconv.native` | `uri part` | uri | from_mime | native | `openllmetry/image_https_url` | Unchanged, and modality is filled from the mime type when missing. OpenLLMetry 0.62 writes it in gen_ai.input.messages. |
-| `semconv.native` | `file part` | file | from_mime | native | none | No recorded family; covered by the SDK pass-through unit tests. Unchanged, and modality is filled from the mime type when missing. |
+| `semconv.native` | `uri part` | uri | from_mime | native | `openllmetry/image_https_url` | Rebuilt into its canonical shape (see part_shapes). A modality it has is kept, else it comes from the mime type, then the URI's filename extension, then document. OpenLLMetry 0.62 writes it in gen_ai.input.messages. |
+| `semconv.native` | `file part` | file | from_mime | native | none | No recorded family; covered by the SDK pass-through unit tests. Rebuilt into its canonical shape (see part_shapes). A modality it has is kept, else it comes from the mime type, then document. |
 | `openinference.llm` | `image.image.url = data:None;url,None` | blob | image | openinference | `openinference-anthropic/image_url` | What OpenInference's Anthropic instrumentor writes for an image with a url source; the URL itself is lost. The data URL names no mime type and holds no bytes, so the blob has neither mime_type nor byte_size, and its stripped_reason is redacted_upstream. |
 | `laminar.openhands` | `ImageContent with image_urls in lmnr.span.input` | no part (raw payload stripped: `lmnr.span.input`) | - | laminar | `laminar/image_base64`, `laminar/image_https_url` | lmnr.span.input is a raw payload, not a message key, so it makes no part. A data URL in it is stripped per raw_payloads; an http(s) URL stays. Written on the conversation.send_message span's input, and the sink keeps it in InputValue. The LLM span drops the image when the model has no vision support. |
 | `vercel.ai` | `file part with Buffer data in ai.prompt` | no part (raw payload stripped: `ai.prompt`) | - | vercel | `vercel-ai-v5/image_file`, `vercel-ai-v5/pdf_file`, `vercel-ai-v5/text_plain_file`, `vercel-ai-v5/audio_file`, `vercel-ai-v6/image_file`, `vercel-ai-v6/pdf_file`, `vercel-ai-v6/text_plain_file`, `vercel-ai-v6/audio_file` | On the operation span (ai.generateText) the prompt is JSON, and a file given as a Buffer is written as an object of type Buffer whose data is a JSON array of byte values, not base64. ai.prompt is a raw payload, so it makes no part; the Buffer object is replaced per raw_payloads, with byte_size the array length. The part comes from ai.prompt.messages on the model-call span (the image / file parts row). |
