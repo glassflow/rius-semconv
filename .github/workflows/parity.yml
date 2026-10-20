@@ -1,8 +1,9 @@
-# Checks the generated constants against what each SDK ships on its main
-# branch: rius-sdk-python and rius-sdk-typescript. See the README, "CI", and
-# tools/check_parity.py for what is compared.
+# Checks the generated constants against what each consumer ships on its main
+# branch: rius-sdk-python, rius-sdk-typescript and the coding-agent plugin
+# (rius-coding-agents). See the README, "CI", and tools/check_parity.py for
+# what is compared.
 #
-# Both SDK repositories are public, so this job needs no secret. The Rius
+# All three repositories are public, so this job needs no secret. The Rius
 # backend's Go constants are checked in the backend's own CI, against a pinned
 # release of this registry, not here.
 name: parity
@@ -11,7 +12,7 @@ on:
   pull_request:
   push:
     branches: [main]
-  # The SDKs change without touching this repository; a daily run notices.
+  # The consumers change without touching this repository; a daily run notices.
   schedule:
     - cron: "0 6 * * *"
   workflow_dispatch:
@@ -41,6 +42,14 @@ jobs:
           path: consumers/rius-sdk-typescript
           persist-credentials: false
 
+      - name: Check out rius-coding-agents
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          repository: glassflow/rius-coding-agents
+          ref: main
+          path: consumers/rius-coding-agents
+          persist-credentials: false
+
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.12"
@@ -56,8 +65,9 @@ jobs:
           # `|| status=$?` so a failure still reaches the summary below; the
           # step's shell runs with -e.
           status=0
-          python tools/check_parity.py python typescript --ref HEAD --cross \
+          python tools/check_parity.py python typescript plugin --ref HEAD --cross \
             --python-repo consumers/rius-sdk-python \
-            --typescript-repo consumers/rius-sdk-typescript | tee parity.txt || status=$?
+            --typescript-repo consumers/rius-sdk-typescript \
+            --plugin-repo consumers/rius-coding-agents | tee parity.txt || status=$?
           { echo '```'; cat parity.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           exit $status

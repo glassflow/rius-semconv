@@ -149,6 +149,7 @@ its language at a pinned registry release, and imports its constants from it:
 | Python SDK | `src/rius/_semconv_generated.py` | the file's header | `TAG=<tag> scripts/sync-semconv.sh` |
 | TypeScript SDK | `src/semconv.generated.ts` | the file's header | `TAG=<tag> scripts/sync-semconv.sh` |
 | Rius backend | `packages/argus-core/semconv/semconv_generated.go` | `RIUS_SEMCONV_TAG` in its Makefile | `make sync-semconv` |
+| Coding-agent plugin (`rius-coding-agents`) | `scripts/rius_cc/_semconv_generated.py` | the file's header | `TAG=<tag> scripts/sync-semconv.sh` |
 
 Each copy is the release's `out/` file byte for byte, under two comment lines
 naming the release (`# Vendored from rius-semconv v1.3.0 ...`). The SDKs'
@@ -156,9 +157,10 @@ hand-written `semconv.py` and `semconv.ts` re-export it and keep the helper
 functions; the backend's `semconv.go` keeps only the keys the registry does
 not generate (see [Go](#go)). Each consumer's CI fails when its copy differs
 from its pinned release: the Python SDK's `semconv-vendored` workflow, the
-TypeScript SDK's `semconv-parity` workflow (its `vendored` job) and the
-backend's `make semconv-parity`. While this repository is private, those
-checks read it with a token and skip with a warning when they cannot.
+TypeScript SDK's `semconv-parity` workflow (its `vendored` job), the
+backend's `make semconv-parity` and the plugin's `semconv-vendored` workflow.
+While this repository is private, those checks read it with a token and skip
+with a warning when they cannot.
 
 A change reaches a consumer through a release: merge it here, release, then
 re-pin the consumer, which is a reviewable diff of the vendored file.
@@ -168,7 +170,12 @@ with `out/`, byte for byte after the header. A difference means the consumer
 pins an older release, which is allowed, so it is a warning unless
 `--strict`. Beside a current copy, every constant the backend's hand-written
 `semconv.go` still declares must be classified (see [Go](#go)), and none may
-repeat a generated one. A consumer with no vendored copy is checked by value
+repeat a generated one. The plugin imports the generated module directly, with
+no hand-written module in between, so it must vendor, and every name its code
+and tests read from the module (`tools/check_parity.py`, `used_names`, lists
+the forms read) must still be generated, even while its copy lags: a
+registry change that drops or renames one fails here, before the plugin's
+next re-vendor. A consumer with no vendored copy is checked by value
 instead: the tool evaluates the generated module and the consumer's
 hand-written file (Python by executing it, TypeScript through Node, Go
 constants by name) and fails when a value differs or a name is uncovered.
@@ -511,14 +518,15 @@ table to those languages, and `divergence:` (required) says why;
 ## Parity checks
 
 `tools/check_parity.py` compares `out/` with each consumer's `main` branch.
-The SDKs are read from sibling checkouts (`../rius-sdk-python`,
-`../rius-sdk-typescript`; override with `--python-repo` and
-`--typescript-repo`). The Rius backend has no default location: check it with
+The SDKs and the coding-agent plugin are read from sibling checkouts
+(`../rius-sdk-python`, `../rius-sdk-typescript`, `../rius-coding-agents`;
+override with `--python-repo`, `--typescript-repo` and `--plugin-repo`).
+The Rius backend has no default location: check it with
 `python tools/check_parity.py go --go-dir <dir>`, where `<dir>` is its semconv
 package directory (the one holding `semconv.go` and `semconv_generated.go`)
-inside a git checkout. Pick a ref with
-`--ref`, fetch first with `--fetch`, and add `--cross` to also diff the two
-SDKs' hand-written files directly, for review.
+inside a git checkout. Pick a ref with `--ref`, fetch first with `--fetch`,
+and add `--cross` to also diff the two SDKs' hand-written files directly, for
+review.
 
 - **`ci.yml`** (no secrets): lints this repository's code and the registry,
   checks the fixtures and the usage-key decisions, and runs the tests. Its
@@ -528,8 +536,9 @@ SDKs' hand-written files directly, for review.
   the breaking-change gate) and `resolve` against the pinned upstream
   registries. Its `live-check` job checks every fixture's expected result
   against the registry.
-- **`parity.yml`** (no secrets): runs `check_parity.py` against each SDK's
-  `main` on every pull request, on pushes to `main`, daily, and on demand.
+- **`parity.yml`** (no secrets): runs `check_parity.py` against the `main`
+  branch of each SDK and of the plugin on every pull request, on pushes to
+  `main`, daily, and on demand.
 - **`renovate-followup.yml`**: regenerates the files that follow from the
   pins on Renovate's pull requests and pushes the result with an
   installation token of a GitHub App installed on this repository only
@@ -538,9 +547,10 @@ SDKs' hand-written files directly, for review.
 - **`release.yml`**: keeps the registry's release pull request up to date
   on pushes to `main` (see [Versioning](#versioning-and-stability)).
 
-Both SDK repositories are public, so `parity.yml` reads them without a
-token. The Rius backend runs the Go check in its own CI, against a pinned
-release of this registry, and fails when its constants drift from it.
+Both SDK repositories and the plugin's are public, so `parity.yml` reads
+them without a token. The Rius backend runs the Go check in its own CI,
+against a pinned release of this registry, and fails when its constants drift
+from it.
 
 Every action is pinned to a full commit SHA, with its version in a trailing
 comment.
