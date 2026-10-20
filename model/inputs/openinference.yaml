@@ -255,7 +255,7 @@ attributes:
         go: LLMTokenCountTotal
 - key: llm.token_count.prompt_details.audio
   type: int
-  brief: Usage count written by OpenInference; the python and typescript normalizers map it to gen_ai.usage.audio.input_tokens.
+  brief: Usage count written by OpenInference; the python, typescript and sink normalizers map it to gen_ai.usage.audio.input_tokens.
   note: A subset of the input count, never added to it.
   stability: development
   annotations:
@@ -268,9 +268,10 @@ attributes:
         mapped_by:
         - python
         - typescript
+        - sink
 - key: llm.token_count.completion_details.audio
   type: int
-  brief: Usage count written by OpenInference; the python and typescript normalizers map it to gen_ai.usage.audio.output_tokens.
+  brief: Usage count written by OpenInference; the python, typescript and sink normalizers map it to gen_ai.usage.audio.output_tokens.
   note: A subset of the output count, never added to it.
   stability: development
   annotations:
@@ -283,6 +284,7 @@ attributes:
         mapped_by:
         - python
         - typescript
+        - sink
 - key: llm.cost.total
   type: double
   brief: 'Usage figure written by OpenInference, left on the span: nothing reads it as usage.'
