@@ -50,7 +50,8 @@
 #              is only in a raw payload, or the instrumentor dropped it, and
 #              any raw payload holding it is stripped per raw_payloads.
 #   modality   image, video, audio or document, or from_mime: the modality
-#              rule above. Not needed when normalized is text or none.
+#              rule in part_shapes.rules (the MIME type, then the item kind,
+#              the filename or the URI path's extension, then document). Not needed when normalized is text or none.
 #   paths      Which paths deliver the shape today: passthrough (the SDK
 #              helpers, set_input / setInput with raw provider dicts),
 #              openinference (flattened message contents), openllmetry,
@@ -657,9 +658,12 @@ part_shapes:
     blob: [type, modality, mime_type, byte_size, stripped_reason]
     uri: [type, modality, mime_type, uri]
     file: [type, modality, mime_type, file_id]
-  # A filename extension (of a URI's path or a filename member), lower case,
-  # gives the modality where the rules below read one. Any other extension
-  # is document.
+  # A filename extension gives the modality where the rules below read one.
+  # The extension is the text after the last '.' of the file name, matched
+  # with ASCII case folding only (A.WAV is audio; no other letter is folded).
+  # A filename member is the file name. For a URI, the query and fragment are
+  # cut first, nothing is percent-decoded, and the file name is the text
+  # after the last '/'. Any other extension, or none, is document.
   extensions:
     image: [png, jpg, jpeg, gif, webp]
     audio: [wav, mp3, m4a, ogg, flac]
@@ -767,10 +771,11 @@ rows:
     shape: file {file_id}
     direction: input
     normalized: file
-    modality: document
+    modality: from_mime
     paths: [passthrough, openllmetry, laminar]
     fixtures: []
     reason: No recorded family; covered by the SDK pass-through unit tests.
+    note: The modality comes from the filename extension alone; with no filename it is document.
 
   - source: openai.chat
     shape: file {file_data, filename}
@@ -810,7 +815,7 @@ rows:
     paths: [passthrough, openllmetry, laminar]
     fixtures: []
     reason: No recorded family; covered by the SDK pass-through unit tests.
-    note: A file id becomes a file, file data a blob, a file URL a uri.
+    note: A file id becomes a file, file data a blob, a file URL a uri. The modality comes from a data URL's mime type, else from the filename extension alone (never the file URL's); with no filename it is document.
 
   - source: openai.responses
     shape: image_generation_call.result (base64)
@@ -874,6 +879,7 @@ rows:
     paths: [passthrough]
     fixtures: []
     reason: No recorded family; covered by the SDK pass-through unit tests.
+    note: The modality comes from the mime type, else from the URI path's extension.
 
   - source: openinference.llm
     shape: message_content.type = image, image.image.url = data URL | http(s) | __REDACTED__
