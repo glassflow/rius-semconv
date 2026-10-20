@@ -23,7 +23,19 @@ params:
   - const: SERVICE_NAME
   - const: SERVICE_INSTANCE_ID
   - const: SERVICE_VERSION
+  - const: PROCESS_WORKING_DIRECTORY
+  - const: VCS_REF_HEAD_NAME
   - const: TELEMETRY_DISTRO_NAME
+  - const: TELEMETRY_DISTRO_NAME_CODING_AGENTS
+    key: rius-coding-agents
+    symbol: value
+    of: TELEMETRY_DISTRO_NAME
+    shipped_in:
+    - python
+    - go
+    divergence: |
+      Only the coding-agent plugin (Python) writes it, and only the Rius
+      backend (Go) reads it. No TypeScript consumer has a use for it.
   - const: TELEMETRY_DISTRO_VERSION
   - const: GEN_AI_AGENT_NAME
   - const: GEN_AI_AGENT_ID
@@ -67,6 +79,15 @@ params:
   - const: GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS
   - const: GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS
   - const: GEN_AI_USAGE_REASONING_OUTPUT_TOKENS
+  - const: GEN_AI_USAGE_TEXT_INPUT_TOKENS
+  - const: GEN_AI_USAGE_TEXT_OUTPUT_TOKENS
+  - const: GEN_AI_USAGE_TEXT_CACHE_READ_INPUT_TOKENS
+  - const: GEN_AI_USAGE_IMAGE_INPUT_TOKENS
+  - const: GEN_AI_USAGE_IMAGE_OUTPUT_TOKENS
+  - const: GEN_AI_USAGE_IMAGE_CACHE_READ_INPUT_TOKENS
+  - const: GEN_AI_USAGE_AUDIO_INPUT_TOKENS
+  - const: GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS
+  - const: GEN_AI_USAGE_AUDIO_CACHE_READ_INPUT_TOKENS
   - const: GEN_AI_INPUT_MESSAGES
   - const: GEN_AI_OUTPUT_MESSAGES
   - const: GEN_AI_SYSTEM_INSTRUCTIONS
@@ -278,6 +299,115 @@ params:
       from. The conventions define no operation for a generic workflow step, and
       the manual span helpers see nothing but the kind. A literal beats an empty
       name.
+  - const: RIUS_COMMAND_CLASS
+  - const: RIUS_COMMAND_CLASS_TEST
+    key: test
+    symbol: value
+    of: RIUS_COMMAND_CLASS
+    shipped_in:
+    - python
+    - go
+    divergence: |
+      Only the coding-agent plugin (Python) writes it, and only the Rius
+      backend (Go) reads it. No TypeScript consumer has a use for it.
+  - const: RIUS_COMMAND_CLASS_BUILD
+    key: build
+    symbol: value
+    of: RIUS_COMMAND_CLASS
+    shipped_in:
+    - python
+    - go
+    divergence: |
+      Only the coding-agent plugin (Python) writes it, and only the Rius
+      backend (Go) reads it. No TypeScript consumer has a use for it.
+  - const: RIUS_COMMAND_CLASS_LINT
+    key: lint
+    symbol: value
+    of: RIUS_COMMAND_CLASS
+    shipped_in:
+    - python
+    - go
+    divergence: |
+      Only the coding-agent plugin (Python) writes it, and only the Rius
+      backend (Go) reads it. No TypeScript consumer has a use for it.
+  - const: RIUS_COMMAND_CLASS_PACKAGE
+    key: package
+    symbol: value
+    of: RIUS_COMMAND_CLASS
+    shipped_in:
+    - python
+    - go
+    divergence: |
+      Only the coding-agent plugin (Python) writes it, and only the Rius
+      backend (Go) reads it. No TypeScript consumer has a use for it.
+  - const: RIUS_COMMAND_CLASS_GIT
+    key: git
+    symbol: value
+    of: RIUS_COMMAND_CLASS
+    shipped_in:
+    - python
+    - go
+    divergence: |
+      Only the coding-agent plugin (Python) writes it, and only the Rius
+      backend (Go) reads it. No TypeScript consumer has a use for it.
+  - const: RIUS_COMMAND_CLASS_OTHER
+    key: other
+    symbol: value
+    of: RIUS_COMMAND_CLASS
+    shipped_in:
+    - python
+    - go
+    divergence: |
+      Only the coding-agent plugin (Python) writes it, and only the Rius
+      backend (Go) reads it. No TypeScript consumer has a use for it.
+  - const: PROCESS_EXIT_CODE
+  - const: CC_TURN_SOURCE
+  - const: CC_TURN_SOURCE_USER
+    key: user
+    symbol: value
+    of: CC_TURN_SOURCE
+    shipped_in:
+    - python
+    - go
+    divergence: |
+      Only the coding-agent plugin (Python) writes it, and only the Rius
+      backend (Go) reads it. No TypeScript consumer has a use for it.
+  - const: CC_TURN_SOURCE_SYSTEM
+    key: system
+    symbol: value
+    of: CC_TURN_SOURCE
+    shipped_in:
+    - python
+    - go
+    divergence: |
+      Only the coding-agent plugin (Python) writes it, and only the Rius
+      backend (Go) reads it. No TypeScript consumer has a use for it.
+  - const: CC_SUBAGENT_ID
+  - const: CC_SUBAGENT_DEPTH
+  - const: CC_CLAUDE_SESSION_ID
+  - const: CC_CONTINUED_FROM
+  - const: CODEX_ORIGINATOR
+  - const: CODEX_SUBAGENT_ID
+  - const: CODEX_TURN_ID
+  - const: CODEX_TURN_DURATION_MS
+  - const: CODEX_TURN_TTFT_MS
+  - const: CODEX_TURN_ABORTED
+  - const: CURSOR_COMPOSER_MODE
+  - const: CURSOR_BACKGROUND
+  - const: CURSOR_SESSION_REASON
+  - const: CURSOR_SESSION_FINAL_STATUS
+  - const: CURSOR_TURN_STATUS
+  - const: CURSOR_TURN_LOOP_COUNT
+  - const: CURSOR_THINKING_DURATION_MS
+  - const: CURSOR_CONTEXT_TOKENS
+  - const: CURSOR_CONTEXT_WINDOW_SIZE
+  - const: CURSOR_CONTEXT_USAGE_PERCENT
+  - const: CURSOR_SUBAGENT_ID
+  - const: CURSOR_SUBAGENT_STATUS
+  - const: CURSOR_SUBAGENT_TOOL_CALL_COUNT
+  - const: CURSOR_SUBAGENT_MESSAGE_COUNT
+  - const: CURSOR_TOOL_INTERRUPTED
+  - const: CURSOR_TOOL_CLOSED_AT_SESSION_END
   normalizer_inputs:
   - key: gen_ai.usage.cache_creation.input_tokens
     decision: mapped
@@ -337,16 +467,27 @@ params:
     reason: As cache_read_tokens, for cache writes.
   - key: gen_ai.usage.details.audio_tokens
     decision: ignored
-    reason: No canonical key; modality splits are not priced separately.
+    reason: |
+      No single direction: pydantic-ai writes it with no input or output in
+      the name, so it cannot map to either audio key.
   - key: gen_ai.usage.input_token_details.audio_tokens
-    decision: ignored
+    decision: mapped
+    target: gen_ai.usage.audio.input_tokens
+    mapped_by:
+    - python
+    - typescript
+    - sink
     reason: |
       @ai-sdk/otel's flattening of a provider's input_token_details on a
-      transcription span (OpenAI's gpt-4o-transcribe). No canonical key is
-      read for it; modality splits are not priced separately.
+      transcription span (OpenAI's gpt-4o-transcribe). A subset of the input
+      count, never added to it.
   - key: gen_ai.usage.input_token_details.text_tokens
-    decision: ignored
-    reason: As input_token_details.audio_tokens, for the text part of the input.
+    decision: gap
+    reason: |
+      The text subset of a transcription span's input, beside
+      input_token_details.audio_tokens. It belongs in
+      gen_ai.usage.text.input_tokens, but no normalizer maps it yet, so the
+      text split of the input is not attributed.
   - prefix: gen_ai.aggregated_usage.
     decision: ignored
     reason: |
@@ -893,6 +1034,10 @@ params:
         - CHAIN -> INTERNAL: a workflow step by definition.
         Nothing in the backend groups on this field (it reads the attributes), so
         the mapping is free to follow the conventions exactly.
+        Python holds the kind's NAME ("CLIENT"), so the generated module imports
+        nothing and a producer without the OpenTelemetry SDK can vendor it: the SDK
+        turns a name into the enum with OtelSpanKind[name], and a producer writing
+        OTLP itself maps it to the wire's numbering, which differs from the API's.
       map:
       - - LLM
         - CLIENT

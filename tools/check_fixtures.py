@@ -16,21 +16,46 @@ start with "_"):
 - in a control family (manifest `"control": true`: spans an SDK already
   normalized), the expected result is the recording itself, since
   normalizing canonical spans must change nothing;
+- an expected result holds no base64 or byte-array media (recordings may):
+  (a) no blob part with content in a message key (raw_payloads.message_keys,
+  and the sink's InputMessages and OutputMessages columns), where the
+  normalized blob part has none; anywhere else, no blob part whose content is
+  not a complete replacement (the strip writes one there); (b) no data: URL; (c) no
+  4096-character base64 run; (d) no non-empty {"type": "Buffer", "data":
+  [...]} byte array; (e) no base64 string under data, b64_json or result next
+  to a media type or output format, under input_audio, audio, inline_data or
+  inlineData, or in a base64 source (a replacement string is not one); and (f) not
+  the first 32 base64 characters of any payload fixtures/_media.py exports,
+  anywhere in the file. Rules (b), (d) and (e) are read from
+  registry/media_parts.yaml raw_payloads.detection, the rules the normalizers
+  strip by, and a string holding JSON is read as they read it (ASCII
+  whitespace before { or [, strict RFC 8259, at most 64 levels deep);
 - no JSON file in it holds a traceback or a local path from the machine that
   recorded it.
 
+Then, across families: every scenario id a row of registry/media_parts.yaml
+names (`<family>/<scenario>`) is a scenario some family's manifest describes.
+
 Exit 0 when everything is consistent, 1 otherwise, with one line per problem.
-Needs only the standard library.
+Needs PyYAML, to read the registry.
 """
 
 from __future__ import annotations
 
+import functools
+import importlib.util
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+
+from generators import media_parts  # noqa: E402
+from generators.registry import Registry  # noqa: E402
+
 RECORD_SCRIPTS = ("record.py", "record.mjs")
 EXPECTED_SUFFIX = ".expected.json"
 #: A sink-only family's expected result: the rows the sink stores, not spans.
@@ -52,6 +77,124 @@ MACHINE_MARKERS = (
 def _machine_leaks(path: Path) -> list[str]:
     text = path.read_text()
     return [marker for marker in MACHINE_MARKERS if marker in text]
+
+
+#: A run this long of base64 characters is media, not an id or a tool argument.
+BASE64_RUN = re.compile(r"[A-Za-z0-9+/=]{4096}")
+
+
+#: How much of a suite payload's base64 form rule (f) looks for.
+PAYLOAD_PREFIX = 32
+
+
+@functools.cache
+def raw_payloads() -> dict:
+    """registry/media_parts.yaml raw_payloads: the detection rules (b), (d), (e)."""
+    return Registry.load().media_parts["raw_payloads"]
+
+
+@functools.cache
+def payload_prefixes() -> dict[str, str]:
+    """Rule (f): name -> the first base64 characters of each payload
+    fixtures/_media.py exports."""
+    spec = importlib.util.spec_from_file_location("_media", ROOT / "fixtures" / "_media.py")
+    assert spec is not None and spec.loader is not None
+    media = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(media)
+    payloads = {
+        "PNG_1X1": media.PNG_1X1,
+        "WAV_SILENT": media.WAV_SILENT,
+        "PDF_ONE_PAGE": media.PDF_ONE_PAGE,
+        "big_png(32000)": media.big_png(32000),
+    }
+    return {name: media.b64(data)[:PAYLOAD_PREFIX] for name, data in payloads.items()}
+
+
+#: The sink's columns that hold normalized messages, like a message key.
+MESSAGE_COLUMNS = ("InputMessages", "OutputMessages")
+
+
+def _is_message_key(key: str | None) -> bool:
+    return key is not None and (
+        key in MESSAGE_COLUMNS or media_parts.is_message_key(raw_payloads(), key)
+    )
+
+
+def _holds_payload(text: str) -> bool:
+    return any(prefix in text for prefix in payload_prefixes().values())
+
+
+def _holds_media(
+    value: Any,
+    parent_key: str | None = None,
+    *,
+    key: str | None = None,
+    depth: int | None = None,
+) -> bool:
+    """Whether a value, or JSON nested in a string in it, holds base64 media.
+    `key` is the attribute or column the value is under: in a message key a
+    blob part has no content; elsewhere its content may be a replacement (rule a). `depth` is
+    how many JSON arrays and objects enclose the value, None outside JSON."""
+    raw = raw_payloads()
+    inner = None if depth is None else depth + 1
+    if isinstance(value, dict):
+        if value.get("type") == "blob" and "content" in value:  # (a)
+            content = value["content"]
+            replaced = isinstance(content, str) and media_parts.is_replacement(raw, content)
+            if _is_message_key(key) or not replaced:
+                return True
+        if media_parts.is_buffer(raw, value):  # (d)
+            return True
+        if media_parts.keyed_base64(raw, value, parent_key):  # (e)
+            return True
+        return any(_holds_media(v, k, key=key, depth=inner) for k, v in value.items())
+    if isinstance(value, list):
+        return any(_holds_media(v, parent_key, key=key, depth=inner) for v in value)
+    if isinstance(value, str):
+        if media_parts.is_data_url(raw, value):  # (b), anywhere in the string
+            return True
+        if BASE64_RUN.search(value):  # (c)
+            return True
+        if _holds_payload(value):  # (f)
+            return True
+        parsed = media_parts.parse_json_candidate(value, depth or 0)
+        if parsed is not None:
+            return _holds_media(parsed, key=key, depth=depth or 0)
+    return False
+
+
+def _media_leaks(path: Path) -> list[str]:
+    """Where an expected result holds base64 media: `<scenario> span <id> attribute <key>`."""
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, ValueError):
+        return []  # reported as unreadable elsewhere
+    leaks = []
+    for recording in data.get("recordings", []):
+        scenario = recording.get("scenario")
+        scopes = [("resource", recording.get("resource"))]
+        for entry in recording.get("spans") or []:
+            span = entry.get("span", {})
+            where = f"{scenario} span {span.get('spanId')}"
+            scopes.append((where, span))
+            scopes.append((where + " scope", entry.get("scope")))
+            for event in span.get("events") or []:
+                scopes.append((f"{where} event {event.get('name')}", event))
+            for link in span.get("links") or []:
+                scopes.append((f"{where} link", link))
+        for where, holder in scopes:
+            for attribute in (holder or {}).get("attributes") or []:
+                if _holds_media(attribute.get("value"), key=attribute.get("key")):
+                    prefix = f"{scenario} {where}" if where == "resource" else where
+                    leaks.append(f"{prefix} attribute {attribute.get('key')}")
+        for row in recording.get("rows") or []:
+            for column, value in row.items():
+                # An attribute map column (SpanAttributes, ResourceAttributes):
+                # each value is under its own attribute key.
+                values = value.items() if isinstance(value, dict) else [(column, value)]
+                if any(_holds_media(v, key=k) for k, v in values):
+                    leaks.append(f"{scenario} span {row.get('SpanID')} attribute {column}")
+    return leaks
 
 
 def _spans_by_id(scenario: dict[str, Any]) -> dict[str, dict[str, Any]]:
@@ -88,6 +231,14 @@ def check_family(family: Path) -> list[str]:
         return errors
     if manifest.get("family") != label:
         errors.append(f"{label}: manifest names family {manifest.get('family')!r}")
+
+    for path in sorted(family.glob("*.expected*.json")):
+        if path.name.endswith((EXPECTED_SUFFIX, ROWS_SUFFIX)):
+            leaks = _media_leaks(path)
+            for leak in leaks:
+                errors.append(f"{label}/{path.name}: {leak} holds base64 media")
+            if not leaks and _holds_payload(path.read_text()):  # (f), outside any attribute
+                errors.append(f"{label}/{path.name}: holds base64 media from fixtures/_media.py")
 
     listed = manifest.get("recordings", {})
     on_disk = {p.name for p in recording_files(family)}
@@ -214,6 +365,7 @@ def check(fixtures: Path) -> list[str]:
     errors: list[str] = []
     for family in families(fixtures):
         errors += check_family(family)
+    errors += media_parts.check_fixture_refs(Registry.load().media_parts, fixtures)
     return errors
 
 

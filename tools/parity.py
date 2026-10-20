@@ -20,8 +20,11 @@ Normalized values are JSON-shaped so they compare with `==` and print well:
   Python Enum class        -> {"__enum__": {name: value}}
   our SpanKind member      -> its value ("LLM"), which is also what a
                               TypeScript string enum member evaluates to
-  OpenTelemetry SpanKind   -> "OtelSpanKind.<NAME>", in both languages, via
-                              the stubs below
+  OpenTelemetry SpanKind   -> its name ("CLIENT"), in both languages, via
+                              the stubs below. The generated Python holds the
+                              name itself, so it compares with the TypeScript
+                              table and with an SDK copy that still holds the
+                              OpenTelemetry member
 """
 
 from __future__ import annotations
@@ -87,7 +90,7 @@ def _exec_python(source: str) -> dict[str, Any]:
 def _norm_py(value: Any) -> Any:
     if isinstance(value, enum.Enum):
         if type(value).__module__ == "opentelemetry.trace":
-            return f"OtelSpanKind.{value.name}"
+            return value.name
         return value.value
     if isinstance(value, (set, frozenset)):
         return {"__set__": sorted(_norm_py(v) for v in value)}
@@ -126,9 +129,7 @@ def python_surface(source: str, *, raw: bool = False) -> dict[str, Any]:
 # --- TypeScript ----------------------------------------------------------------
 
 # Values match the Python stub's normalized form, so the two languages compare.
-_TS_API_STUB = (
-    "export const SpanKind = {" + ", ".join(f'{k}: "OtelSpanKind.{k}"' for k in OTEL_KINDS) + "};\n"
-)
+_TS_API_STUB = "export const SpanKind = {" + ", ".join(f'{k}: "{k}"' for k in OTEL_KINDS) + "};\n"
 # The real values of the constants the SDK imports; kept deliberately short.
 _TS_SEMCONV_STUB = (
     'export const ATTR_SERVICE_NAME = "service.name";\n'

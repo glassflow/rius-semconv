@@ -67,45 +67,67 @@ Rius uses it.
 | <a id="gen-ai-tool-definitions"></a>[`gen_ai.tool.definitions`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-tool-definitions) | any | opt in | OpenTelemetry GenAI | Emitted. [23] |
 | <a id="gen-ai-tool-name"></a>[`gen_ai.tool.name`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-tool-name) | string | required | OpenTelemetry GenAI | Emitted. |
 | <a id="gen-ai-tool-type"></a>[`gen_ai.tool.type`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-tool-type) | string | recommended | OpenTelemetry GenAI | Emitted. [24] |
+| <a id="gen-ai-usage-audio-cache-read-input-tokens"></a>[`gen_ai.usage.audio.cache_read.input_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-audio-cache-read-input-tokens) | int | recommended | OpenTelemetry GenAI | Emitted. [25] |
+| <a id="gen-ai-usage-audio-input-tokens"></a>[`gen_ai.usage.audio.input_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-audio-input-tokens) | int | recommended | OpenTelemetry GenAI | Emitted. [26] |
+| <a id="gen-ai-usage-audio-output-tokens"></a>[`gen_ai.usage.audio.output_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-audio-output-tokens) | int | recommended | OpenTelemetry GenAI | Emitted. [27] |
 | <a id="gen-ai-usage-cache-read-input-tokens"></a>[`gen_ai.usage.cache_read.input_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-cache-read-input-tokens) | int | recommended | OpenTelemetry GenAI | Emitted. |
-| <a id="gen-ai-usage-cache-write-input-tokens"></a>[`gen_ai.usage.cache_write.input_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-cache-write-input-tokens) | int | recommended | OpenTelemetry GenAI | Emitted. [25] |
+| <a id="gen-ai-usage-cache-write-input-tokens"></a>[`gen_ai.usage.cache_write.input_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-cache-write-input-tokens) | int | recommended | OpenTelemetry GenAI | Emitted. [28] |
+| <a id="gen-ai-usage-image-cache-read-input-tokens"></a>[`gen_ai.usage.image.cache_read.input_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-image-cache-read-input-tokens) | int | recommended | OpenTelemetry GenAI | Emitted. [29] |
+| <a id="gen-ai-usage-image-input-tokens"></a>[`gen_ai.usage.image.input_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-image-input-tokens) | int | recommended | OpenTelemetry GenAI | Emitted. [30] |
+| <a id="gen-ai-usage-image-output-tokens"></a>[`gen_ai.usage.image.output_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-image-output-tokens) | int | recommended | OpenTelemetry GenAI | Emitted. [31] |
 | <a id="gen-ai-usage-input-tokens"></a>[`gen_ai.usage.input_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-input-tokens) | int | recommended | OpenTelemetry GenAI | Emitted. |
 | <a id="gen-ai-usage-output-tokens"></a>[`gen_ai.usage.output_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-output-tokens) | int | recommended | OpenTelemetry GenAI | Emitted. |
 | <a id="gen-ai-usage-reasoning-output-tokens"></a>[`gen_ai.usage.reasoning.output_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-reasoning-output-tokens) | int | recommended | OpenTelemetry GenAI | Emitted. |
+| <a id="gen-ai-usage-text-cache-read-input-tokens"></a>[`gen_ai.usage.text.cache_read.input_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-text-cache-read-input-tokens) | int | recommended | OpenTelemetry GenAI | Emitted. [32] |
+| <a id="gen-ai-usage-text-input-tokens"></a>[`gen_ai.usage.text.input_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-text-input-tokens) | int | recommended | OpenTelemetry GenAI | Emitted. [33] |
+| <a id="gen-ai-usage-text-output-tokens"></a>[`gen_ai.usage.text.output_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-text-output-tokens) | int | recommended | OpenTelemetry GenAI | Emitted. [34] |
 
 ## `mcp`
 
 | Key | Type | Requirement level | Defined in | How Rius uses it |
 | -- | -- | -- | -- | -- |
-| <a id="mcp-method-name"></a>[`mcp.method.name`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/mcp.md#mcp-method-name) | string | required | OpenTelemetry GenAI | Emitted. [26] |
-| <a id="mcp-protocol-version"></a>[`mcp.protocol.version`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/mcp.md#mcp-protocol-version) | string | recommended | OpenTelemetry GenAI | Emitted. [27] |
+| <a id="mcp-method-name"></a>[`mcp.method.name`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/mcp.md#mcp-method-name) | string | required | OpenTelemetry GenAI | Emitted. [35] |
+| <a id="mcp-protocol-version"></a>[`mcp.protocol.version`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/mcp.md#mcp-protocol-version) | string | recommended | OpenTelemetry GenAI | Emitted. [36] |
+
+## `process`
+
+| Key | Type | Requirement level | Defined in | How Rius uses it |
+| -- | -- | -- | -- | -- |
+| <a id="process-exit-code"></a>[`process.exit.code`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/process.md#process-exit-code) | int | recommended | OpenTelemetry v1.44.0 | Emitted. [37] |
+| <a id="process-working-directory"></a>[`process.working_directory`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/process.md#process-working-directory) | string | recommended | OpenTelemetry v1.44.0 | Emitted. [38] |
 
 ## `service`
 
 | Key | Type | Requirement level | Defined in | How Rius uses it |
 | -- | -- | -- | -- | -- |
-| <a id="service-instance-id"></a>[`service.instance.id`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/service.md#service-instance-id) | string | required | OpenTelemetry v1.44.0 | Emitted. [28] |
-| <a id="service-name"></a>[`service.name`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/service.md#service-name) | string | required | OpenTelemetry v1.44.0 | Emitted. [29] |
-| <a id="service-version"></a>[`service.version`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/service.md#service-version) | string | recommended | OpenTelemetry v1.44.0 | Emitted. [30] |
+| <a id="service-instance-id"></a>[`service.instance.id`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/service.md#service-instance-id) | string | required | OpenTelemetry v1.44.0 | Emitted. [39] |
+| <a id="service-name"></a>[`service.name`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/service.md#service-name) | string | required | OpenTelemetry v1.44.0 | Emitted. [40] |
+| <a id="service-version"></a>[`service.version`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/service.md#service-version) | string | recommended | OpenTelemetry v1.44.0 | Emitted. [41] |
 
 ## `session`
 
 | Key | Type | Requirement level | Defined in | How Rius uses it |
 | -- | -- | -- | -- | -- |
-| <a id="session-id"></a>[`session.id`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/session.md#session-id) | string | recommended | OpenTelemetry v1.44.0 | Emitted. [31] |
+| <a id="session-id"></a>[`session.id`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/session.md#session-id) | string | recommended | OpenTelemetry v1.44.0 | Emitted. [42] |
 
 ## `telemetry`
 
 | Key | Type | Requirement level | Defined in | How Rius uses it |
 | -- | -- | -- | -- | -- |
-| <a id="telemetry-distro-name"></a>[`telemetry.distro.name`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/telemetry.md#telemetry-distro-name) | string | required | OpenTelemetry v1.44.0 | Planned, not emitted yet. [32] |
-| <a id="telemetry-distro-version"></a>[`telemetry.distro.version`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/telemetry.md#telemetry-distro-version) | string | required | OpenTelemetry v1.44.0 | Planned, not emitted yet. [33] |
+| <a id="telemetry-distro-name"></a>[`telemetry.distro.name`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/telemetry.md#telemetry-distro-name) | string | required | OpenTelemetry v1.44.0 | Emitted. [43] |
+| <a id="telemetry-distro-version"></a>[`telemetry.distro.version`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/telemetry.md#telemetry-distro-version) | string | required | OpenTelemetry v1.44.0 | Emitted. [44] |
 
 ## `user`
 
 | Key | Type | Requirement level | Defined in | How Rius uses it |
 | -- | -- | -- | -- | -- |
-| <a id="user-id"></a>[`user.id`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/user.md#user-id) | string | recommended | OpenTelemetry v1.44.0 | Emitted. [34] |
+| <a id="user-id"></a>[`user.id`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/user.md#user-id) | string | recommended | OpenTelemetry v1.44.0 | Emitted. [45] |
+
+## `vcs`
+
+| Key | Type | Requirement level | Defined in | How Rius uses it |
+| -- | -- | -- | -- | -- |
+| <a id="vcs-ref-head-name"></a>[`vcs.ref.head.name`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/vcs.md#vcs-ref-head-name) | string | recommended | OpenTelemetry v1.44.0 | Emitted. [46] |
 
 ## Notes
 
@@ -262,41 +284,94 @@ not identity, so it is listed in CONTENT_ATTRIBUTES.
 same reason the call id is: caller-supplied, known before the tool runs.
 A free string, not an enum, in the registry.
 
-**[25] `gen_ai.usage.cache_write.input_tokens`:** semconv-genai renamed cache_creation -&gt; cache_write (PR #440) before our
+**[25] `gen_ai.usage.audio.cache_read.input_tokens`:** A per-modality subset of gen_ai.usage.cache_read.input_tokens: never summed
+into it.
+
+**[26] `gen_ai.usage.audio.input_tokens`:** A per-modality subset of gen_ai.usage.input_tokens: never summed
+into it.
+
+**[27] `gen_ai.usage.audio.output_tokens`:** A per-modality subset of gen_ai.usage.output_tokens: never summed
+into it.
+
+**[28] `gen_ai.usage.cache_write.input_tokens`:** semconv-genai renamed cache_creation -&gt; cache_write (PR #440) before our
 cache fields first shipped; no released SDK version carries the old name.
 
-**[26] `mcp.method.name`:** OTel MCP semantic conventions (semantic-conventions-genai, Development
+**[29] `gen_ai.usage.image.cache_read.input_tokens`:** A per-modality subset of gen_ai.usage.cache_read.input_tokens: never summed
+into it.
+
+**[30] `gen_ai.usage.image.input_tokens`:** A per-modality subset of gen_ai.usage.input_tokens: never summed
+into it.
+
+**[31] `gen_ai.usage.image.output_tokens`:** A per-modality subset of gen_ai.usage.output_tokens: never summed
+into it.
+
+**[32] `gen_ai.usage.text.cache_read.input_tokens`:** A per-modality subset of gen_ai.usage.cache_read.input_tokens: never summed
+into it.
+
+**[33] `gen_ai.usage.text.input_tokens`:** A per-modality subset of gen_ai.usage.input_tokens: never summed
+into it.
+
+**[34] `gen_ai.usage.text.output_tokens`:** A per-modality subset of gen_ai.usage.output_tokens: never summed
+into it.
+
+**[35] `mcp.method.name`:** OTel MCP semantic conventions (semantic-conventions-genai, Development
 stability). mcp.method.name is the REQUIRED attribute of an MCP client span
 and the marker everything downstream keys on: a local TOOL span has the same
 kind, name and I/O shape, so this is what tells the two apart.
 
-**[27] `mcp.protocol.version`:** The version the initialize handshake negotiated, not the one we asked for.
+**[36] `mcp.protocol.version`:** The version the initialize handshake negotiated, not the one we asked for.
 
-**[28] `service.instance.id`:** OTel standard identity of one process lifetime (one uuid per client, minted
+**[37] `process.exit.code`:** A shell tool call's exit code, when the agent reports one: Codex and
+Cursor on every call that has one, Claude Code only on a failed call.
+Written next to rius.command.class, so a failed test run reads as such
+without the command or its output.
+
+**[38] `process.working_directory`:** The directory a coding-agent session runs in, as the agent reports it.
+The OTel process convention's key for the fact, replacing cc.cwd,
+codex.cwd and cursor.cwd. The backend shows a trace's repository from
+it only on spans whose telemetry.distro.name is the plugin's, since any
+process may send the key, and reads the old per-agent spellings for
+traces stored before.
+
+**[39] `service.instance.id`:** OTel standard identity of one process lifetime (one uuid per client, minted
 at init). The heartbeat payload's instance_id carries the SAME value, which
 is what lets the backend join heartbeats to traces and count replicas.
 
-**[29] `service.name`:** OTel standard logical service name. The backend falls back to it when a
+**[40] `service.name`:** OTel standard logical service name. The backend falls back to it when a
 process names no agent.
 
-**[30] `service.version`:** OTel standard version of the deployed service. Metadata about the process,
+**[41] `service.version`:** OTel standard version of the deployed service. Metadata about the process,
 not about any one span. Stamped only when a version is actually known: there
 is deliberately no placeholder default, because a fake one merges every
 deployment into a single bucket, the same mistake `unknown_service` makes
 for service.name.
+The coding-agent plugin stamps the coding agent's own version here (Claude
+Code, Codex or Cursor, which service.name names), replacing cc.version,
+codex.version and cursor.version.
 
-**[31] `session.id`:** The session grouping key. OpenInference's spelling, and the one the sink
+**[42] `session.id`:** The session grouping key. OpenInference's spelling, and the one the sink
 reads first; gen_ai.conversation.id is deliberately not emitted alongside
 it, one name for one fact.
 
-**[32] `telemetry.distro.name`:** Names the distribution that exported the span. Both SDKs set it today as
-an inline literal with no semconv constant, which is why the row is
-planned rather than shipped.
+**[43] `telemetry.distro.name`:** Names the distribution that exported the span. Both SDKs set it to
+"glassflow-rius", a literal with no value row since the backend never
+matches on it. The coding-agent plugin sets
+TELEMETRY_DISTRO_NAME_CODING_AGENTS, and the backend reads
+process.working_directory and vcs.ref.head.name as a coding session's
+repo and branch only on spans carrying that value: both keys are general
+OpenTelemetry keys any process may send.
 
-**[33] `telemetry.distro.version`:** The SDK version that exported the span. Inline literal in both SDKs today,
-like telemetry.distro.name.
+**[44] `telemetry.distro.version`:** The version of the distribution that exported the span: the SDK's, or the
+coding-agent plugin's.
 
-**[34] `user.id`:** The end-user identity. OpenInference's spelling, also what Langfuse reads
+**[45] `user.id`:** The end-user identity. OpenInference's spelling, also what Langfuse reads
 and what the OTel registry lists; the sink additionally accepts OTel's
 enduser.id / enduser.pseudo.id from third-party instrumentors, but the SDKs
 emit one name for one fact.
+
+**[46] `vcs.ref.head.name`:** The git branch a coding-agent session runs on, as the agent reports it.
+The OTel VCS convention's key for the current reference, the one Claude
+Code's own telemetry uses too, replacing cc.git_branch, codex.git_branch
+and cursor.git_branch. Like process.working_directory, the backend reads
+it only on spans whose telemetry.distro.name is the plugin's, and reads
+the old per-agent spellings for traces stored before.

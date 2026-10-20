@@ -23,7 +23,23 @@ export const SERVICE_INSTANCE_ID = "service.instance.id";
 // is deliberately no placeholder default, because a fake one merges every
 // deployment into a single bucket, the same mistake `unknown_service` makes
 // for service.name.
+// The coding-agent plugin stamps the coding agent's own version here (Claude
+// Code, Codex or Cursor, which service.name names), replacing cc.version,
+// codex.version and cursor.version.
 export const SERVICE_VERSION = ATTR_SERVICE_VERSION;
+
+// Names the distribution that exported the span. Both SDKs set it to
+// "glassflow-rius", a literal with no value row since the backend never
+// matches on it. The coding-agent plugin sets
+// TELEMETRY_DISTRO_NAME_CODING_AGENTS, and the backend reads
+// process.working_directory and vcs.ref.head.name as a coding session's
+// repo and branch only on spans carrying that value: both keys are general
+// OpenTelemetry keys any process may send.
+export const TELEMETRY_DISTRO_NAME = "telemetry.distro.name";
+
+// The version of the distribution that exported the span: the SDK's, or the
+// coding-agent plugin's.
+export const TELEMETRY_DISTRO_VERSION = "telemetry.distro.version";
 
 // The agent this process IS, stamped once on the resource so every span it
 // emits groups under the same name its heartbeats do. Without it the backend
@@ -226,6 +242,42 @@ export const GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS = "gen_ai.usage.cache_read.inp
 // cache fields first shipped; no released SDK version carries the old name.
 export const GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS = "gen_ai.usage.cache_write.input_tokens";
 export const GEN_AI_USAGE_REASONING_OUTPUT_TOKENS = "gen_ai.usage.reasoning.output_tokens";
+
+// A per-modality subset of gen_ai.usage.input_tokens: never summed
+// into it.
+export const GEN_AI_USAGE_TEXT_INPUT_TOKENS = "gen_ai.usage.text.input_tokens";
+
+// A per-modality subset of gen_ai.usage.output_tokens: never summed
+// into it.
+export const GEN_AI_USAGE_TEXT_OUTPUT_TOKENS = "gen_ai.usage.text.output_tokens";
+
+// A per-modality subset of gen_ai.usage.cache_read.input_tokens: never summed
+// into it.
+export const GEN_AI_USAGE_TEXT_CACHE_READ_INPUT_TOKENS = "gen_ai.usage.text.cache_read.input_tokens";
+
+// A per-modality subset of gen_ai.usage.input_tokens: never summed
+// into it.
+export const GEN_AI_USAGE_IMAGE_INPUT_TOKENS = "gen_ai.usage.image.input_tokens";
+
+// A per-modality subset of gen_ai.usage.output_tokens: never summed
+// into it.
+export const GEN_AI_USAGE_IMAGE_OUTPUT_TOKENS = "gen_ai.usage.image.output_tokens";
+
+// A per-modality subset of gen_ai.usage.cache_read.input_tokens: never summed
+// into it.
+export const GEN_AI_USAGE_IMAGE_CACHE_READ_INPUT_TOKENS = "gen_ai.usage.image.cache_read.input_tokens";
+
+// A per-modality subset of gen_ai.usage.input_tokens: never summed
+// into it.
+export const GEN_AI_USAGE_AUDIO_INPUT_TOKENS = "gen_ai.usage.audio.input_tokens";
+
+// A per-modality subset of gen_ai.usage.output_tokens: never summed
+// into it.
+export const GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS = "gen_ai.usage.audio.output_tokens";
+
+// A per-modality subset of gen_ai.usage.cache_read.input_tokens: never summed
+// into it.
+export const GEN_AI_USAGE_AUDIO_CACHE_READ_INPUT_TOKENS = "gen_ai.usage.audio.cache_read.input_tokens";
 export const GEN_AI_INPUT_MESSAGES = "gen_ai.input.messages";
 export const GEN_AI_OUTPUT_MESSAGES = "gen_ai.output.messages";
 export const GEN_AI_RESPONSE_FINISH_REASONS = "gen_ai.response.finish_reasons";
@@ -356,6 +408,9 @@ export const RIUS_AGGREGATED_USAGE_PREFIX = "rius.aggregated_usage.";
 // output_messages (literal role, parts typed text / tool_call /
 // tool_call_response with bytes and tool name), cache_marker, and a folded
 // summary of older input.
+// A media part (blob / uri / file) carries its modality (image, video,
+// audio or document) and, when known, byte_size, never bytes: the size of
+// the media itself, not of any content, which a blob does not carry.
 // A Rius vendor attribute, NOT a convention:
 // the backend reads it to attribute gen_ai.usage.input_tokens across the
 // context, and no convention describes context composition. Deliberately
@@ -920,6 +975,10 @@ export const KIND_BY_OPERATION: Record<string, SpanKind> = {
 // - CHAIN -> INTERNAL: a workflow step by definition.
 // Nothing in the backend groups on this field (it reads the attributes), so
 // the mapping is free to follow the conventions exactly.
+// Python holds the kind's NAME ("CLIENT"), so the generated module imports
+// nothing and a producer without the OpenTelemetry SDK can vendor it: the SDK
+// turns a name into the enum with OtelSpanKind[name], and a producer writing
+// OTLP itself maps it to the wire's numbering, which differs from the API's.
 export const OTEL_KIND_BY_KIND: Record<SpanKind, OtelSpanKind> = {
   [SpanKind.LLM]: OtelSpanKind.CLIENT,
   [SpanKind.EMBEDDING]: OtelSpanKind.CLIENT,

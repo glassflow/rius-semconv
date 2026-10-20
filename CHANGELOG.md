@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.6.0](https://github.com/glassflow/rius-semconv/compare/v1.5.0...v1.6.0) (2026-10-19)
+
+
+### Features
+
+* generate the Python module without an OpenTelemetry import ([#70](https://github.com/glassflow/rius-semconv/issues/70)) ([491cb24](https://github.com/glassflow/rius-semconv/commit/491cb2438f36081d1782b76ca56955c50fbab4cf))
+* register the coding-agent plugin's keys ([#69](https://github.com/glassflow/rius-semconv/issues/69)) ([ab1dccb](https://github.com/glassflow/rius-semconv/commit/ab1dccbde4e0d7cfd140836779a2c51fea8a92ce))
+
 ## [1.5.0](https://github.com/glassflow/rius-semconv/compare/v1.4.0...v1.5.0) (2026-10-16)
 
 

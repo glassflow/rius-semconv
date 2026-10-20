@@ -41,7 +41,9 @@
 #   level_note   The condition, for conditionally_required and opt_in.
 #   type         string | boolean | int | double | string[] | json
 #   fill         Which producers populate it: native (our SDKs), openinference,
-#                vercel (the AI SDK's ai.* telemetry, via normalization).
+#                vercel (the AI SDK's ai.* telemetry, via normalization),
+#                coding_agents (the Rius plugin for Claude Code, Codex and
+#                Cursor, glassflow/rius-coding-agents).
 #   placements   For a key that means different things in different places.
 #                One entry per meaning; see gen_ai.agent.name.
 #   not_pending  An identity attribute that is NOT on the pending allowlist and
@@ -157,7 +159,7 @@ attributes:
     kinds: resource
     level: recommended
     type: string
-    fill: [native]
+    fill: [native, coding_agents]
     ts_alias:
       name: ATTR_SERVICE_VERSION
       from: "@opentelemetry/semantic-conventions"
@@ -167,6 +169,47 @@ attributes:
       is deliberately no placeholder default, because a fake one merges every
       deployment into a single bucket, the same mistake `unknown_service` makes
       for service.name.
+      The coding-agent plugin stamps the coding agent's own version here (Claude
+      Code, Codex or Cursor, which service.name names), replacing cc.version,
+      codex.version and cursor.version.
+
+  - const: PROCESS_WORKING_DIRECTORY
+    key: process.working_directory
+    symbol: attribute
+    origin: otel
+    kinds: resource
+    level: recommended
+    type: string
+    fill: [coding_agents]
+    shipped_in: [python, go]
+    divergence: &coding_agent_languages |
+      Only the coding-agent plugin (Python) writes it, and only the Rius
+      backend (Go) reads it. No TypeScript consumer has a use for it.
+    rationale: |
+      The directory a coding-agent session runs in, as the agent reports it.
+      The OTel process convention's key for the fact, replacing cc.cwd,
+      codex.cwd and cursor.cwd. The backend shows a trace's repository from
+      it only on spans whose telemetry.distro.name is the plugin's, since any
+      process may send the key, and reads the old per-agent spellings for
+      traces stored before.
+
+  - const: VCS_REF_HEAD_NAME
+    key: vcs.ref.head.name
+    symbol: attribute
+    origin: otel
+    kinds: resource
+    level: recommended
+    type: string
+    fill: [coding_agents]
+    shipped_in: [python, go]
+    divergence: *coding_agent_languages
+    rationale: |
+      The git branch a coding-agent session runs on, as the agent reports it.
+      The OTel VCS convention's key for the current reference, the one Claude
+      Code's own telemetry uses too, replacing cc.git_branch, codex.git_branch
+      and cursor.git_branch. Like process.working_directory, the backend reads
+      it only on spans whose telemetry.distro.name is the plugin's, and reads
+      the old per-agent spellings for traces stored before.
 
   - const: TELEMETRY_DISTRO_NAME
     key: telemetry.distro.name
@@ -175,12 +218,22 @@ attributes:
     kinds: resource
     level: required
     type: string
-    fill: [native]
-    status: planned
+    fill: [native, coding_agents]
     rationale: |
-      Names the distribution that exported the span. Both SDKs set it today as
-      an inline literal with no semconv constant, which is why the row is
-      planned rather than shipped.
+      Names the distribution that exported the span. Both SDKs set it to
+      "glassflow-rius", a literal with no value row since the backend never
+      matches on it. The coding-agent plugin sets
+      TELEMETRY_DISTRO_NAME_CODING_AGENTS, and the backend reads
+      process.working_directory and vcs.ref.head.name as a coding session's
+      repo and branch only on spans carrying that value: both keys are general
+      OpenTelemetry keys any process may send.
+
+  - const: TELEMETRY_DISTRO_NAME_CODING_AGENTS
+    key: rius-coding-agents
+    symbol: value
+    of: TELEMETRY_DISTRO_NAME
+    shipped_in: [python, go]
+    divergence: *coding_agent_languages
 
   - const: TELEMETRY_DISTRO_VERSION
     key: telemetry.distro.version
@@ -189,11 +242,10 @@ attributes:
     kinds: resource
     level: required
     type: string
-    fill: [native]
-    status: planned
+    fill: [native, coding_agents]
     rationale: |
-      The SDK version that exported the span. Inline literal in both SDKs today,
-      like telemetry.distro.name.
+      The version of the distribution that exported the span: the SDK's, or the
+      coding-agent plugin's.
 
   - const: GEN_AI_AGENT_NAME
     key: gen_ai.agent.name
@@ -842,6 +894,132 @@ attributes:
     type: int
     fill: [native, openinference, vercel]
 
+  - const: GEN_AI_USAGE_TEXT_INPUT_TOKENS
+    key: gen_ai.usage.text.input_tokens
+    symbol: attribute
+    origin: otel
+    kinds: [LLM]
+    category: metadata
+    level: recommended
+    level_note: when applicable
+    type: int
+    fill: [native]
+    rationale: |
+      A per-modality subset of gen_ai.usage.input_tokens: never summed
+      into it.
+
+  - const: GEN_AI_USAGE_TEXT_OUTPUT_TOKENS
+    key: gen_ai.usage.text.output_tokens
+    symbol: attribute
+    origin: otel
+    kinds: [LLM]
+    category: metadata
+    level: recommended
+    level_note: when applicable
+    type: int
+    fill: [native]
+    rationale: |
+      A per-modality subset of gen_ai.usage.output_tokens: never summed
+      into it.
+
+  - const: GEN_AI_USAGE_TEXT_CACHE_READ_INPUT_TOKENS
+    key: gen_ai.usage.text.cache_read.input_tokens
+    symbol: attribute
+    origin: otel
+    kinds: [LLM]
+    category: metadata
+    level: recommended
+    level_note: when applicable
+    type: int
+    fill: [native]
+    rationale: |
+      A per-modality subset of gen_ai.usage.cache_read.input_tokens: never summed
+      into it.
+
+  - const: GEN_AI_USAGE_IMAGE_INPUT_TOKENS
+    key: gen_ai.usage.image.input_tokens
+    symbol: attribute
+    origin: otel
+    kinds: [LLM]
+    category: metadata
+    level: recommended
+    level_note: when applicable
+    type: int
+    fill: [native]
+    rationale: |
+      A per-modality subset of gen_ai.usage.input_tokens: never summed
+      into it.
+
+  - const: GEN_AI_USAGE_IMAGE_OUTPUT_TOKENS
+    key: gen_ai.usage.image.output_tokens
+    symbol: attribute
+    origin: otel
+    kinds: [LLM]
+    category: metadata
+    level: recommended
+    level_note: when applicable
+    type: int
+    fill: [native]
+    rationale: |
+      A per-modality subset of gen_ai.usage.output_tokens: never summed
+      into it.
+
+  - const: GEN_AI_USAGE_IMAGE_CACHE_READ_INPUT_TOKENS
+    key: gen_ai.usage.image.cache_read.input_tokens
+    symbol: attribute
+    origin: otel
+    kinds: [LLM]
+    category: metadata
+    level: recommended
+    level_note: when applicable
+    type: int
+    fill: [native]
+    rationale: |
+      A per-modality subset of gen_ai.usage.cache_read.input_tokens: never summed
+      into it.
+
+  - const: GEN_AI_USAGE_AUDIO_INPUT_TOKENS
+    key: gen_ai.usage.audio.input_tokens
+    symbol: attribute
+    origin: otel
+    kinds: [LLM]
+    category: metadata
+    level: recommended
+    level_note: when applicable
+    type: int
+    fill: [native, openinference, vercel]
+    rationale: |
+      A per-modality subset of gen_ai.usage.input_tokens: never summed
+      into it.
+
+  - const: GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS
+    key: gen_ai.usage.audio.output_tokens
+    symbol: attribute
+    origin: otel
+    kinds: [LLM]
+    category: metadata
+    level: recommended
+    level_note: when applicable
+    type: int
+    fill: [native, openinference]
+    rationale: |
+      A per-modality subset of gen_ai.usage.output_tokens: never summed
+      into it.
+
+  - const: GEN_AI_USAGE_AUDIO_CACHE_READ_INPUT_TOKENS
+    key: gen_ai.usage.audio.cache_read.input_tokens
+    symbol: attribute
+    origin: otel
+    kinds: [LLM]
+    category: metadata
+    level: recommended
+    level_note: when applicable
+    type: int
+    fill: [native]
+    rationale: |
+      A per-modality subset of gen_ai.usage.cache_read.input_tokens: never summed
+      into it.
+
   - const: GEN_AI_INPUT_MESSAGES
     key: gen_ai.input.messages
     symbol: attribute
@@ -1247,7 +1425,9 @@ attributes:
     key: rius.context.sizes
     brief: "Byte sizes of each part of a generation's context (tool definitions, input and output messages), as compact JSON."
     stability: development
-    examples: ['{"version":1,"input_messages":[{"role":"system","parts":[{"type":"text","bytes":19}]},{"role":"user","parts":[{"type":"text","bytes":18}]}],"output_messages":[{"role":"assistant","parts":[{"type":"text","bytes":6}]}]}']
+    examples:
+      - '{"version":1,"input_messages":[{"role":"system","parts":[{"type":"text","bytes":19}]},{"role":"user","parts":[{"type":"text","bytes":18}]}],"output_messages":[{"role":"assistant","parts":[{"type":"text","bytes":6}]}]}'
+      - '{"version":1,"input_messages":[{"role":"user","parts":[{"type":"text","bytes":14},{"type":"blob","modality":"image","byte_size":48213}]}],"output_messages":[{"role":"assistant","parts":[{"type":"text","bytes":31}]}]}'
     symbol: attribute
     origin: rius
     kinds: [LLM]
@@ -1261,6 +1441,9 @@ attributes:
       output_messages (literal role, parts typed text / tool_call /
       tool_call_response with bytes and tool name), cache_marker, and a folded
       summary of older input.
+      A media part (blob / uri / file) carries its modality (image, video,
+      audio or document) and, when known, byte_size, never bytes: the size of
+      the media itself, not of any content, which a blob does not carry.
       A Rius vendor attribute, NOT a convention:
       the backend reads it to attribute gen_ai.usage.input_tokens across the
       context, and no convention describes context composition. Deliberately
@@ -1499,6 +1682,656 @@ attributes:
       the manual span helpers see nothing but the kind. A literal beats an empty
       name.
 
+  # --- Coding-agent plugin -----------------------------------------------
+  #
+  # Keys the Rius plugin for Claude Code, Codex and Cursor writes
+  # (glassflow/rius-coding-agents). Where an OpenTelemetry convention names
+  # the fact the plugin uses it (service.version, process.working_directory,
+  # vcs.ref.head.name, process.exit.code). No convention describes a coding
+  # agent's turns, subagents or session lifecycle yet; the nearest proposals
+  # are open in semantic-conventions-genai (issue 301, gen_ai.harness.name;
+  # issue 402, agent run and step ids). Revisit these rows when one lands.
+
+  - const: RIUS_COMMAND_CLASS
+    section: "--- Coding-agent plugin ---"
+    key: rius.command.class
+    brief: "What kind of work a shell tool call ran, as one word, never the command itself."
+    stability: development
+    examples: ["test"]
+    symbol: attribute
+    origin: rius
+    kinds: [TOOL]
+    category: identity
+    level: vendor
+    type: string
+    fill: [coding_agents]
+    shipped_in: [python, go]
+    divergence: *coding_agent_languages
+    not_pending: &coding_agent_not_pending |
+      The coding-agent plugin keeps its own pending allowlist, and this key is
+      on it. PENDING_IDENTITY_ATTRIBUTES lists what the SDKs put on their
+      snapshots, and no SDK writes this key.
+    rationale: |
+      Classified on the user's machine from the command line, which is never
+      sent: test, build, lint, package, git, or other. Lets a trace show what a
+      running or failed shell call was doing without exporting the command.
+      Claude Code's own telemetry has a similar bash_command_class; no
+      convention defines the fact.
+
+  - const: RIUS_COMMAND_CLASS_TEST
+    key: test
+    symbol: value
+    of: RIUS_COMMAND_CLASS
+    shipped_in: [python, go]
+    divergence: *coding_agent_languages
+
+  - const: RIUS_COMMAND_CLASS_BUILD
+    key: build
+    symbol: value
+    of: RIUS_COMMAND_CLASS
+    shipped_in: [python, go]
+    divergence: *coding_agent_languages
+
+  - const: RIUS_COMMAND_CLASS_LINT
+    key: lint
+    symbol: value
+    of: RIUS_COMMAND_CLASS
+    shipped_in: [python, go]
+    divergence: *coding_agent_languages
+
+  - const: RIUS_COMMAND_CLASS_PACKAGE
+    key: package
+    symbol: value
+    of: RIUS_COMMAND_CLASS
+    shipped_in: [python, go]
+    divergence: *coding_agent_languages
+
+  - const: RIUS_COMMAND_CLASS_GIT
+    key: git
+    symbol: value
+    of: RIUS_COMMAND_CLASS
+    shipped_in: [python, go]
+    divergence: *coding_agent_languages
+
+  - const: RIUS_COMMAND_CLASS_OTHER
+    key: other
+    symbol: value
+    of: RIUS_COMMAND_CLASS
+    shipped_in: [python, go]
+    divergence: *coding_agent_languages
+
+  - const: PROCESS_EXIT_CODE
+    key: process.exit.code
+    symbol: attribute
+    origin: otel
+    kinds: [TOOL]
+    category: metadata
+    level: recommended
+    type: int
+    fill: [coding_agents]
+    shipped_in: [python, go]
+    divergence: *coding_agent_languages
+    rationale: |
+      A shell tool call's exit code, when the agent reports one: Codex and
+      Cursor on every call that has one, Claude Code only on a failed call.
+      Written next to rius.command.class, so a failed test run reads as such
+      without the command or its output.
+
+  # Claude Code (cc.*).
+
+  - const: CC_TURN_SOURCE
+    key: cc.turn.source
+    brief: "Who started a Claude Code turn: the user, or Claude Code itself."
+    stability: development
+    examples: ["user"]
+    symbol: attribute
+    origin: rius
+    namespace_exception: &cc_namespace |
+      Named after the coding agent that produced it (cc is Claude Code), like
+      every key the coding-agent plugin writes for a fact only that agent has.
+      Shipped before the plugin was registered here.
+    kinds: [CHAIN]
+    category: identity
+    level: vendor
+    type: string
+    fill: [coding_agents]
+    shipped_in: [python, go]
+    divergence: *coding_agent_languages
+    not_pending: *coding_agent_not_pending
+    rationale: |
+      user when the turn opened with text the user typed, system when Claude
+      Code opened it (a command's output, a reminder). Decided from the start
+      of the turn's text only. The backend reads it to tell the user's turns
+      apart in a session.
+
+  - const: CC_TURN_SOURCE_USER
+    key: user
+    symbol: value
+    of: CC_TURN_SOURCE
+    shipped_in: [python, go]
+    divergence: *coding_agent_languages
+
+  - const: CC_TURN_SOURCE_SYSTEM
+    key: system
+    symbol: value
+    of: CC_TURN_SOURCE
+    shipped_in: [python, go]
+    divergence: *coding_agent_languages
+
+  - const: CC_SUBAGENT_ID
+    key: cc.subagent.id
+    brief: "Claude Code's id for one subagent run."
+    stability: development
+    examples: ["a1b2c3d4e5f6a7b8c"]
+    symbol: attribute
+    origin: rius
+    namespace_exception: *cc_namespace
+    kinds: [AGENT]
+    category: identity
+    level: vendor
+    type: string
+    fill: [coding_agents]
+    shipped_in: [python, go]
+    divergence: *coding_agent_languages
+    not_pending: *coding_agent_not_pending
+    rationale: |
+      Identifies one subagent run within a session. Not gen_ai.agent.id: the
+      conventions keep that for the stable id of a hosted agent resource and
+      advise against recording in-memory agent instance ids there, which is
+      what this is.
+
+  - const: CC_SUBAGENT_DEPTH
+    key: cc.subagent.depth
+    brief: "How deep a Claude Code subagent is nested: 1 for one the main agent started."
+    stability: development
+    examples: [1]
+    symbol: attribute
+    origin: rius
+    namespace_exception: *cc_namespace
+    kinds: [AGENT]
+    category: identity
+    level: vendor
+    type: int
+    fill: [coding_agents]
+    shipped_in: [python, go]
+    divergence: *coding_agent_languages
+    not_pending: *coding_agent_not_pending
+    rationale: |
+      Nesting depth of a subagent, counted from the main session's agent.
+
+  - const: CC_CLAUDE_SESSION_ID
+    key: cc.claude_session_id
+    brief: "The Claude Code session id a turn ran under, when the conversation moved to a new one."
+    stability: development
+    examples: ["5d8a7c2e-1f4b-4e9a-9c3d-2b6e8f0a1c47"]
+    symbol: attribute
+    origin: rius
+    namespace_exception: *cc_namespace
+    kinds: [CHAIN]
+    category: identity
+    level: vendor
+    type: string
+    fill: [coding_agents]
+    shipped_in: [python, go]
+    divergence: *coding_agent_languages
+    not_pending: *coding_agent_not_pending
+    rationale: |
+      Claude Code can carry a conversation on under a new session id. The plugin
+      keeps the conversation one trace and one session: session.id stays the
+      conversation's first id, and a turn after the move records the id it ran
+      under here and the id it moved from in cc.continued_from. Not
+      session.id with session.previous_id: those name the current session and
+      the one before it, and must differ, while session.id here stays the
+      conversation's.
+
+  - const: CC_CONTINUED_FROM
+    key: cc.continued_from
+    brief: "The Claude Code session id a moved conversation continued from."
+    stability: development
+    examples: ["0f3e9b1a-6c2d-4a8e-b5f7-9d1c3e5a7b20"]
+    symbol: attribute
+    origin: rius
+    namespace_exception: *cc_namespace
+    kinds: [CHAIN]
+    category: identity
+    level: vendor
+    type: string
+    fill: [coding_agents]
+    shipped_in: [python, go]
+    divergence: *coding_agent_languages
+    not_pending: *coding_agent_not_pending
+    rationale: |
+      Paired with cc.claude_session_id, which says why neither is
+      session.previous_id.
+
+  # Codex (codex.*).
+
+  - const: CODEX_ORIGINATOR
+    key: codex.originator
+    brief: "Which Codex client ran the session, as Codex names it."
+    stability: development
+    examples: ["codex_exec"]
+    symbol: attribute
+    origin: rius
+    namespace_exception: &codex_namespace |
+      Named after the coding agent that produced it, like every key the
+      coding-agent plugin writes for a fact only that agent has. Shipped before
+      the plugin was registered here.
+    kinds: resource
+    level: vendor
+    type: string
+    fill: [coding_agents]
+    shipped_in: [python, go]
+    divergence: *coding_agent_languages
+    rationale: |
+      Copied from the session's metadata in Codex's rollout file (the CLI, codex
+      exec, an IDE). Codex tags its own metrics with the same word.
+
+  - const: CODEX_SUBAGENT_ID
+    key: codex.subagent.id
+    brief: "Codex's id for one subagent run."
+    stability: development
+    examples: ["019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5b"]
+    symbol: attribute
+    origin: rius
+    namespace_exception: *codex_namespace
+    kinds: [AGENT]
+    category: identity
+    level: vendor
+    type: string
+    fill: [coding_agents]
+    shipped_in: [python, go]
+    divergence: *coding_agent_languages
+    not_pending: *coding_agent_not_pending
+    rationale: |
+      As cc.subagent.id, for Codex, and not gen_ai.agent.id for the same reason.
+
+  - const: CODEX_TURN_ID
+    key: codex.turn.id
+    brief: "Codex's id for one turn."
+    stability: development
+    examples: ["019a2b3c-5e6f-7a80-9b1c-2d3e4f5a6b7c"]
+    symbol: attribute
+    origin: rius
+    namespace_exception: *codex_namespace
+    kinds: [CHAIN]
+    category: metadata
+    level: vendor
+    type: string
+    fill: [coding_agents]
+    shipped_in: [python, go]
+    divergence: *coding_agent_languages
+    rationale: |
+      The turn id Codex writes in its rollout file, on the finished turn span,
+      so a span can be matched to the rollout it came from.
+
+  - const: CODEX_TURN_DURATION_MS
+    key: codex.turn.duration_ms
+    brief: "How long a Codex turn took, in milliseconds, as Codex measured it."
+    stability: development
+    examples: [48210]
+    symbol: attribute
+    origin: rius
+    namespace_exception: *codex_namespace
+    kinds: [CHAIN]
+    category: metadata
+    level: vendor
+    type: int
+    fill: [coding_agents]
+    shipped_in: [python, go]
+    divergence: *coding_agent_languages
+    rationale: |
+      Codex's own measurement, kept beside the span's start and end, which the
+      plugin derives from rollout timestamps.
+
+  - const: CODEX_TURN_TTFT_MS
+    key: codex.turn.ttft_ms
+    brief: "Milliseconds from the start of a Codex turn to its first streamed output, as Codex measured it."
+    stability: development
+    examples: [1830]
+    symbol: attribute
+    origin: rius
+    namespace_exception: *codex_namespace
+    kinds: [CHAIN]
+    category: metadata
+    level: vendor
+    type: int
+    fill: [coding_agents]
+    shipped_in: [python, go]
+    divergence: *coding_agent_languages
+    rationale: |
+      Measured per turn, not per model call, so it is not
+      gen_ai.response.time_to_first_chunk, which belongs on an inference span
+      and is in seconds.
+
+  - const: CODEX_TURN_ABORTED
+    key: codex.turn.aborted
+    brief: "Why a Codex turn was aborted, when it was."
+    stability: development
+    examples: ["interrupted"]
+    symbol: attribute
+    origin: rius
+    namespace_exception: *codex_namespace
+    kinds: [CHAIN]
+    category: metadata
+    level: vendor
+    type: string
+    fill: [coding_agents]
+    shipped_in: [python, go]
+    divergence: *coding_agent_languages
+    rationale: |
+      The reason Codex gives for aborting the turn, or "aborted" when it gives
+      none. Absent on a turn that finished. A string despite the name, because
+      it carries the reason.
+
+  # Cursor (cursor.*).
+
+  - const: CURSOR_COMPOSER_MODE
+    key: cursor.composer_mode
+    brief: "The Cursor composer mode a session ran in."
+    stability: development
+    examples: ["agent"]
+    symbol: attribute
+    origin: rius
+    namespace_exception: &cursor_namespace |
+      Named after the coding agent that produced it, like every key the
+      coding-agent plugin writes for a fact only that agent has. Shipped before
+      the plugin was registered here. Most copy a field of Cursor's hook input.
+    kinds: [AGENT]
+    category: metadata
+    level: vendor
+    type: string
+    fill: [coding_agents]
+    shipped_in: [python, go]
+    divergence: *coding_agent_languages
+    rationale: |
+      Copied from Cursor's sessionStart hook (agent, ask, edit), onto the
+      session's root span.
+
+  - const: CURSOR_BACKGROUND
+    key: cursor.background
+    brief: "Whether a Cursor session was a background agent rather than an interactive one."
+    stability: development
+    examples: [true]
+    symbol: attribute
+    origin: rius
+    namespace_exception: *cursor_namespace
+    kinds: [AGENT]
+    category: metadata
+    level: vendor
+    type: boolean
+    fill: [coding_agents]
+    shipped_in: [python, go]
+    divergence: *coding_agent_languages
+    rationale: |
+      Cursor's is_background_agent, onto the session's root span.
+
+  - const: CURSOR_SESSION_REASON
+    key: cursor.session.reason
+    brief: "Why a Cursor session ended, as Cursor reports it."
+    stability: development
+    examples: ["completed"]
+    symbol: attribute
+    origin: rius
+    namespace_exception: *cursor_namespace
+    kinds: [AGENT]
+    category: metadata
+    level: vendor
+    type: string
+    fill: [coding_agents]
+    shipped_in: [python, go]
+    divergence: *coding_agent_languages
+    rationale: |
+      Copied from Cursor's sessionEnd hook (completed, aborted, error,
+      window_close, user_close). An error reason also sets the root span's
+      status.
+
+  - const: CURSOR_SESSION_FINAL_STATUS
+    key: cursor.session.final_status
+    brief: "A Cursor session's final status, as Cursor reports it."
+    stability: development
+    examples: ["completed"]
+    symbol: attribute
+    origin: rius
+    namespace_exception: *cursor_namespace
+    kinds: [AGENT]
+    category: metadata
+    level: vendor
+    type: string
+    fill: [coding_agents]
+    shipped_in: [python, go]
+    divergence: *coding_agent_languages
+    rationale: |
+      Copied from Cursor's sessionEnd hook. Cursor documents no values for it.
+
+  - const: CURSOR_TURN_STATUS
+    key: cursor.turn.status
+    brief: "How a Cursor turn ended, as Cursor reports it."
+    stability: development
+    examples: ["completed"]
+    symbol: attribute
+    origin: rius
+    namespace_exception: *cursor_namespace
+    kinds: [CHAIN]
+    category: metadata
+    level: vendor
+    type: string
+    fill: [coding_agents]
+    shipped_in: [python, go]
+    divergence: *coding_agent_languages
+    rationale: |
+      Copied from Cursor's stop hook (completed, aborted, error); it also sets
+      the turn span's status.
+
+  - const: CURSOR_TURN_LOOP_COUNT
+    key: cursor.turn.loop_count
+    brief: "How many automatic follow-ups Cursor had already run when a turn stopped."
+    stability: development
+    examples: [0]
+    symbol: attribute
+    origin: rius
+    namespace_exception: *cursor_namespace
+    kinds: [CHAIN]
+    category: metadata
+    level: vendor
+    type: int
+    fill: [coding_agents]
+    shipped_in: [python, go]
+    divergence: *coding_agent_languages
+    rationale: |
+      Copied from Cursor's stop hook.
+
+  - const: CURSOR_THINKING_DURATION_MS
+    key: cursor.thinking.duration_ms
+    brief: "Milliseconds a Cursor model call spent thinking, summed over its thinking blocks."
+    stability: development
+    examples: [4200]
+    symbol: attribute
+    origin: rius
+    namespace_exception: *cursor_namespace
+    kinds: [LLM]
+    category: metadata
+    level: vendor
+    type: int
+    fill: [coding_agents]
+    shipped_in: [python, go]
+    divergence: *coding_agent_languages
+    rationale: |
+      Cursor reports thinking time, not thinking tokens, so this cannot be
+      gen_ai.usage.reasoning.output_tokens.
+
+  - const: CURSOR_CONTEXT_TOKENS
+    key: cursor.context.context_tokens
+    brief: "Tokens in Cursor's context window when it compacted the conversation."
+    stability: development
+    examples: [108800]
+    symbol: attribute
+    origin: rius
+    namespace_exception: *cursor_namespace
+    kinds: [LLM]
+    category: metadata
+    level: vendor
+    type: int
+    fill: [coding_agents]
+    shipped_in: [python, go]
+    divergence: *coding_agent_languages
+    rationale: |
+      Copied from Cursor's preCompact hook onto the model call it interrupted.
+      A measure of the context window, not of one request's input, so not
+      gen_ai.usage.input_tokens.
+
+  - const: CURSOR_CONTEXT_WINDOW_SIZE
+    key: cursor.context.context_window_size
+    brief: "The size of Cursor's context window, in tokens, when it compacted the conversation."
+    stability: development
+    examples: [128000]
+    symbol: attribute
+    origin: rius
+    namespace_exception: *cursor_namespace
+    kinds: [LLM]
+    category: metadata
+    level: vendor
+    type: int
+    fill: [coding_agents]
+    shipped_in: [python, go]
+    divergence: *coding_agent_languages
+    rationale: |
+      Copied from Cursor's preCompact hook, beside cursor.context.context_tokens.
+
+  - const: CURSOR_CONTEXT_USAGE_PERCENT
+    key: cursor.context.context_usage_percent
+    brief: "How full Cursor's context window was, from 0 to 100, when it compacted the conversation."
+    stability: development
+    examples: [85.0]
+    symbol: attribute
+    origin: rius
+    namespace_exception: *cursor_namespace
+    kinds: [LLM]
+    category: metadata
+    level: vendor
+    type: double
+    fill: [coding_agents]
+    shipped_in: [python, go]
+    divergence: *coding_agent_languages
+    rationale: |
+      Copied from Cursor's preCompact hook, which documents it as a number.
+      Cursor sends whole numbers today, so the plugin must write it as a double
+      even when the value has no fraction.
+
+  - const: CURSOR_SUBAGENT_ID
+    key: cursor.subagent.id
+    brief: "Cursor's id for one subagent run."
+    stability: development
+    examples: ["sub_7f3a9c"]
+    symbol: attribute
+    origin: rius
+    namespace_exception: *cursor_namespace
+    kinds: [AGENT]
+    category: identity
+    level: vendor
+    type: string
+    fill: [coding_agents]
+    shipped_in: [python, go]
+    divergence: *coding_agent_languages
+    not_pending: |
+      Unlike cc.subagent.id and codex.subagent.id, it is not on the
+      coding-agent plugin's pending allowlist, so a pending Cursor subagent
+      snapshot goes without it. PENDING_IDENTITY_ATTRIBUTES lists what the SDKs
+      put on their snapshots, and no SDK writes this key.
+    rationale: |
+      As cc.subagent.id, for Cursor, and not gen_ai.agent.id for the same
+      reason.
+
+  - const: CURSOR_SUBAGENT_STATUS
+    key: cursor.subagent.status
+    brief: "How a Cursor subagent ended, as Cursor reports it."
+    stability: development
+    examples: ["completed"]
+    symbol: attribute
+    origin: rius
+    namespace_exception: *cursor_namespace
+    kinds: [AGENT]
+    category: metadata
+    level: vendor
+    type: string
+    fill: [coding_agents]
+    shipped_in: [python, go]
+    divergence: *coding_agent_languages
+    rationale: |
+      Copied from Cursor's subagentStop hook (completed, error, aborted).
+
+  - const: CURSOR_SUBAGENT_TOOL_CALL_COUNT
+    key: cursor.subagent.tool_call_count
+    brief: "How many tool calls a Cursor subagent made."
+    stability: development
+    examples: [12]
+    symbol: attribute
+    origin: rius
+    namespace_exception: *cursor_namespace
+    kinds: [AGENT]
+    category: metadata
+    level: vendor
+    type: int
+    fill: [coding_agents]
+    shipped_in: [python, go]
+    divergence: *coding_agent_languages
+    rationale: |
+      Copied from Cursor's subagentStop hook.
+
+  - const: CURSOR_SUBAGENT_MESSAGE_COUNT
+    key: cursor.subagent.message_count
+    brief: "How many messages a Cursor subagent exchanged."
+    stability: development
+    examples: [45]
+    symbol: attribute
+    origin: rius
+    namespace_exception: *cursor_namespace
+    kinds: [AGENT]
+    category: metadata
+    level: vendor
+    type: int
+    fill: [coding_agents]
+    shipped_in: [python, go]
+    divergence: *coding_agent_languages
+    rationale: |
+      Copied from Cursor's subagentStop hook.
+
+  - const: CURSOR_TOOL_INTERRUPTED
+    key: cursor.tool.interrupted
+    brief: "Whether a Cursor tool call was interrupted before it finished."
+    stability: development
+    examples: [true]
+    symbol: attribute
+    origin: rius
+    namespace_exception: *cursor_namespace
+    kinds: [TOOL]
+    category: metadata
+    level: vendor
+    type: boolean
+    fill: [coding_agents]
+    shipped_in: [python, go]
+    divergence: *coding_agent_languages
+    rationale: |
+      Set only when true.
+
+  - const: CURSOR_TOOL_CLOSED_AT_SESSION_END
+    key: cursor.tool.closed_at_session_end
+    brief: "Whether the plugin closed a Cursor tool call at session end because no result ever came."
+    stability: development
+    examples: [true]
+    symbol: attribute
+    origin: rius
+    namespace_exception: *cursor_namespace
+    kinds: [TOOL]
+    category: metadata
+    level: vendor
+    type: boolean
+    fill: [coding_agents]
+    shipped_in: [python, go]
+    divergence: *coding_agent_languages
+    rationale: |
+      Set only when true. The call's outcome is unknown, not successful.
+
 passthrough:
   - key: gen_ai.conversation.id
     origin: otel
@@ -1529,3 +2362,168 @@ retired:
       Marked the content-free snapshot exported at span start, as
       rius.span.pending does now. Kept so a reader of older spans can tell
       what the key was.
+
+  - key: cc.cwd
+    brief: "Former spelling of process.working_directory for Claude Code: the directory a Claude Code session ran in."
+    stability: development
+    examples: ["/Users/ana/src/shop"]
+    deprecated:
+      reason: uncategorized
+      replaced_by: process.working_directory
+      note: |
+        Moved to process.working_directory, the OpenTelemetry key for the
+        working directory. The coding-agent plugin wrote this spelling
+        before; the Rius backend reads both for as long as traces carrying it
+        are stored.
+    symbol: attribute
+    origin: rius
+    kinds: resource
+    type: string
+    rationale: |
+      Kept so a reader of older coding-agent traces can tell what the key was.
+
+  - key: cc.git_branch
+    brief: "Former spelling of vcs.ref.head.name for Claude Code: the git branch a Claude Code session ran on."
+    stability: development
+    examples: ["main"]
+    deprecated:
+      reason: uncategorized
+      replaced_by: vcs.ref.head.name
+      note: |
+        Moved to vcs.ref.head.name, the OpenTelemetry key for the git branch. The
+        coding-agent plugin wrote this spelling before; the Rius backend reads
+        both for as long as traces carrying it are stored.
+    symbol: attribute
+    origin: rius
+    kinds: resource
+    type: string
+    rationale: |
+      Kept so a reader of older coding-agent traces can tell what the key was.
+
+  - key: cc.version
+    brief: "Former spelling of service.version for Claude Code: the Claude Code version that ran the session."
+    stability: development
+    examples: ["2.1.289"]
+    deprecated:
+      reason: uncategorized
+      replaced_by: service.version
+      note: |
+        Moved to service.version, the OpenTelemetry key for the version. The
+        coding-agent plugin wrote this spelling before; the Rius backend reads
+        both for as long as traces carrying it are stored.
+    symbol: attribute
+    origin: rius
+    kinds: resource
+    type: string
+    rationale: |
+      Kept so a reader of older coding-agent traces can tell what the key was.
+
+  - key: codex.cwd
+    brief: "Former spelling of process.working_directory for Codex: the directory a Codex session ran in."
+    stability: development
+    examples: ["/Users/ana/src/shop"]
+    deprecated:
+      reason: uncategorized
+      replaced_by: process.working_directory
+      note: |
+        Moved to process.working_directory, the OpenTelemetry key for the
+        working directory. The coding-agent plugin wrote this spelling
+        before; the Rius backend reads both for as long as traces carrying it
+        are stored.
+    symbol: attribute
+    origin: rius
+    kinds: resource
+    type: string
+    rationale: |
+      Kept so a reader of older coding-agent traces can tell what the key was.
+
+  - key: codex.git_branch
+    brief: "Former spelling of vcs.ref.head.name for Codex: the git branch a Codex session ran on."
+    stability: development
+    examples: ["main"]
+    deprecated:
+      reason: uncategorized
+      replaced_by: vcs.ref.head.name
+      note: |
+        Moved to vcs.ref.head.name, the OpenTelemetry key for the git branch. The
+        coding-agent plugin wrote this spelling before; the Rius backend reads
+        both for as long as traces carrying it are stored.
+    symbol: attribute
+    origin: rius
+    kinds: resource
+    type: string
+    rationale: |
+      Kept so a reader of older coding-agent traces can tell what the key was.
+
+  - key: codex.version
+    brief: "Former spelling of service.version for Codex: the Codex version that ran the session."
+    stability: development
+    examples: ["0.48.0"]
+    deprecated:
+      reason: uncategorized
+      replaced_by: service.version
+      note: |
+        Moved to service.version, the OpenTelemetry key for the version. The
+        coding-agent plugin wrote this spelling before; the Rius backend reads
+        both for as long as traces carrying it are stored.
+    symbol: attribute
+    origin: rius
+    kinds: resource
+    type: string
+    rationale: |
+      Kept so a reader of older coding-agent traces can tell what the key was.
+
+  - key: cursor.cwd
+    brief: "Former spelling of process.working_directory for Cursor: the directory a Cursor session ran in."
+    stability: development
+    examples: ["/Users/ana/src/shop"]
+    deprecated:
+      reason: uncategorized
+      replaced_by: process.working_directory
+      note: |
+        Moved to process.working_directory, the OpenTelemetry key for the
+        working directory. The coding-agent plugin wrote this spelling
+        before; the Rius backend reads both for as long as traces carrying it
+        are stored.
+    symbol: attribute
+    origin: rius
+    kinds: resource
+    type: string
+    rationale: |
+      Kept so a reader of older coding-agent traces can tell what the key was.
+
+  - key: cursor.git_branch
+    brief: "Former spelling of vcs.ref.head.name for Cursor: the git branch a Cursor session ran on."
+    stability: development
+    examples: ["main"]
+    deprecated:
+      reason: uncategorized
+      replaced_by: vcs.ref.head.name
+      note: |
+        Moved to vcs.ref.head.name, the OpenTelemetry key for the git branch. The
+        coding-agent plugin wrote this spelling before; the Rius backend reads
+        both for as long as traces carrying it are stored.
+    symbol: attribute
+    origin: rius
+    kinds: resource
+    type: string
+    rationale: |
+      Kept so a reader of older coding-agent traces can tell what the key was.
+
+  - key: cursor.version
+    brief: "Former spelling of service.version for Cursor: the Cursor version that ran the session."
+    stability: development
+    examples: ["1.7.33"]
+    deprecated:
+      reason: uncategorized
+      replaced_by: service.version
+      note: |
+        Moved to service.version, the OpenTelemetry key for the version. The
+        coding-agent plugin wrote this spelling before; the Rius backend reads
+        both for as long as traces carrying it are stored.
+    symbol: attribute
+    origin: rius
+    kinds: resource
+    type: string
+    rationale: |
+      Kept so a reader of older coding-agent traces can tell what the key was.

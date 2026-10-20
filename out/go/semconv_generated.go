@@ -21,7 +21,40 @@ const (
 	// is deliberately no placeholder default, because a fake one merges every
 	// deployment into a single bucket, the same mistake `unknown_service` makes
 	// for service.name.
+	// The coding-agent plugin stamps the coding agent's own version here (Claude
+	// Code, Codex or Cursor, which service.name names), replacing cc.version,
+	// codex.version and cursor.version.
 	ServiceVersion = "service.version"
+
+	// The directory a coding-agent session runs in, as the agent reports it.
+	// The OTel process convention's key for the fact, replacing cc.cwd,
+	// codex.cwd and cursor.cwd. The backend shows a trace's repository from
+	// it only on spans whose telemetry.distro.name is the plugin's, since any
+	// process may send the key, and reads the old per-agent spellings for
+	// traces stored before.
+	ProcessWorkingDirectory = "process.working_directory"
+
+	// The git branch a coding-agent session runs on, as the agent reports it.
+	// The OTel VCS convention's key for the current reference, the one Claude
+	// Code's own telemetry uses too, replacing cc.git_branch, codex.git_branch
+	// and cursor.git_branch. Like process.working_directory, the backend reads
+	// it only on spans whose telemetry.distro.name is the plugin's, and reads
+	// the old per-agent spellings for traces stored before.
+	VcsRefHeadName = "vcs.ref.head.name"
+
+	// Names the distribution that exported the span. Both SDKs set it to
+	// "glassflow-rius", a literal with no value row since the backend never
+	// matches on it. The coding-agent plugin sets
+	// TELEMETRY_DISTRO_NAME_CODING_AGENTS, and the backend reads
+	// process.working_directory and vcs.ref.head.name as a coding session's
+	// repo and branch only on spans carrying that value: both keys are general
+	// OpenTelemetry keys any process may send.
+	TelemetryDistroName             = "telemetry.distro.name"
+	TelemetryDistroNameCodingAgents = "rius-coding-agents"
+
+	// The version of the distribution that exported the span: the SDK's, or the
+	// coding-agent plugin's.
+	TelemetryDistroVersion = "telemetry.distro.version"
 
 	// The agent this process IS, stamped once on the resource so every span it
 	// emits groups under the same name its heartbeats do. Without it the backend
@@ -218,10 +251,46 @@ const (
 	// cache fields first shipped; no released SDK version carries the old name.
 	GenAIUsageCacheWriteInputTokens = "gen_ai.usage.cache_write.input_tokens"
 	GenAIUsageReasoningOutputTokens = "gen_ai.usage.reasoning.output_tokens"
-	GenAIInputMessages              = "gen_ai.input.messages"
-	GenAIOutputMessages             = "gen_ai.output.messages"
-	GenAIResponseFinishReason       = "gen_ai.response.finish_reasons"
-	GenAIToolName                   = "gen_ai.tool.name"
+
+	// A per-modality subset of gen_ai.usage.input_tokens: never summed
+	// into it.
+	GenAIUsageTextInputTokens = "gen_ai.usage.text.input_tokens"
+
+	// A per-modality subset of gen_ai.usage.output_tokens: never summed
+	// into it.
+	GenAIUsageTextOutputTokens = "gen_ai.usage.text.output_tokens"
+
+	// A per-modality subset of gen_ai.usage.cache_read.input_tokens: never summed
+	// into it.
+	GenAIUsageTextCacheReadInputTokens = "gen_ai.usage.text.cache_read.input_tokens"
+
+	// A per-modality subset of gen_ai.usage.input_tokens: never summed
+	// into it.
+	GenAIUsageImageInputTokens = "gen_ai.usage.image.input_tokens"
+
+	// A per-modality subset of gen_ai.usage.output_tokens: never summed
+	// into it.
+	GenAIUsageImageOutputTokens = "gen_ai.usage.image.output_tokens"
+
+	// A per-modality subset of gen_ai.usage.cache_read.input_tokens: never summed
+	// into it.
+	GenAIUsageImageCacheReadInputTokens = "gen_ai.usage.image.cache_read.input_tokens"
+
+	// A per-modality subset of gen_ai.usage.input_tokens: never summed
+	// into it.
+	GenAIUsageAudioInputTokens = "gen_ai.usage.audio.input_tokens"
+
+	// A per-modality subset of gen_ai.usage.output_tokens: never summed
+	// into it.
+	GenAIUsageAudioOutputTokens = "gen_ai.usage.audio.output_tokens"
+
+	// A per-modality subset of gen_ai.usage.cache_read.input_tokens: never summed
+	// into it.
+	GenAIUsageAudioCacheReadInputTokens = "gen_ai.usage.audio.cache_read.input_tokens"
+	GenAIInputMessages                  = "gen_ai.input.messages"
+	GenAIOutputMessages                 = "gen_ai.output.messages"
+	GenAIResponseFinishReason           = "gen_ai.response.finish_reasons"
+	GenAIToolName                       = "gen_ai.tool.name"
 
 	// The identifier of the tool call this execution answers: the id the MODEL
 	// minted on its tool-call message, which is what joins a tool span back to the
@@ -320,6 +389,9 @@ const (
 	// output_messages (literal role, parts typed text / tool_call /
 	// tool_call_response with bytes and tool name), cache_marker, and a folded
 	// summary of older input.
+	// A media part (blob / uri / file) carries its modality (image, video,
+	// audio or document) and, when known, byte_size, never bytes: the size of
+	// the media itself, not of any content, which a blob does not carry.
 	// A Rius vendor attribute, NOT a convention:
 	// the backend reads it to attribute gen_ai.usage.input_tokens across the
 	// context, and no convention describes context composition. Deliberately
@@ -374,6 +446,139 @@ const (
 	// the manual span helpers see nothing but the kind. A literal beats an empty
 	// name.
 	ChainSpanName = "chain"
+
+	// --- Coding-agent plugin ---
+	// Classified on the user's machine from the command line, which is never
+	// sent: test, build, lint, package, git, or other. Lets a trace show what a
+	// running or failed shell call was doing without exporting the command.
+	// Claude Code's own telemetry has a similar bash_command_class; no
+	// convention defines the fact.
+	RiusCommandClass        = "rius.command.class"
+	RiusCommandClassTest    = "test"
+	RiusCommandClassBuild   = "build"
+	RiusCommandClassLint    = "lint"
+	RiusCommandClassPackage = "package"
+	RiusCommandClassGit     = "git"
+	RiusCommandClassOther   = "other"
+
+	// A shell tool call's exit code, when the agent reports one: Codex and
+	// Cursor on every call that has one, Claude Code only on a failed call.
+	// Written next to rius.command.class, so a failed test run reads as such
+	// without the command or its output.
+	ProcessExitCode = "process.exit.code"
+
+	// user when the turn opened with text the user typed, system when Claude
+	// Code opened it (a command's output, a reminder). Decided from the start
+	// of the turn's text only. The backend reads it to tell the user's turns
+	// apart in a session.
+	CcTurnSource       = "cc.turn.source"
+	CcTurnSourceUser   = "user"
+	CcTurnSourceSystem = "system"
+
+	// Identifies one subagent run within a session. Not gen_ai.agent.id: the
+	// conventions keep that for the stable id of a hosted agent resource and
+	// advise against recording in-memory agent instance ids there, which is
+	// what this is.
+	CcSubagentID = "cc.subagent.id"
+
+	// Nesting depth of a subagent, counted from the main session's agent.
+	CcSubagentDepth = "cc.subagent.depth"
+
+	// Claude Code can carry a conversation on under a new session id. The plugin
+	// keeps the conversation one trace and one session: session.id stays the
+	// conversation's first id, and a turn after the move records the id it ran
+	// under here and the id it moved from in cc.continued_from. Not
+	// session.id with session.previous_id: those name the current session and
+	// the one before it, and must differ, while session.id here stays the
+	// conversation's.
+	CcClaudeSessionID = "cc.claude_session_id"
+
+	// Paired with cc.claude_session_id, which says why neither is
+	// session.previous_id.
+	CcContinuedFrom = "cc.continued_from"
+
+	// Copied from the session's metadata in Codex's rollout file (the CLI, codex
+	// exec, an IDE). Codex tags its own metrics with the same word.
+	CodexOriginator = "codex.originator"
+
+	// As cc.subagent.id, for Codex, and not gen_ai.agent.id for the same reason.
+	CodexSubagentID = "codex.subagent.id"
+
+	// The turn id Codex writes in its rollout file, on the finished turn span,
+	// so a span can be matched to the rollout it came from.
+	CodexTurnID = "codex.turn.id"
+
+	// Codex's own measurement, kept beside the span's start and end, which the
+	// plugin derives from rollout timestamps.
+	CodexTurnDurationMs = "codex.turn.duration_ms"
+
+	// Measured per turn, not per model call, so it is not
+	// gen_ai.response.time_to_first_chunk, which belongs on an inference span
+	// and is in seconds.
+	CodexTurnTtftMs = "codex.turn.ttft_ms"
+
+	// The reason Codex gives for aborting the turn, or "aborted" when it gives
+	// none. Absent on a turn that finished. A string despite the name, because
+	// it carries the reason.
+	CodexTurnAborted = "codex.turn.aborted"
+
+	// Copied from Cursor's sessionStart hook (agent, ask, edit), onto the
+	// session's root span.
+	CursorComposerMode = "cursor.composer_mode"
+
+	// Cursor's is_background_agent, onto the session's root span.
+	CursorBackground = "cursor.background"
+
+	// Copied from Cursor's sessionEnd hook (completed, aborted, error,
+	// window_close, user_close). An error reason also sets the root span's
+	// status.
+	CursorSessionReason = "cursor.session.reason"
+
+	// Copied from Cursor's sessionEnd hook. Cursor documents no values for it.
+	CursorSessionFinalStatus = "cursor.session.final_status"
+
+	// Copied from Cursor's stop hook (completed, aborted, error); it also sets
+	// the turn span's status.
+	CursorTurnStatus = "cursor.turn.status"
+
+	// Copied from Cursor's stop hook.
+	CursorTurnLoopCount = "cursor.turn.loop_count"
+
+	// Cursor reports thinking time, not thinking tokens, so this cannot be
+	// gen_ai.usage.reasoning.output_tokens.
+	CursorThinkingDurationMs = "cursor.thinking.duration_ms"
+
+	// Copied from Cursor's preCompact hook onto the model call it interrupted.
+	// A measure of the context window, not of one request's input, so not
+	// gen_ai.usage.input_tokens.
+	CursorContextTokens = "cursor.context.context_tokens"
+
+	// Copied from Cursor's preCompact hook, beside cursor.context.context_tokens.
+	CursorContextWindowSize = "cursor.context.context_window_size"
+
+	// Copied from Cursor's preCompact hook, which documents it as a number.
+	// Cursor sends whole numbers today, so the plugin must write it as a double
+	// even when the value has no fraction.
+	CursorContextUsagePercent = "cursor.context.context_usage_percent"
+
+	// As cc.subagent.id, for Cursor, and not gen_ai.agent.id for the same
+	// reason.
+	CursorSubagentID = "cursor.subagent.id"
+
+	// Copied from Cursor's subagentStop hook (completed, error, aborted).
+	CursorSubagentStatus = "cursor.subagent.status"
+
+	// Copied from Cursor's subagentStop hook.
+	CursorSubagentToolCallCount = "cursor.subagent.tool_call_count"
+
+	// Copied from Cursor's subagentStop hook.
+	CursorSubagentMessageCount = "cursor.subagent.message_count"
+
+	// Set only when true.
+	CursorToolInterrupted = "cursor.tool.interrupted"
+
+	// Set only when true. The call's outcome is unknown, not successful.
+	CursorToolClosedAtSessionEnd = "cursor.tool.closed_at_session_end"
 
 	// Span kind values (openinference.span.kind).
 	SpanKindAgent     = "AGENT"     // an agent invocation or run

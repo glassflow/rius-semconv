@@ -16,7 +16,7 @@ from typing import Any
 
 import yaml
 
-from . import usage_keys
+from . import media_parts, usage_keys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 REGISTRY = ROOT / "registry"
@@ -29,6 +29,7 @@ FILES = {
     "model_parameters": "model_parameters.yaml",
     "preamble": "preamble.yaml",
     "usage_keys": "usage_keys.yaml",
+    "media_parts": "media_parts.yaml",
 }
 
 SYMBOLS = {"attribute", "prefix", "event", "value", "scope", "name", "fragment"}
@@ -37,7 +38,7 @@ DIRECTIONS = {"emitted", "read"}
 CATEGORIES = {"identity", "content", "metadata", "process_local"}
 LEVELS = {"required", "conditionally_required", "recommended", "opt_in", "vendor"}
 TYPES = {"string", "boolean", "int", "double", "string[]", "json"}
-FILLS = {"native", "openinference", "vercel"}
+FILLS = {"native", "openinference", "vercel", "coding_agents"}
 STATUSES = {"shipped", "planned"}
 PLACEMENT_SCOPES = {"resource", "span"}
 STABILITIES = {"development", "stable"}
@@ -85,6 +86,7 @@ class Registry:
         self.model_parameters: dict = data["model_parameters"]
         self.preamble: dict = data["preamble"]
         self.usage_keys: dict = data["usage_keys"]
+        self.media_parts: dict = data["media_parts"]
         self._by_const = {a["const"]: a for a in self.attributes if "const" in a}
 
     @classmethod
@@ -180,6 +182,7 @@ class Registry:
             + self._lint_taxonomy()
             + self._lint_model_parameters()
             + self._lint_usage_keys()
+            + media_parts.lint(self.media_parts)
         )
 
     def _lint_prose(self) -> list[str]:

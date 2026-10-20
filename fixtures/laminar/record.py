@@ -28,6 +28,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from _media import PNG_1X1, data_url  # noqa: E402
+
 TASK = "Print 'hello from openhands' in the terminal, then finish."
 MAX_STRING = 160
 CREATED = 1767225600
@@ -193,11 +195,18 @@ SCENARIOS = {
         "api_mode": "chat",
         "metadata": {"agent.name": "billing-agent"},
     },
+    # The task message carries an image beside the text.
+    "image_base64": {"mode": "chat", "api_mode": "chat", "image": data_url("image/png", PNG_1X1)},
+    "image_https_url": {
+        "mode": "chat",
+        "api_mode": "chat",
+        "image": "https://example.com/cat.png",
+    },
 }
 
 
-def run_agent(api_mode, model_port, metadata):
-    from openhands.sdk import LLM, Agent, Conversation, Tool
+def run_agent(api_mode, model_port, metadata, image=None):
+    from openhands.sdk import LLM, Agent, Conversation, ImageContent, Message, TextContent, Tool
     from openhands.tools.file_editor import FileEditorTool
     from openhands.tools.terminal import TerminalTool
 
@@ -214,7 +223,15 @@ def run_agent(api_mode, model_port, metadata):
     conversation = Conversation(
         agent=agent, workspace=tempfile.mkdtemp(prefix="oh-rius-"), **observability
     )
-    conversation.send_message(TASK)
+    if image:
+        conversation.send_message(
+            Message(
+                role="user",
+                content=[TextContent(text=TASK), ImageContent(image_urls=[image])],
+            )
+        )
+    else:
+        conversation.send_message(TASK)
     try:
         conversation.run()
     except Exception as error:
@@ -239,6 +256,7 @@ def record_scenario(name, model_port, capture_port):
         SCENARIOS[name]["api_mode"],
         str(model_port),
         metadata,
+        SCENARIOS[name].get("image", ""),
     ]
     here = os.path.dirname(os.path.abspath(__file__))
     subprocess.run(child, env=env, cwd=here, check=True, stdout=subprocess.DEVNULL)
@@ -340,6 +358,6 @@ def main(argv):
 
 if __name__ == "__main__":
     if sys.argv[1] == "--agent":
-        run_agent(sys.argv[2], int(sys.argv[3]), json.loads(sys.argv[4]))
+        run_agent(sys.argv[2], int(sys.argv[3]), json.loads(sys.argv[4]), sys.argv[5] or None)
     else:
         main(sys.argv[1:])

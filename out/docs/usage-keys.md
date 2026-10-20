@@ -18,11 +18,20 @@ families it produced them for.
 
 | Key | python | typescript | sink | Recorded in | Why |
 | -- | -- | -- | -- | -- | -- |
+| `gen_ai.usage.audio.cache_read.input_tokens` | canonical | canonical | canonical | not in any recording |  |
+| `gen_ai.usage.audio.input_tokens` | canonical | canonical | canonical | produced in openinference-js-langchain-openai, openinference-js-openai, openinference-langchain, openinference-langchain-openai, openinference-litellm, openinference-litellm-openai, openinference-llama-index, openinference-llama-index-openai, openinference-openai, vercel-ai-otel |  |
+| `gen_ai.usage.audio.output_tokens` | canonical | canonical | canonical | produced in openinference-js-langchain-openai, openinference-js-openai, openinference-langchain, openinference-langchain-openai, openinference-litellm, openinference-litellm-openai, openinference-llama-index, openinference-llama-index-openai, openinference-openai |  |
 | `gen_ai.usage.cache_read.input_tokens` | canonical | canonical | canonical | openllmetry, pydantic-ai, rius-python, rius-typescript, vercel-ai-otel |  |
 | `gen_ai.usage.cache_write.input_tokens` | canonical | canonical | canonical | produced in laminar, openinference-anthropic, openinference-js-anthropic, openinference-litellm, openinference-litellm-openai, openllmetry |  |
+| `gen_ai.usage.image.cache_read.input_tokens` | canonical | canonical | canonical | not in any recording |  |
+| `gen_ai.usage.image.input_tokens` | canonical | canonical | canonical | not in any recording |  |
+| `gen_ai.usage.image.output_tokens` | canonical | canonical | canonical | not in any recording |  |
 | `gen_ai.usage.input_tokens` | canonical | canonical | canonical | laminar, openllmetry, pydantic-ai, rius-python, rius-typescript, vercel-ai-otel, vercel-ai-v5, vercel-ai-v6 |  |
 | `gen_ai.usage.output_tokens` | canonical | canonical | canonical | laminar, openllmetry, pydantic-ai, rius-python, rius-typescript, vercel-ai-otel, vercel-ai-v5, vercel-ai-v6 |  |
 | `gen_ai.usage.reasoning.output_tokens` | canonical | canonical | canonical | rius-python, rius-typescript |  |
+| `gen_ai.usage.text.cache_read.input_tokens` | canonical | canonical | canonical | not in any recording |  |
+| `gen_ai.usage.text.input_tokens` | canonical | canonical | canonical | not in any recording |  |
+| `gen_ai.usage.text.output_tokens` | canonical | canonical | canonical | not in any recording |  |
 | `rius.aggregated_usage.*` | canonical | canonical | canonical | produced in openinference-litellm-openai, vercel-ai-otel, vercel-ai-v5, vercel-ai-v6 | A whole agent run's usage, moved off gen_ai.usage.* by the TypeScript SDK on producers known to repeat it on each call's span. Never read as usage, so the run is not counted twice. |
 
 ## Mapped
@@ -46,14 +55,23 @@ families it produced them for.
 | `gen_ai.usage.details.reasoning_tokens` | → `gen_ai.usage.reasoning.output_tokens` | → `gen_ai.usage.reasoning.output_tokens` | → `gen_ai.usage.reasoning.output_tokens` | pydantic-ai | pydantic-ai's OpenAI reasoning split. |
 | `gen_ai.usage.details.thinking_tokens` | → `gen_ai.usage.reasoning.output_tokens` | → `gen_ai.usage.reasoning.output_tokens` | → `gen_ai.usage.reasoning.output_tokens` | not in any recording | pydantic-ai's Anthropic reasoning split. |
 | `gen_ai.usage.details.thoughts_tokens` | → `gen_ai.usage.reasoning.output_tokens` | → `gen_ai.usage.reasoning.output_tokens` | → `gen_ai.usage.reasoning.output_tokens` | not in any recording | pydantic-ai's Google reasoning split. |
+| `gen_ai.usage.input_token_details.audio_tokens` | → `gen_ai.usage.audio.input_tokens` | → `gen_ai.usage.audio.input_tokens` | → `gen_ai.usage.audio.input_tokens` | vercel-ai-otel | @ai-sdk/otel's flattening of a provider's input_token_details on a transcription span (OpenAI's gpt-4o-transcribe). A subset of the input count, never added to it. |
 | `gen_ai.usage.prompt_tokens` | keeps | keeps | → `gen_ai.usage.input_tokens` | openllmetry | OpenLLMetry's input count before the GenAI rename (0.47 and earlier). |
 | `gen_ai.usage.reasoning_tokens` | keeps | keeps | → `gen_ai.usage.reasoning.output_tokens` | openllmetry | OpenLLMetry's reasoning count. |
 | `llm.token_count.completion` | → `gen_ai.usage.output_tokens` | → `gen_ai.usage.output_tokens` | → `gen_ai.usage.output_tokens` | openinference-anthropic, openinference-js-anthropic, openinference-js-langchain, openinference-js-langchain-openai, openinference-js-openai, openinference-langchain, openinference-langchain-openai, openinference-litellm, openinference-litellm-openai, openinference-llama-index, openinference-llama-index-openai, openinference-openai |  |
+| `llm.token_count.completion_details.audio` | → `gen_ai.usage.audio.output_tokens` | → `gen_ai.usage.audio.output_tokens` | → `gen_ai.usage.audio.output_tokens` | openinference-js-langchain-openai, openinference-js-openai, openinference-langchain, openinference-langchain-openai, openinference-litellm, openinference-litellm-openai, openinference-llama-index, openinference-llama-index-openai, openinference-openai | A subset of the output count, never added to it. |
 | `llm.token_count.completion_details.reasoning` | → `gen_ai.usage.reasoning.output_tokens` | → `gen_ai.usage.reasoning.output_tokens` | → `gen_ai.usage.reasoning.output_tokens` | openinference-js-langchain, openinference-js-langchain-openai, openinference-js-openai, openinference-langchain, openinference-langchain-openai, openinference-litellm, openinference-litellm-openai, openinference-llama-index, openinference-llama-index-openai, openinference-openai |  |
 | `llm.token_count.prompt` | → `gen_ai.usage.input_tokens` | → `gen_ai.usage.input_tokens` | → `gen_ai.usage.input_tokens` | openinference-anthropic, openinference-js-anthropic, openinference-js-langchain, openinference-js-langchain-openai, openinference-js-openai, openinference-langchain, openinference-langchain-openai, openinference-litellm, openinference-litellm-openai, openinference-llama-index, openinference-llama-index-openai, openinference-openai | Copied, never summed with the cache counts: every bundled instrumentor already reports it inclusive of them. |
+| `llm.token_count.prompt_details.audio` | → `gen_ai.usage.audio.input_tokens` | → `gen_ai.usage.audio.input_tokens` | → `gen_ai.usage.audio.input_tokens` | openinference-js-langchain-openai, openinference-js-openai, openinference-langchain, openinference-langchain-openai, openinference-litellm, openinference-litellm-openai, openinference-llama-index, openinference-llama-index-openai, openinference-openai | A subset of the input count, never added to it. |
 | `llm.token_count.prompt_details.cache_read` | → `gen_ai.usage.cache_read.input_tokens` | → `gen_ai.usage.cache_read.input_tokens` | → `gen_ai.usage.cache_read.input_tokens` | openinference-anthropic, openinference-js-anthropic, openinference-js-langchain, openinference-js-langchain-openai, openinference-js-openai, openinference-langchain, openinference-langchain-openai, openinference-litellm, openinference-litellm-openai, openinference-llama-index, openinference-llama-index-openai, openinference-openai |  |
 | `llm.token_count.prompt_details.cache_write` | → `gen_ai.usage.cache_write.input_tokens` | → `gen_ai.usage.cache_write.input_tokens` | → `gen_ai.usage.cache_write.input_tokens` | openinference-anthropic, openinference-js-anthropic, openinference-litellm, openinference-litellm-openai |  |
 | `llm.usage.reasoning_tokens` | keeps | keeps | → `gen_ai.usage.reasoning.output_tokens` | openllmetry | OpenLLMetry's reasoning count in older releases. |
+
+## Gap
+
+| Key | python | typescript | sink | Recorded in | Why |
+| -- | -- | -- | -- | -- | -- |
+| `gen_ai.usage.input_token_details.text_tokens` | keeps | keeps | keeps | vercel-ai-otel | The text subset of a transcription span's input, beside input_token_details.audio_tokens. It belongs in gen_ai.usage.text.input_tokens, but no normalizer maps it yet, so the text split of the input is not attributed. |
 
 ## Ignored
 
@@ -66,13 +84,9 @@ families it produced them for.
 | `ai.usage.promptTokens` | keeps | keeps | keeps | vercel-ai-v5 | v5's input count on generateText and generateObject, left unread on purpose. On a model call the AI SDK writes the same value to gen_ai.usage.input_tokens itself. On the generateText wrapper v5 takes it from the LAST step's response, not the run's total (v5's streams and v6 report the total under ai.usage.inputTokens), so mapping it to rius.aggregated_usage.* would put a short total under a key that promises the whole run. |
 | `ai.usage.totalTokens` | keeps | keeps | keeps | vercel-ai-v5, vercel-ai-v6 | A total; the conventions define none. |
 | `gen_ai.aggregated_usage.*` | keeps | keeps | keeps | pydantic-ai | pydantic-ai's whole-run total on its agent span, next to each call's usage on the call's own span. Reading it as usage would count the run twice; it stays under its own name, which nothing reads. |
-| `gen_ai.usage.details.audio_tokens` | keeps | keeps | keeps | pydantic-ai | No canonical key; modality splits are not priced separately. |
-| `gen_ai.usage.input_token_details.audio_tokens` | keeps | keeps | keeps | vercel-ai-otel | @ai-sdk/otel's flattening of a provider's input_token_details on a transcription span (OpenAI's gpt-4o-transcribe). No canonical key is read for it; modality splits are not priced separately. |
-| `gen_ai.usage.input_token_details.text_tokens` | keeps | keeps | keeps | vercel-ai-otel | As input_token_details.audio_tokens, for the text part of the input. |
+| `gen_ai.usage.details.audio_tokens` | keeps | keeps | keeps | pydantic-ai | No single direction: pydantic-ai writes it with no input or output in the name, so it cannot map to either audio key. |
 | `gen_ai.usage.total_tokens` | keeps | keeps | keeps | openllmetry, vercel-ai-otel | Not a convention key: OpenLLMetry's total. No canonical key holds a total, so it stays on the span as an extra. |
 | `llm.cost.total` | keeps | keeps | keeps | openinference-litellm, openinference-litellm-openai | Cost stays off the wire on purpose: the backend prices from the token counts with its own table, so a producer's figure is never trusted. |
-| `llm.token_count.completion_details.audio` | keeps | keeps | keeps | openinference-js-langchain-openai, openinference-js-openai, openinference-langchain, openinference-langchain-openai, openinference-litellm, openinference-litellm-openai, openinference-llama-index, openinference-llama-index-openai, openinference-openai | No canonical key; modality splits are not priced separately. |
-| `llm.token_count.prompt_details.audio` | keeps | keeps | keeps | openinference-js-langchain-openai, openinference-js-openai, openinference-langchain, openinference-langchain-openai, openinference-litellm, openinference-litellm-openai, openinference-llama-index, openinference-llama-index-openai, openinference-openai | No canonical key; modality splits are not priced separately. |
 | `llm.token_count.total` | keeps | keeps | keeps | openinference-anthropic, openinference-js-anthropic, openinference-js-langchain, openinference-js-langchain-openai, openinference-js-openai, openinference-langchain, openinference-langchain-openai, openinference-litellm, openinference-litellm-openai, openinference-llama-index, openinference-llama-index-openai, openinference-openai | The conventions define no total: they record input and output and leave the sum to the reader. The sink reads it for validation only. |
 | `llm.usage.total_tokens` | keeps | keeps | keeps | laminar, openllmetry | OpenLLMetry's and Laminar's total, as gen_ai.usage.total_tokens. |
 | `operation.cost` | keeps | keeps | keeps | pydantic-ai | pydantic-ai's own price for the call. Cost stays off the wire on purpose, as with llm.cost.total. |

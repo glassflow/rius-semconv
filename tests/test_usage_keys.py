@@ -240,7 +240,12 @@ def test_the_table_says_who_maps_what(base_data, recorded):
 
 
 def test_the_committed_table_is_current(base_data, recorded):
-    table = usage_keys.render_table(base_data["usage_keys"], recorded)
+    planned = frozenset(
+        a["key"]
+        for a in base_data["attributes"]["attributes"]
+        if a.get("status") == "planned" and "key" in a
+    )
+    table = usage_keys.render_table(base_data["usage_keys"], recorded, planned)
     assert (ROOT / "out" / "docs" / "usage-keys.md").read_text() == table
 
 
@@ -296,3 +301,23 @@ def test_an_unknown_value_type_is_flagged(data):
 def test_a_string_value_type_is_accepted(data):
     entry(data, "llm.cost.total")["type"] = "string"
     assert not [e for e in lint(data) if "type must be one of" in e]
+
+
+MODALITY_USAGE_KEYS = [
+    f"gen_ai.usage.{modality}.{suffix}"
+    for modality in ("text", "image", "audio")
+    for suffix in ("input_tokens", "output_tokens", "cache_read.input_tokens")
+]
+
+
+@pytest.mark.parametrize("key", MODALITY_USAGE_KEYS)
+def test_modality_keys_are_canonical(key):
+    found = usage_keys.decision_for(Registry.load().usage_keys, key)
+    assert found is not None and found["decision"] == "canonical"
+
+
+def test_a_planned_key_is_marked_in_the_table(base_data, recorded):
+    key = "gen_ai.usage.audio.input_tokens"
+    table = usage_keys.render_table(base_data["usage_keys"], recorded, frozenset({key}))
+    row = next(line for line in table.splitlines() if f"`{key}`" in line)
+    assert "Planned, not emitted yet." in row

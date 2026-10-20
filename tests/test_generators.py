@@ -8,6 +8,7 @@ render are skipped without it; CI runs them in the weaver job, which also
 checks that generation is deterministic.
 """
 
+import ast
 import pathlib
 import re
 import shutil
@@ -85,7 +86,7 @@ def test_python_constants(py_module):
     assert py_module["EXCEPTION_EVENT"] == "exception"
     assert py_module["RIUS_REQUEST_PREFIX"] == "rius.request."
     assert "SERVICE_NAME" not in py_module  # Go-only
-    assert "TELEMETRY_DISTRO_NAME" not in py_module  # planned
+    assert "GEN_AI_SYSTEM_INSTRUCTIONS" not in py_module  # planned
 
 
 def test_python_allowlists(py_module):
@@ -106,7 +107,7 @@ def test_python_tables(py_module):
     assert py_module["_KIND_BY_OPERATION"]["plan"] == "CHAIN"
     assert py_module["_OPERATION_BY_KIND"]["RERANKER"] == "rerank"
     assert py_module["_KIND_BY_OPERATION"]["rerank"] == "RERANKER"
-    assert py_module["_OTEL_KIND_BY_KIND"]["TOOL"] == "OtelSpanKind.INTERNAL"
+    assert py_module["_OTEL_KIND_BY_KIND"]["TOOL"] == "INTERNAL"
     assert py_module["_NAME_TARGET_BY_KIND"]["RETRIEVER"] == "gen_ai.data_source.id"
     params = py_module["GEN_AI_REQUEST_PARAMETERS"]
     assert params["maxOutputTokens"] == "gen_ai.request.max_tokens"
@@ -116,6 +117,20 @@ def test_python_tables(py_module):
             k: k for k in ["AGENT", "LLM", "TOOL", "RETRIEVER", "EMBEDDING", "RERANKER", "CHAIN"]
         }
     }
+
+
+def test_python_module_needs_nothing_but_python_3_9(base_data):
+    # The coding-agent plugin vendors this file, and it has no dependencies
+    # and supports Python 3.9.
+    source = committed(Registry(base_data), "python")
+    tree = ast.parse(source, feature_version=(3, 9))
+    imported = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imported |= {alias.name.split(".")[0] for alias in node.names}
+        elif isinstance(node, ast.ImportFrom):
+            imported.add((node.module or "").split(".")[0])
+    assert imported <= {"__future__", "enum"}
 
 
 def test_python_all_lists_exactly_the_public_names(base_data):
@@ -132,7 +147,7 @@ def test_python_all_lists_exactly_the_public_names(base_data):
 def test_python_include_planned_adds_planned_rows(base_data):
     reg = Registry(base_data, include_planned=True)
     surface = python_surface(generate.render(reg, ["python"])["python"])
-    assert surface["TELEMETRY_DISTRO_NAME"] == "telemetry.distro.name"
+    assert surface["GEN_AI_SYSTEM_INSTRUCTIONS"] == "gen_ai.system_instructions"
 
 
 # --- TypeScript --------------------------------------------------------------
@@ -152,7 +167,7 @@ def test_typescript_values(base_data):
         ["llm.request.functions.", [".description", ".parameters", ".arguments"]]
     ]
     assert len(values["PENDING_IDENTITY_ATTRIBUTES"]["__set__"]) == 17
-    assert values["OTEL_KIND_BY_KIND"]["LLM"] == "OtelSpanKind.CLIENT"
+    assert values["OTEL_KIND_BY_KIND"]["LLM"] == "CLIENT"
     assert values["SpanKind"]["RETRIEVER"] == "RETRIEVER"
 
 
