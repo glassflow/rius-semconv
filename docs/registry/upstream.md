@@ -67,20 +67,20 @@ Rius uses it.
 | <a id="gen-ai-tool-definitions"></a>[`gen_ai.tool.definitions`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-tool-definitions) | any | opt in | OpenTelemetry GenAI | Emitted. [23] |
 | <a id="gen-ai-tool-name"></a>[`gen_ai.tool.name`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-tool-name) | string | required | OpenTelemetry GenAI | Emitted. |
 | <a id="gen-ai-tool-type"></a>[`gen_ai.tool.type`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-tool-type) | string | recommended | OpenTelemetry GenAI | Emitted. [24] |
-| <a id="gen-ai-usage-audio-cache-read-input-tokens"></a>[`gen_ai.usage.audio.cache_read.input_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-audio-cache-read-input-tokens) | int | recommended | OpenTelemetry GenAI | Planned, not emitted yet. [25] |
-| <a id="gen-ai-usage-audio-input-tokens"></a>[`gen_ai.usage.audio.input_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-audio-input-tokens) | int | recommended | OpenTelemetry GenAI | Planned, not emitted yet. [26] |
-| <a id="gen-ai-usage-audio-output-tokens"></a>[`gen_ai.usage.audio.output_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-audio-output-tokens) | int | recommended | OpenTelemetry GenAI | Planned, not emitted yet. [27] |
+| <a id="gen-ai-usage-audio-cache-read-input-tokens"></a>[`gen_ai.usage.audio.cache_read.input_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-audio-cache-read-input-tokens) | int | recommended | OpenTelemetry GenAI | Emitted. [25] |
+| <a id="gen-ai-usage-audio-input-tokens"></a>[`gen_ai.usage.audio.input_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-audio-input-tokens) | int | recommended | OpenTelemetry GenAI | Emitted. [26] |
+| <a id="gen-ai-usage-audio-output-tokens"></a>[`gen_ai.usage.audio.output_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-audio-output-tokens) | int | recommended | OpenTelemetry GenAI | Emitted. [27] |
 | <a id="gen-ai-usage-cache-read-input-tokens"></a>[`gen_ai.usage.cache_read.input_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-cache-read-input-tokens) | int | recommended | OpenTelemetry GenAI | Emitted. |
 | <a id="gen-ai-usage-cache-write-input-tokens"></a>[`gen_ai.usage.cache_write.input_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-cache-write-input-tokens) | int | recommended | OpenTelemetry GenAI | Emitted. [28] |
-| <a id="gen-ai-usage-image-cache-read-input-tokens"></a>[`gen_ai.usage.image.cache_read.input_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-image-cache-read-input-tokens) | int | recommended | OpenTelemetry GenAI | Planned, not emitted yet. [29] |
-| <a id="gen-ai-usage-image-input-tokens"></a>[`gen_ai.usage.image.input_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-image-input-tokens) | int | recommended | OpenTelemetry GenAI | Planned, not emitted yet. [30] |
-| <a id="gen-ai-usage-image-output-tokens"></a>[`gen_ai.usage.image.output_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-image-output-tokens) | int | recommended | OpenTelemetry GenAI | Planned, not emitted yet. [31] |
+| <a id="gen-ai-usage-image-cache-read-input-tokens"></a>[`gen_ai.usage.image.cache_read.input_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-image-cache-read-input-tokens) | int | recommended | OpenTelemetry GenAI | Emitted. [29] |
+| <a id="gen-ai-usage-image-input-tokens"></a>[`gen_ai.usage.image.input_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-image-input-tokens) | int | recommended | OpenTelemetry GenAI | Emitted. [30] |
+| <a id="gen-ai-usage-image-output-tokens"></a>[`gen_ai.usage.image.output_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-image-output-tokens) | int | recommended | OpenTelemetry GenAI | Emitted. [31] |
 | <a id="gen-ai-usage-input-tokens"></a>[`gen_ai.usage.input_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-input-tokens) | int | recommended | OpenTelemetry GenAI | Emitted. |
 | <a id="gen-ai-usage-output-tokens"></a>[`gen_ai.usage.output_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-output-tokens) | int | recommended | OpenTelemetry GenAI | Emitted. |
 | <a id="gen-ai-usage-reasoning-output-tokens"></a>[`gen_ai.usage.reasoning.output_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-reasoning-output-tokens) | int | recommended | OpenTelemetry GenAI | Emitted. |
-| <a id="gen-ai-usage-text-cache-read-input-tokens"></a>[`gen_ai.usage.text.cache_read.input_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-text-cache-read-input-tokens) | int | recommended | OpenTelemetry GenAI | Planned, not emitted yet. [32] |
-| <a id="gen-ai-usage-text-input-tokens"></a>[`gen_ai.usage.text.input_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-text-input-tokens) | int | recommended | OpenTelemetry GenAI | Planned, not emitted yet. [33] |
-| <a id="gen-ai-usage-text-output-tokens"></a>[`gen_ai.usage.text.output_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-text-output-tokens) | int | recommended | OpenTelemetry GenAI | Planned, not emitted yet. [34] |
+| <a id="gen-ai-usage-text-cache-read-input-tokens"></a>[`gen_ai.usage.text.cache_read.input_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-text-cache-read-input-tokens) | int | recommended | OpenTelemetry GenAI | Emitted. [32] |
+| <a id="gen-ai-usage-text-input-tokens"></a>[`gen_ai.usage.text.input_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-text-input-tokens) | int | recommended | OpenTelemetry GenAI | Emitted. [33] |
+| <a id="gen-ai-usage-text-output-tokens"></a>[`gen_ai.usage.text.output_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-text-output-tokens) | int | recommended | OpenTelemetry GenAI | Emitted. [34] |
 
 ## `mcp`
 
@@ -285,34 +285,34 @@ same reason the call id is: caller-supplied, known before the tool runs.
 A free string, not an enum, in the registry.
 
 **[25] `gen_ai.usage.audio.cache_read.input_tokens`:** A per-modality subset of gen_ai.usage.cache_read.input_tokens: never summed
-into it. Planned until an SDK writes it.
+into it.
 
 **[26] `gen_ai.usage.audio.input_tokens`:** A per-modality subset of gen_ai.usage.input_tokens: never summed
-into it. Planned until an SDK writes it.
+into it.
 
 **[27] `gen_ai.usage.audio.output_tokens`:** A per-modality subset of gen_ai.usage.output_tokens: never summed
-into it. Planned until an SDK writes it.
+into it.
 
 **[28] `gen_ai.usage.cache_write.input_tokens`:** semconv-genai renamed cache_creation -&gt; cache_write (PR #440) before our
 cache fields first shipped; no released SDK version carries the old name.
 
 **[29] `gen_ai.usage.image.cache_read.input_tokens`:** A per-modality subset of gen_ai.usage.cache_read.input_tokens: never summed
-into it. Planned until an SDK writes it.
+into it.
 
 **[30] `gen_ai.usage.image.input_tokens`:** A per-modality subset of gen_ai.usage.input_tokens: never summed
-into it. Planned until an SDK writes it.
+into it.
 
 **[31] `gen_ai.usage.image.output_tokens`:** A per-modality subset of gen_ai.usage.output_tokens: never summed
-into it. Planned until an SDK writes it.
+into it.
 
 **[32] `gen_ai.usage.text.cache_read.input_tokens`:** A per-modality subset of gen_ai.usage.cache_read.input_tokens: never summed
-into it. Planned until an SDK writes it.
+into it.
 
 **[33] `gen_ai.usage.text.input_tokens`:** A per-modality subset of gen_ai.usage.input_tokens: never summed
-into it. Planned until an SDK writes it.
+into it.
 
 **[34] `gen_ai.usage.text.output_tokens`:** A per-modality subset of gen_ai.usage.output_tokens: never summed
-into it. Planned until an SDK writes it.
+into it.
 
 **[35] `mcp.method.name`:** OTel MCP semantic conventions (semantic-conventions-genai, Development
 stability). mcp.method.name is the REQUIRED attribute of an MCP client span

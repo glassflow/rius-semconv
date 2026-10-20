@@ -258,6 +258,42 @@ GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS = "gen_ai.usage.cache_read.input_tokens"
 # cache fields first shipped; no released SDK version carries the old name.
 GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS = "gen_ai.usage.cache_write.input_tokens"
 GEN_AI_USAGE_REASONING_OUTPUT_TOKENS = "gen_ai.usage.reasoning.output_tokens"
+
+# A per-modality subset of gen_ai.usage.input_tokens: never summed
+# into it.
+GEN_AI_USAGE_TEXT_INPUT_TOKENS = "gen_ai.usage.text.input_tokens"
+
+# A per-modality subset of gen_ai.usage.output_tokens: never summed
+# into it.
+GEN_AI_USAGE_TEXT_OUTPUT_TOKENS = "gen_ai.usage.text.output_tokens"
+
+# A per-modality subset of gen_ai.usage.cache_read.input_tokens: never summed
+# into it.
+GEN_AI_USAGE_TEXT_CACHE_READ_INPUT_TOKENS = "gen_ai.usage.text.cache_read.input_tokens"
+
+# A per-modality subset of gen_ai.usage.input_tokens: never summed
+# into it.
+GEN_AI_USAGE_IMAGE_INPUT_TOKENS = "gen_ai.usage.image.input_tokens"
+
+# A per-modality subset of gen_ai.usage.output_tokens: never summed
+# into it.
+GEN_AI_USAGE_IMAGE_OUTPUT_TOKENS = "gen_ai.usage.image.output_tokens"
+
+# A per-modality subset of gen_ai.usage.cache_read.input_tokens: never summed
+# into it.
+GEN_AI_USAGE_IMAGE_CACHE_READ_INPUT_TOKENS = "gen_ai.usage.image.cache_read.input_tokens"
+
+# A per-modality subset of gen_ai.usage.input_tokens: never summed
+# into it.
+GEN_AI_USAGE_AUDIO_INPUT_TOKENS = "gen_ai.usage.audio.input_tokens"
+
+# A per-modality subset of gen_ai.usage.output_tokens: never summed
+# into it.
+GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS = "gen_ai.usage.audio.output_tokens"
+
+# A per-modality subset of gen_ai.usage.cache_read.input_tokens: never summed
+# into it.
+GEN_AI_USAGE_AUDIO_CACHE_READ_INPUT_TOKENS = "gen_ai.usage.audio.cache_read.input_tokens"
 GEN_AI_INPUT_MESSAGES = "gen_ai.input.messages"
 GEN_AI_OUTPUT_MESSAGES = "gen_ai.output.messages"
 GEN_AI_RESPONSE_FINISH_REASONS = "gen_ai.response.finish_reasons"
@@ -1179,12 +1215,21 @@ __all__ = [
     "GEN_AI_TOOL_DEFINITIONS",
     "GEN_AI_TOOL_NAME",
     "GEN_AI_TOOL_TYPE",
+    "GEN_AI_USAGE_AUDIO_CACHE_READ_INPUT_TOKENS",
+    "GEN_AI_USAGE_AUDIO_INPUT_TOKENS",
+    "GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS",
     "GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS",
     "GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS",
+    "GEN_AI_USAGE_IMAGE_CACHE_READ_INPUT_TOKENS",
+    "GEN_AI_USAGE_IMAGE_INPUT_TOKENS",
+    "GEN_AI_USAGE_IMAGE_OUTPUT_TOKENS",
     "GEN_AI_USAGE_INPUT_TOKENS",
     "GEN_AI_USAGE_OUTPUT_TOKENS",
     "GEN_AI_USAGE_PREFIX",
     "GEN_AI_USAGE_REASONING_OUTPUT_TOKENS",
+    "GEN_AI_USAGE_TEXT_CACHE_READ_INPUT_TOKENS",
+    "GEN_AI_USAGE_TEXT_INPUT_TOKENS",
+    "GEN_AI_USAGE_TEXT_OUTPUT_TOKENS",
     "INPUT_VALUE",
     "INVOCATION_PARAMETERS_CONTENT_MEMBERS",
     "LLM_INVOCATION_PARAMETERS",

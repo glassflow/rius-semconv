@@ -888,10 +888,9 @@ attribute_groups:
         type: int
         fill:
         - native
-        status: planned
         rationale: |
           A per-modality subset of gen_ai.usage.input_tokens: never summed
-          into it. Planned until an SDK writes it.
+          into it.
   - ref: gen_ai.usage.text.output_tokens
     requirement_level: recommended
     annotations:
@@ -908,10 +907,9 @@ attribute_groups:
         type: int
         fill:
         - native
-        status: planned
         rationale: |
           A per-modality subset of gen_ai.usage.output_tokens: never summed
-          into it. Planned until an SDK writes it.
+          into it.
   - ref: gen_ai.usage.text.cache_read.input_tokens
     requirement_level: recommended
     annotations:
@@ -928,10 +926,9 @@ attribute_groups:
         type: int
         fill:
         - native
-        status: planned
         rationale: |
           A per-modality subset of gen_ai.usage.cache_read.input_tokens: never summed
-          into it. Planned until an SDK writes it.
+          into it.
   - ref: gen_ai.usage.image.input_tokens
     requirement_level: recommended
     annotations:
@@ -948,10 +945,9 @@ attribute_groups:
         type: int
         fill:
         - native
-        status: planned
         rationale: |
           A per-modality subset of gen_ai.usage.input_tokens: never summed
-          into it. Planned until an SDK writes it.
+          into it.
   - ref: gen_ai.usage.image.output_tokens
     requirement_level: recommended
     annotations:
@@ -968,10 +964,9 @@ attribute_groups:
         type: int
         fill:
         - native
-        status: planned
         rationale: |
           A per-modality subset of gen_ai.usage.output_tokens: never summed
-          into it. Planned until an SDK writes it.
+          into it.
   - ref: gen_ai.usage.image.cache_read.input_tokens
     requirement_level: recommended
     annotations:
@@ -988,10 +983,9 @@ attribute_groups:
         type: int
         fill:
         - native
-        status: planned
         rationale: |
           A per-modality subset of gen_ai.usage.cache_read.input_tokens: never summed
-          into it. Planned until an SDK writes it.
+          into it.
   - ref: gen_ai.usage.audio.input_tokens
     requirement_level: recommended
     annotations:
@@ -1008,10 +1002,11 @@ attribute_groups:
         type: int
         fill:
         - native
-        status: planned
+        - openinference
+        - vercel
         rationale: |
           A per-modality subset of gen_ai.usage.input_tokens: never summed
-          into it. Planned until an SDK writes it.
+          into it.
   - ref: gen_ai.usage.audio.output_tokens
     requirement_level: recommended
     annotations:
@@ -1028,10 +1023,10 @@ attribute_groups:
         type: int
         fill:
         - native
-        status: planned
+        - openinference
         rationale: |
           A per-modality subset of gen_ai.usage.output_tokens: never summed
-          into it. Planned until an SDK writes it.
+          into it.
   - ref: gen_ai.usage.audio.cache_read.input_tokens
     requirement_level: recommended
     annotations:
@@ -1048,10 +1043,9 @@ attribute_groups:
         type: int
         fill:
         - native
-        status: planned
         rationale: |
           A per-modality subset of gen_ai.usage.cache_read.input_tokens: never summed
-          into it. Planned until an SDK writes it.
+          into it.
   - ref: gen_ai.input.messages
     requirement_level: opt_in
     annotations:

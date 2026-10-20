@@ -220,8 +220,12 @@ keys:
       transcription span (OpenAI's gpt-4o-transcribe). A subset of the input
       count, never added to it.
   - key: gen_ai.usage.input_token_details.text_tokens
-    decision: ignored
-    reason: As input_token_details.audio_tokens, for the text part of the input.
+    decision: gap
+    reason: |
+      The text subset of a transcription span's input, beside
+      input_token_details.audio_tokens. It belongs in
+      gen_ai.usage.text.input_tokens, but no normalizer maps it yet, so the
+      text split of the input is not attributed.
   - prefix: gen_ai.aggregated_usage.
     decision: ignored
     reason: |

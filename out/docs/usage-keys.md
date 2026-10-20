@@ -18,20 +18,20 @@ families it produced them for.
 
 | Key | python | typescript | sink | Recorded in | Why |
 | -- | -- | -- | -- | -- | -- |
-| `gen_ai.usage.audio.cache_read.input_tokens` | canonical | canonical | canonical | not in any recording | Planned, not emitted yet. |
-| `gen_ai.usage.audio.input_tokens` | canonical | canonical | canonical | not in any recording | Planned, not emitted yet. |
-| `gen_ai.usage.audio.output_tokens` | canonical | canonical | canonical | not in any recording | Planned, not emitted yet. |
+| `gen_ai.usage.audio.cache_read.input_tokens` | canonical | canonical | canonical | not in any recording |  |
+| `gen_ai.usage.audio.input_tokens` | canonical | canonical | canonical | produced in openinference-js-langchain-openai, openinference-js-openai, openinference-langchain, openinference-langchain-openai, openinference-litellm, openinference-litellm-openai, openinference-llama-index, openinference-llama-index-openai, openinference-openai, vercel-ai-otel |  |
+| `gen_ai.usage.audio.output_tokens` | canonical | canonical | canonical | produced in openinference-js-langchain-openai, openinference-js-openai, openinference-langchain, openinference-langchain-openai, openinference-litellm, openinference-litellm-openai, openinference-llama-index, openinference-llama-index-openai, openinference-openai |  |
 | `gen_ai.usage.cache_read.input_tokens` | canonical | canonical | canonical | openllmetry, pydantic-ai, rius-python, rius-typescript, vercel-ai-otel |  |
 | `gen_ai.usage.cache_write.input_tokens` | canonical | canonical | canonical | produced in laminar, openinference-anthropic, openinference-js-anthropic, openinference-litellm, openinference-litellm-openai, openllmetry |  |
-| `gen_ai.usage.image.cache_read.input_tokens` | canonical | canonical | canonical | not in any recording | Planned, not emitted yet. |
-| `gen_ai.usage.image.input_tokens` | canonical | canonical | canonical | not in any recording | Planned, not emitted yet. |
-| `gen_ai.usage.image.output_tokens` | canonical | canonical | canonical | not in any recording | Planned, not emitted yet. |
+| `gen_ai.usage.image.cache_read.input_tokens` | canonical | canonical | canonical | not in any recording |  |
+| `gen_ai.usage.image.input_tokens` | canonical | canonical | canonical | not in any recording |  |
+| `gen_ai.usage.image.output_tokens` | canonical | canonical | canonical | not in any recording |  |
 | `gen_ai.usage.input_tokens` | canonical | canonical | canonical | laminar, openllmetry, pydantic-ai, rius-python, rius-typescript, vercel-ai-otel, vercel-ai-v5, vercel-ai-v6 |  |
 | `gen_ai.usage.output_tokens` | canonical | canonical | canonical | laminar, openllmetry, pydantic-ai, rius-python, rius-typescript, vercel-ai-otel, vercel-ai-v5, vercel-ai-v6 |  |
 | `gen_ai.usage.reasoning.output_tokens` | canonical | canonical | canonical | rius-python, rius-typescript |  |
-| `gen_ai.usage.text.cache_read.input_tokens` | canonical | canonical | canonical | not in any recording | Planned, not emitted yet. |
-| `gen_ai.usage.text.input_tokens` | canonical | canonical | canonical | not in any recording | Planned, not emitted yet. |
-| `gen_ai.usage.text.output_tokens` | canonical | canonical | canonical | not in any recording | Planned, not emitted yet. |
+| `gen_ai.usage.text.cache_read.input_tokens` | canonical | canonical | canonical | not in any recording |  |
+| `gen_ai.usage.text.input_tokens` | canonical | canonical | canonical | not in any recording |  |
+| `gen_ai.usage.text.output_tokens` | canonical | canonical | canonical | not in any recording |  |
 | `rius.aggregated_usage.*` | canonical | canonical | canonical | produced in openinference-litellm-openai, vercel-ai-otel, vercel-ai-v5, vercel-ai-v6 | A whole agent run's usage, moved off gen_ai.usage.* by the TypeScript SDK on producers known to repeat it on each call's span. Never read as usage, so the run is not counted twice. |
 
 ## Mapped
@@ -67,6 +67,12 @@ families it produced them for.
 | `llm.token_count.prompt_details.cache_write` | → `gen_ai.usage.cache_write.input_tokens` | → `gen_ai.usage.cache_write.input_tokens` | → `gen_ai.usage.cache_write.input_tokens` | openinference-anthropic, openinference-js-anthropic, openinference-litellm, openinference-litellm-openai |  |
 | `llm.usage.reasoning_tokens` | keeps | keeps | → `gen_ai.usage.reasoning.output_tokens` | openllmetry | OpenLLMetry's reasoning count in older releases. |
 
+## Gap
+
+| Key | python | typescript | sink | Recorded in | Why |
+| -- | -- | -- | -- | -- | -- |
+| `gen_ai.usage.input_token_details.text_tokens` | keeps | keeps | keeps | vercel-ai-otel | The text subset of a transcription span's input, beside input_token_details.audio_tokens. It belongs in gen_ai.usage.text.input_tokens, but no normalizer maps it yet, so the text split of the input is not attributed. |
+
 ## Ignored
 
 | Key | python | typescript | sink | Recorded in | Why |
@@ -79,7 +85,6 @@ families it produced them for.
 | `ai.usage.totalTokens` | keeps | keeps | keeps | vercel-ai-v5, vercel-ai-v6 | A total; the conventions define none. |
 | `gen_ai.aggregated_usage.*` | keeps | keeps | keeps | pydantic-ai | pydantic-ai's whole-run total on its agent span, next to each call's usage on the call's own span. Reading it as usage would count the run twice; it stays under its own name, which nothing reads. |
 | `gen_ai.usage.details.audio_tokens` | keeps | keeps | keeps | pydantic-ai | No single direction: pydantic-ai writes it with no input or output in the name, so it cannot map to either audio key. |
-| `gen_ai.usage.input_token_details.text_tokens` | keeps | keeps | keeps | vercel-ai-otel | As input_token_details.audio_tokens, for the text part of the input. |
 | `gen_ai.usage.total_tokens` | keeps | keeps | keeps | openllmetry, vercel-ai-otel | Not a convention key: OpenLLMetry's total. No canonical key holds a total, so it stays on the span as an extra. |
 | `llm.cost.total` | keeps | keeps | keeps | openinference-litellm, openinference-litellm-openai | Cost stays off the wire on purpose: the backend prices from the token counts with its own table, so a producer's figure is never trusted. |
 | `llm.token_count.total` | keeps | keeps | keeps | openinference-anthropic, openinference-js-anthropic, openinference-js-langchain, openinference-js-langchain-openai, openinference-js-openai, openinference-langchain, openinference-langchain-openai, openinference-litellm, openinference-litellm-openai, openinference-llama-index, openinference-llama-index-openai, openinference-openai | The conventions define no total: they record input and output and leave the sum to the reader. The sink reads it for validation only. |

@@ -405,10 +405,10 @@ def test_installed_packages_are_not_scanned(tmp_path):
 
 @pytest.mark.parametrize("modality", ["text", "image", "audio"])
 @pytest.mark.parametrize("suffix", ["input_tokens", "output_tokens", "cache_read.input_tokens"])
-def test_modality_usage_rows_are_planned_otel_ints(data, modality, suffix):
+def test_modality_usage_rows_are_shipped_otel_ints(data, modality, suffix):
     key = f"gen_ai.usage.{modality}.{suffix}"
     r = next(r for r in data["attributes"]["attributes"] if r["key"] == key)
-    assert (r["origin"], r["status"], r["type"]) == ("otel", "planned", "int")
+    assert (r["origin"], r.get("status", "shipped"), r["type"]) == ("otel", "shipped", "int")
 
 
 def test_context_sizes_documents_media_entries(data):

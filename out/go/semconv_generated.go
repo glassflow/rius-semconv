@@ -251,10 +251,46 @@ const (
 	// cache fields first shipped; no released SDK version carries the old name.
 	GenAIUsageCacheWriteInputTokens = "gen_ai.usage.cache_write.input_tokens"
 	GenAIUsageReasoningOutputTokens = "gen_ai.usage.reasoning.output_tokens"
-	GenAIInputMessages              = "gen_ai.input.messages"
-	GenAIOutputMessages             = "gen_ai.output.messages"
-	GenAIResponseFinishReason       = "gen_ai.response.finish_reasons"
-	GenAIToolName                   = "gen_ai.tool.name"
+
+	// A per-modality subset of gen_ai.usage.input_tokens: never summed
+	// into it.
+	GenAIUsageTextInputTokens = "gen_ai.usage.text.input_tokens"
+
+	// A per-modality subset of gen_ai.usage.output_tokens: never summed
+	// into it.
+	GenAIUsageTextOutputTokens = "gen_ai.usage.text.output_tokens"
+
+	// A per-modality subset of gen_ai.usage.cache_read.input_tokens: never summed
+	// into it.
+	GenAIUsageTextCacheReadInputTokens = "gen_ai.usage.text.cache_read.input_tokens"
+
+	// A per-modality subset of gen_ai.usage.input_tokens: never summed
+	// into it.
+	GenAIUsageImageInputTokens = "gen_ai.usage.image.input_tokens"
+
+	// A per-modality subset of gen_ai.usage.output_tokens: never summed
+	// into it.
+	GenAIUsageImageOutputTokens = "gen_ai.usage.image.output_tokens"
+
+	// A per-modality subset of gen_ai.usage.cache_read.input_tokens: never summed
+	// into it.
+	GenAIUsageImageCacheReadInputTokens = "gen_ai.usage.image.cache_read.input_tokens"
+
+	// A per-modality subset of gen_ai.usage.input_tokens: never summed
+	// into it.
+	GenAIUsageAudioInputTokens = "gen_ai.usage.audio.input_tokens"
+
+	// A per-modality subset of gen_ai.usage.output_tokens: never summed
+	// into it.
+	GenAIUsageAudioOutputTokens = "gen_ai.usage.audio.output_tokens"
+
+	// A per-modality subset of gen_ai.usage.cache_read.input_tokens: never summed
+	// into it.
+	GenAIUsageAudioCacheReadInputTokens = "gen_ai.usage.audio.cache_read.input_tokens"
+	GenAIInputMessages                  = "gen_ai.input.messages"
+	GenAIOutputMessages                 = "gen_ai.output.messages"
+	GenAIResponseFinishReason           = "gen_ai.response.finish_reasons"
+	GenAIToolName                       = "gen_ai.tool.name"
 
 	// The identifier of the tool call this execution answers: the id the MODEL
 	// minted on its tool-call message, which is what joins a tool span back to the
