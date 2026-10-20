@@ -156,16 +156,17 @@ the process's own version and never service.version. Registry type is a
 plain string and the conventions' own examples are "1.0.0" and "2025-05-01",
 so the caller's value is taken verbatim: there is no format to validate.
 
-**[5] `gen_ai.conversation.compacted`:** The convention's positive marker that a model call ran on a compacted
-view of the conversation. A producer sets it only when true, on the first
-LLM span after a compaction, and leaves it unset on every other call: the
-convention says never to write false, so a reader treats a missing key as
-"not known to be compacted". The compaction itself, and how much it
-removed, is the rius.compaction span or event; this key only marks the
-first call that saw the result. Metadata, not identity: the producer
-learns a compaction came first when it links the call to it, which can be
-after the call span has started, so it never rides a pending snapshot.
-Not content, so it survives capture_content=False.
+**[5] `gen_ai.conversation.compacted`:** The convention's positive marker that the context a model call ran on is
+a compacted view of a prior conversation. A producer sets it only when
+true, on every LLM span whose context was compacted, and leaves it unset
+otherwise: the convention says never to write false, so a reader treats a
+missing key as "not known to be compacted". The compaction itself, and
+how much it removed, is the rius.compaction span or event; this key only
+marks the calls that ran on the result. Metadata, not identity: the
+producer learns the context was compacted when it links the call to the
+compaction, which can be after the call span has started, so it never
+rides a pending snapshot. Not content, so it survives
+capture_content=False.
 
 **[6] `gen_ai.conversation.id`:** pydantic-ai writes it. Neither SDK emits or rewrites it: they write
 session.id, one name for one fact. The Rius backend falls back to it for

@@ -235,16 +235,17 @@ export const GEN_AI_REQUEST_ENCODING_FORMATS = "gen_ai.request.encoding_formats"
 export const GEN_AI_REQUEST_PREVIOUS_RESPONSE_ID = "gen_ai.request.previous_response.id";
 export const GEN_AI_REQUEST_STREAM_CURSOR = "gen_ai.request.stream_cursor";
 
-// The convention's positive marker that a model call ran on a compacted
-// view of the conversation. A producer sets it only when true, on the first
-// LLM span after a compaction, and leaves it unset on every other call: the
-// convention says never to write false, so a reader treats a missing key as
-// "not known to be compacted". The compaction itself, and how much it
-// removed, is the rius.compaction span or event; this key only marks the
-// first call that saw the result. Metadata, not identity: the producer
-// learns a compaction came first when it links the call to it, which can be
-// after the call span has started, so it never rides a pending snapshot.
-// Not content, so it survives capture_content=False.
+// The convention's positive marker that the context a model call ran on is
+// a compacted view of a prior conversation. A producer sets it only when
+// true, on every LLM span whose context was compacted, and leaves it unset
+// otherwise: the convention says never to write false, so a reader treats a
+// missing key as "not known to be compacted". The compaction itself, and
+// how much it removed, is the rius.compaction span or event; this key only
+// marks the calls that ran on the result. Metadata, not identity: the
+// producer learns the context was compacted when it links the call to the
+// compaction, which can be after the call span has started, so it never
+// rides a pending snapshot. Not content, so it survives
+// capture_content=False.
 export const GEN_AI_CONVERSATION_COMPACTED = "gen_ai.conversation.compacted";
 export const GEN_AI_USAGE_INPUT_TOKENS = "gen_ai.usage.input_tokens";
 export const GEN_AI_USAGE_OUTPUT_TOKENS = "gen_ai.usage.output_tokens";
@@ -436,7 +437,8 @@ export const RIUS_CONTEXT_SIZES = "rius.context.sizes";
 // An agent's context can shrink in two ways: the history is dropped without
 // a word, or the producer compacts it on purpose. A backend can tell the two
 // apart only if the producer says so, and no convention carries more than a
-// boolean on the first call after a compaction (gen_ai.conversation.compacted).
+// boolean on the calls that ran on a compacted context
+// (gen_ai.conversation.compacted).
 // The rius.compaction.* keys say what was compacted, by whom and how much.
 //
 // They ride in two placements, because compaction happens in two ways. A
@@ -445,7 +447,8 @@ export const RIUS_CONTEXT_SIZES = "rius.context.sizes";
 // "compaction", carrying the keys itself. A compaction that happens inside
 // one request (provider-side context editing, Cursor's preCompact) is a
 // rius.compaction span event on that LLM span, carrying the same keys.
-// The first LLM call after either sets gen_ai.conversation.compacted.
+// Every LLM call that runs on the compacted context sets
+// gen_ai.conversation.compacted.
 // How the context was shrunk: summarize (a summary replaces older turns),
 // clear_tool_results (old tool results are emptied), clear_thinking (old
 // thinking blocks are dropped) or truncate (old turns are cut with nothing
@@ -534,7 +537,10 @@ export const RIUS_COMPACTION_SUMMARY_BYTES = "rius.compaction.summary.bytes";
 // sense messages are: a summary restates the conversation, so it is on
 // CONTENT_ATTRIBUTES and is masked or stripped at export. Never on a
 // pending snapshot, since it exists only once the compaction ran.
-export const RIUS_COMPACTION_SUMMARY = "rius.compaction.summary";
+// A leaf under rius.compaction.summary rather than the key itself, so the
+// name is not also the namespace of rius.compaction.summary.bytes, which
+// the OpenTelemetry naming rules do not allow for an attribute.
+export const RIUS_COMPACTION_SUMMARY_TEXT = "rius.compaction.summary.text";
 
 // --- Span event names ---
 /**
@@ -558,8 +564,8 @@ export const GEN_AI_FIRST_TOKEN_EVENT = "gen_ai.first_token";
 // reports it while the call is open. It is an event on that LLM span and
 // carries the rius.compaction.* attributes. A compaction that is a step of
 // its own is a CHAIN span with gen_ai.operation.name "compaction" instead,
-// never both for the same compaction. The first LLM call after either sets
-// gen_ai.conversation.compacted.
+// never both for the same compaction. Every LLM call that runs on the
+// compacted context sets gen_ai.conversation.compacted.
 export const RIUS_COMPACTION_EVENT = "rius.compaction";
 
 // --- Pending (partial) spans ---
@@ -954,7 +960,7 @@ export const CONTENT_ATTRIBUTES: ReadonlySet<string> = new Set([
   // is content in the same sense messages are. Its size,
   // rius.compaction.summary.bytes, is not: it stays off this list and
   // survives masking.
-  RIUS_COMPACTION_SUMMARY,
+  RIUS_COMPACTION_SUMMARY_TEXT,
   // The NAMED EXCEPTION to the rule that request parameters export in clear.
   // That rule is right for scalar knobs, but a caller passing tools through
   // model parameters would otherwise export proprietary prompt engineering

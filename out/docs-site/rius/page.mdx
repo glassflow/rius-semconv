@@ -21,8 +21,8 @@ Generated from [rius-semconv](https://github.com/glassflow/rius-semconv) 1.6.0, 
 | <a id="rius-compaction-kind"></a>`rius.compaction.kind` | Development | string | What a compaction did to the context: summarize, clear_tool_results, clear_thinking or truncate. [6] | `summarize`; `clear_tool_results` |
 | <a id="rius-compaction-messages-compacted"></a>`rius.compaction.messages.compacted` | Development | int | How many messages the compaction replaced or removed. [7] | `42` |
 | <a id="rius-compaction-messages-kept"></a>`rius.compaction.messages.kept` | Development | int | How many messages the compaction left in the context as they were. [8] | `6` |
-| <a id="rius-compaction-summary"></a>`rius.compaction.summary` | Development | string | The text of the summary that replaced the compacted context. [9] | `The user is migrating the billing service to the new queue. The consumer is done; the retry policy is still open.` |
-| <a id="rius-compaction-summary-bytes"></a>`rius.compaction.summary.bytes` | Development | int | The size of the summary that replaced the compacted context, in bytes. [10] | `4096` |
+| <a id="rius-compaction-summary-bytes"></a>`rius.compaction.summary.bytes` | Development | int | The size of the summary that replaced the compacted context, in bytes. [9] | `4096` |
+| <a id="rius-compaction-summary-text"></a>`rius.compaction.summary.text` | Development | string | The text of the summary that replaced the compacted context. [10] | `The user is migrating the billing service to the new queue. The consumer is done; the retry policy is still open.` |
 | <a id="rius-compaction-tokens-after"></a>`rius.compaction.tokens.after` | Development | int | Tokens in the context just after the compaction. [11] | `31000` |
 | <a id="rius-compaction-tokens-before"></a>`rius.compaction.tokens.before` | Development | int | Tokens in the context just before the compaction. [12] | `168000` |
 | <a id="rius-compaction-tokens-dropped"></a>`rius.compaction.tokens.dropped` | Development | int | How many tokens the compaction removed from the context. [13] | `137000` |
@@ -121,14 +121,17 @@ the kind says.
 **[8] `rius.compaction.messages.kept`:** The messages the next call still sees unchanged, usually the most recent
 turns. The summary, when there is one, is not counted here.
 
-**[9] `rius.compaction.summary`:** What the summary said, for a summarize compaction. Content in the same
+**[9] `rius.compaction.summary.bytes`:** A size, not content, like rius.context.sizes: deliberately absent from
+CONTENT_ATTRIBUTES, so it survives masking and capture_content=False and
+a reader can see how big the summary was when its text is withheld.
+
+**[10] `rius.compaction.summary.text`:** What the summary said, for a summarize compaction. Content in the same
 sense messages are: a summary restates the conversation, so it is on
 CONTENT_ATTRIBUTES and is masked or stripped at export. Never on a
 pending snapshot, since it exists only once the compaction ran.
-
-**[10] `rius.compaction.summary.bytes`:** A size, not content, like rius.context.sizes: deliberately absent from
-CONTENT_ATTRIBUTES, so it survives masking and capture_content=False and
-a reader can see how big the summary was when its text is withheld.
+A leaf under rius.compaction.summary rather than the key itself, so the
+name is not also the namespace of rius.compaction.summary.bytes, which
+the OpenTelemetry naming rules do not allow for an attribute.
 
 **[11] `rius.compaction.tokens.after`:** The size of the context the compaction left behind, measured the same
 way as rius.compaction.tokens.before.
@@ -231,5 +234,5 @@ the provider edits the context as part of the call, or the agent's hook
 reports it while the call is open. It is an event on that LLM span and
 carries the rius.compaction.\* attributes. A compaction that is a step of
 its own is a CHAIN span with gen_ai.operation.name "compaction" instead,
-never both for the same compaction. The first LLM call after either sets
-gen_ai.conversation.compacted.
+never both for the same compaction. Every LLM call that runs on the
+compacted context sets gen_ai.conversation.compacted.

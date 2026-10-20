@@ -190,7 +190,7 @@ params:
   - const: RIUS_COMPACTION_TOOL_RESULTS_CLEARED
   - const: RIUS_COMPACTION_ID
   - const: RIUS_COMPACTION_SUMMARY_BYTES
-  - const: RIUS_COMPACTION_SUMMARY
+  - const: RIUS_COMPACTION_SUMMARY_TEXT
   - const: GEN_AI_FIRST_TOKEN_EVENT
   - const: RIUS_COMPACTION_EVENT
   - const: RIUS_SPAN_PENDING
@@ -752,7 +752,7 @@ params:
           BEFORE masking and has already promoted every member the rule table
           recognises onto gen_ai.request.*, so what reaches here is exactly
           the set nothing has classified.
-      - ref: RIUS_COMPACTION_SUMMARY
+      - ref: RIUS_COMPACTION_SUMMARY_TEXT
         note: |
           A compaction's summary restates the conversation it replaced, so it
           is content in the same sense messages are. Its size,

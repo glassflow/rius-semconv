@@ -193,7 +193,7 @@ content:
         BEFORE masking and has already promoted every member the rule table
         recognises onto gen_ai.request.*, so what reaches here is exactly
         the set nothing has classified.
-    - ref: RIUS_COMPACTION_SUMMARY
+    - ref: RIUS_COMPACTION_SUMMARY_TEXT
       note: |
         A compaction's summary restates the conversation it replaced, so it
         is content in the same sense messages are. Its size,

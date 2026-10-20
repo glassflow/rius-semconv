@@ -29,7 +29,7 @@ attribute_groups:
   - ref: rius.compaction.tool_results.cleared
   - ref: rius.compaction.id
   - ref: rius.compaction.summary.bytes
-  - ref: rius.compaction.summary
+  - ref: rius.compaction.summary.text
   - ref: rius.span.pending
   - ref: rius.parent.foreign
   - ref: rius.sdk.global_provider
@@ -507,7 +507,8 @@ attributes:
         An agent's context can shrink in two ways: the history is dropped without
         a word, or the producer compacts it on purpose. A backend can tell the two
         apart only if the producer says so, and no convention carries more than a
-        boolean on the first call after a compaction (gen_ai.conversation.compacted).
+        boolean on the calls that ran on a compacted context
+        (gen_ai.conversation.compacted).
         The rius.compaction.* keys say what was compacted, by whom and how much.
 
         They ride in two placements, because compaction happens in two ways. A
@@ -516,7 +517,8 @@ attributes:
         "compaction", carrying the keys itself. A compaction that happens inside
         one request (provider-side context editing, Cursor's preCompact) is a
         rius.compaction span event on that LLM span, carrying the same keys.
-        The first LLM call after either sets gen_ai.conversation.compacted.
+        Every LLM call that runs on the compacted context sets
+        gen_ai.conversation.compacted.
       key: rius.compaction.kind
       symbol: attribute
       origin: rius
@@ -875,7 +877,7 @@ attributes:
         A size, not content, like rius.context.sizes: deliberately absent from
         CONTENT_ATTRIBUTES, so it survives masking and capture_content=False and
         a reader can see how big the summary was when its text is withheld.
-- key: rius.compaction.summary
+- key: rius.compaction.summary.text
   type: string
   brief: The text of the summary that replaced the compacted context.
   note: |
@@ -883,13 +885,16 @@ attributes:
     sense messages are: a summary restates the conversation, so it is on
     CONTENT_ATTRIBUTES and is masked or stripped at export. Never on a
     pending snapshot, since it exists only once the compaction ran.
+    A leaf under rius.compaction.summary rather than the key itself, so the
+    name is not also the namespace of rius.compaction.summary.bytes, which
+    the OpenTelemetry naming rules do not allow for an attribute.
   stability: development
   examples:
   - The user is migrating the billing service to the new queue. The consumer is done; the retry policy is still open.
   annotations:
     rius:
-      const: RIUS_COMPACTION_SUMMARY
-      key: rius.compaction.summary
+      const: RIUS_COMPACTION_SUMMARY_TEXT
+      key: rius.compaction.summary.text
       symbol: attribute
       origin: rius
       kinds:
@@ -906,6 +911,9 @@ attributes:
         sense messages are: a summary restates the conversation, so it is on
         CONTENT_ATTRIBUTES and is masked or stripped at export. Never on a
         pending snapshot, since it exists only once the compaction ran.
+        A leaf under rius.compaction.summary rather than the key itself, so the
+        name is not also the namespace of rius.compaction.summary.bytes, which
+        the OpenTelemetry naming rules do not allow for an attribute.
 - key: rius.span.pending
   type: boolean
   brief: Marks the content-free snapshot of a span that is exported when the span starts, before the real span ends.
@@ -2349,8 +2357,8 @@ events:
     reports it while the call is open. It is an event on that LLM span and
     carries the rius.compaction.* attributes. A compaction that is a step of
     its own is a CHAIN span with gen_ai.operation.name "compaction" instead,
-    never both for the same compaction. The first LLM call after either sets
-    gen_ai.conversation.compacted.
+    never both for the same compaction. Every LLM call that runs on the
+    compacted context sets gen_ai.conversation.compacted.
   stability: development
   requirement_level: recommended
   annotations:
@@ -2365,5 +2373,5 @@ events:
         reports it while the call is open. It is an event on that LLM span and
         carries the rius.compaction.* attributes. A compaction that is a step of
         its own is a CHAIN span with gen_ai.operation.name "compaction" instead,
-        never both for the same compaction. The first LLM call after either sets
-        gen_ai.conversation.compacted.
+        never both for the same compaction. Every LLM call that runs on the
+        compacted context sets gen_ai.conversation.compacted.
