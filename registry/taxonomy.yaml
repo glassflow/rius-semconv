@@ -57,8 +57,8 @@ kind_by_operation:
   names: {python: _KIND_BY_OPERATION, typescript: KIND_BY_OPERATION, go: KindByOperation}
   doc: |
     The inverse, for spans that speak the conventions (and the GenAI-native
-    vendor operations listed below, such as agent_step and rerank). A
-    GenAI-native instrumentation sets gen_ai.operation.name and never heard of
+    vendor operations listed below, such as agent_step, compaction and rerank).
+    A GenAI-native instrumentation sets gen_ai.operation.name and never heard of
     openinference.span.kind, and both keys must be present on every span, so
     the derivation has to run in both directions.
 
@@ -68,7 +68,7 @@ kind_by_operation:
         are LLM calls the same way chat is, and create_agent is an AGENT span
         just as invoke_agent is, so the mapping is many-to-one and only the
         chat/invoke_agent entries round-trip.
-      - CHAIN has no operation of its own, but three operations land on it.
+      - CHAIN has no operation of its own, but four operations land on it.
         invoke_workflow and plan are real GenAI operations with no taxonomy
         value of their own; CHAIN is the honest home for both, and the reverse
         direction is the only one that can say so. agent_step is not a
@@ -76,6 +76,13 @@ kind_by_operation:
         each step of an agent run (one model call and the tools it asked
         for), a step within the run rather than an agent invocation, so
         CHAIN as well.
+      - compaction is not a conventions operation either. A producer writes it
+        on the span of a step that shrinks the agent's context (a summary
+        replaces older turns, tool results are cleared, old turns are cut). The
+        step is not a model call and not an agent invocation, so neither LLM
+        nor AGENT fits, even when a model writes the summary: the cost of that
+        call, if any, is its own LLM span. CHAIN is the honest home, as for
+        agent_step. The span's attributes are the rius.compaction.* keys.
       - LLM also takes four operations @ai-sdk/otel writes that no convention
         defines, kept as written rather than rewritten to chat or given an
         invented name: decide (the experimental decision call: an operation
@@ -97,6 +104,7 @@ kind_by_operation:
     invoke_workflow: CHAIN
     plan: CHAIN
     agent_step: CHAIN
+    compaction: CHAIN
     decide: LLM
     ai.generateSpeech: LLM
     ai.transcribe: LLM

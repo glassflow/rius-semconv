@@ -112,10 +112,11 @@ def test_the_upstream_main_agent_keys_are_referenced_not_defined(files, own):
         assert f"gen_ai.main_agent.{field}" not in defined
 
 
-def test_the_rius_event_is_an_event(own):
-    (event,) = own["events"]
-    assert event["name"] == "gen_ai.first_token"
-    assert event["requirement_level"] == "recommended"
+def test_the_rius_events_are_events(own):
+    events = {e["name"]: e for e in own["events"]}
+    assert set(events) == {"gen_ai.first_token", "rius.compaction"}
+    for event in events.values():
+        assert event["requirement_level"] == "recommended"
 
 
 def test_columns_without_a_weaver_field_ride_the_annotation(own):
