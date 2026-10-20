@@ -498,8 +498,8 @@ def test_data_url_mime_is_a_token_or_unknown(base_data, text, mime):
     assert (span.start, span.end, span.mime) == (0, len(text), mime)
 
 
-#: Rule (b) is linear: 40 KB of near-matches takes milliseconds (it took
-#: seconds while the classes allowed `:`). The bound leaves room for slow CI.
+#: Rule (b) is linear: 40 KB of near-matches takes milliseconds. The bound
+#: leaves room for slow CI.
 NEAR_MATCHES = {"data_colon": "data:" * 8_000, "data_a_semicolon": "data:a;" * 6_000}
 TIME_BOUND = 0.5
 
@@ -649,7 +649,7 @@ def test_stripping_twice_is_stripping_once_on_random_documents(base_data):
     """Seeded: structured documents mixing Buffers, mime keys, format and data
     URLs, compact and spaced, at the top level and as a JSON string inside."""
     raw = base_data["media_parts"]["raw_payloads"]
-    rng = random.Random(1505)
+    rng = random.Random(20240601)
     failures = []
     for _ in range(FUZZ_CASES):
         separators = rng.choice([(",", ":"), (", ", ": ")])
