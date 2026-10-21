@@ -43,6 +43,8 @@ DETECTION_FIELDS = {
         "source_type",
         "blob_type",
         "blob_key",
+        "typed_keys",
+        "source_bytes_keys",
         "mime_keys",
         "mime_formats",
     ),
@@ -568,7 +570,8 @@ def keyed_base64(raw: dict, value: dict | Members, parent_key: str | None) -> li
     duplicates included: a keyed string, or an array holding one directly.
     Every member counts for the context: a sibling key with a non-empty string
     value that is not a complete replacement, the parent key, or a base64
-    source."""
+    source. A blob's content, a typed key under one of its types and a source's
+    bytes need no other context."""
     rule = _rules(raw)["e"]
     members = _members(value)
     context = (
@@ -582,6 +585,12 @@ def keyed_base64(raw: dict, value: dict | Members, parent_key: str | None) -> li
     keys = set(rule["keys"]) if context else set()
     if _first(members, "type", lambda v: v == rule["blob_type"]) is not None:
         keys.add(rule["blob_key"])
+    for typed in rule["typed_keys"]:
+        types = typed["types"]
+        if _first(members, "type", lambda v, types=types: v in types) is not None:
+            keys.add(typed["key"])
+    if parent_key == rule["source_key"]:
+        keys.update(rule["source_bytes_keys"])
     return [
         i
         for i, (k, v) in enumerate(members)
@@ -1113,6 +1122,8 @@ def _render_raw_payloads(raw: dict) -> list[str]:
 
 def _param(value: Any) -> str:
     """A detection rule parameter, for the table."""
+    if isinstance(value, list) and all(isinstance(v, dict) and "types" in v for v in value):
+        return ", ".join(f"`{v['key']}` under type " + _code_list(v["types"]) for v in value)
     if isinstance(value, list) and all(isinstance(v, dict) for v in value):
         return ", ".join(
             "`"

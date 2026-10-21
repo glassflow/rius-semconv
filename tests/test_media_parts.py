@@ -33,7 +33,7 @@ def test_committed_file_is_clean(base_data):
 
 def test_every_row_has_a_source_shape_and_direction(base_data):
     rows = base_data["media_parts"]["rows"]
-    assert len(rows) == 28
+    assert len(rows) == 31
     assert {r["direction"] for r in rows} == {"input", "output"}
 
 
@@ -576,6 +576,19 @@ REQUIRED_GOLDEN = {
     "context_is_read_before_the_pass_in_any_order",
     "output_format_is_read_before_the_pass",
     "a_second_pass_after_the_candidate_starts_to_parse",
+    "langchain_v1_base64_image",
+    "langchain_v1_blocks_of_every_media_type",
+    "a_base64_key_beside_a_mime_type",
+    "a_base64_key_with_no_media_context",
+    "a_typed_key_counts_when_any_type_member_qualifies",
+    "bedrock_converse_image_bytes",
+    "bedrock_converse_document_and_video_bytes",
+    "bedrock_converse_audio_bytes",
+    "bytes_outside_a_source_is_left_alone",
+    "mistral_input_audio_string",
+    "mistral_typescript_input_audio_string",
+    "input_audio_string_with_no_type_is_left_alone",
+    "the_new_shapes_stripped_twice_change_nothing",
 }
 
 
