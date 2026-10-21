@@ -394,7 +394,11 @@ def lint_raw_payloads(raw: Any) -> list[str]:
 #: The languages a byte_objects example is written in, and their names.
 BYTE_OBJECT_LANGUAGES = {"python": "Python", "typescript": "TypeScript"}
 #: The languages an attribute_values example is written in.
-ATTRIBUTE_VALUE_LANGUAGES = {"python": "Python", "otlp": "OTLP JSON (the sink)"}
+ATTRIBUTE_VALUE_LANGUAGES = {
+    "python": "Python",
+    "typescript": "TypeScript",
+    "otlp": "OTLP JSON (the sink)",
+}
 
 
 def lint_byte_objects(raw: dict) -> list[str]:
@@ -448,18 +452,41 @@ def lint_byte_objects(raw: dict) -> list[str]:
                 f"{where} attribute_values {name} language must be one of "
                 f"{sorted(ATTRIBUTE_VALUE_LANGUAGES)}"
             )
-        output = example.get("output")
-        outputs = output if isinstance(output, list) else [output]
-        if not all(isinstance(o, str) for o in outputs) or not any(
-            marker.fullmatch(o) for o in outputs
-        ):
+        if not _attribute_markers(marker, example.get("output")):
             errors.append(
-                f"{where} attribute_values {name} output must be a bare marker"
-                " or a list holding one"
+                f"{where} attribute_values {name} output must be a bare marker,"
+                " or an array or mapping holding one, or an array's JSON holding one"
             )
     if not attributes.get("examples"):
         errors.append(f"{where} attribute_values needs examples")
     return errors
+
+
+def _attribute_markers(marker: re.Pattern, output: Any) -> bool:
+    """Whether an attribute value holds a marker: a string that is one, an
+    array or mapping whose values hold one, or an array's JSON fallback that
+    does. Anything that is no attribute value holds none."""
+    if isinstance(output, dict):
+        values = list(output.values())
+    elif isinstance(output, list):
+        values = output
+    elif isinstance(output, str):
+        if marker.fullmatch(output):
+            return True
+        try:
+            fallback = json.loads(output)
+        except ValueError:
+            return False
+        return isinstance(fallback, list) and _attribute_markers(marker, fallback)
+    else:
+        return False
+    found = False
+    for value in values:
+        if isinstance(value, (dict, list, str)):
+            found = _attribute_markers(marker, value) or found
+        elif not isinstance(value, (bool, int, float)) and value is not None:
+            return False
+    return found
 
 
 def lint_golden(raw: dict) -> list[str]:
@@ -1361,29 +1388,66 @@ def serialize_value(raw: dict, value: Any) -> str:
     return strip_raw_payload(raw, text)
 
 
+#: The Python byte objects.
+BYTE_OBJECT_TYPES = (bytes, bytearray, memoryview)
+
+
 def attribute_value(raw: dict, value: Any) -> Any:
     """A value an SDK sets directly as an attribute value: a byte object is
-    the bare marker; in an array, each byte object element is; anything else
-    is kept."""
-    if isinstance(value, (bytes, bytearray, memoryview)):
+    the bare marker, at any depth of arrays and mappings. An array that holds
+    a byte object beside an element that is then no string cannot stay
+    homogeneous, so it is the SDK's JSON of the array (serialize_value), one
+    string. Anything else is kept."""
+    if isinstance(value, BYTE_OBJECT_TYPES):
         return replacement(raw, None, byte_object_size(value))
+    if isinstance(value, dict):
+        return {k: attribute_value(raw, v) for k, v in value.items()}
     if isinstance(value, (list, tuple)):
-        return [attribute_value(raw, v) if not isinstance(v, (list, tuple)) else v for v in value]
+        out = [attribute_value(raw, v) for v in value]
+        if any(isinstance(v, BYTE_OBJECT_TYPES) for v in value) and not all(
+            isinstance(v, str) for v in out
+        ):
+            return serialize_value(raw, list(value))
+        return out
     return value
 
 
-def otlp_attribute_value(raw: dict, any_value: dict) -> Any:
-    """An OTLP JSON AnyValue as the sink stores it: a bytesValue is the bare
-    marker with its decoded length; in an arrayValue, each bytesValue element
-    is; a stringValue is its string."""
+def otlp_bytes(text: str) -> bytes:
+    """An OTLP JSON bytesValue as a protobuf JSON parser reads it: standard or
+    URL-safe base64, padded or not (proto3 JSON emits standard, padded)."""
+    if set("+/") & set(text) and set("-_") & set(text):
+        raise ValueError(f"{text!r} mixes the base64 alphabets")
+    body = text.rstrip("=").replace("-", "+").replace("_", "/")
+    if len(body) % 4 == 1:
+        raise ValueError(f"{text!r} is not base64")
+    return base64.b64decode(body + "=" * (-len(body) % 4), validate=True)
+
+
+def otlp_value(any_value: dict) -> Any:
+    """An OTLP JSON AnyValue as a native value: a bytesValue is bytes, an
+    arrayValue a list, a kvlistValue a mapping (the last of a duplicate key
+    wins), an intValue an int (OTLP JSON may write it as a string)."""
     if "bytesValue" in any_value:
-        return replacement(raw, None, len(base64.b64decode(any_value["bytesValue"])))
+        return otlp_bytes(any_value["bytesValue"])
     if "arrayValue" in any_value:
-        values = any_value["arrayValue"].get("values") or []
-        return [v if "arrayValue" in v else otlp_attribute_value(raw, v) for v in values]
-    if "stringValue" in any_value:
-        return any_value["stringValue"]
+        return [otlp_value(v) for v in any_value["arrayValue"].get("values") or []]
+    if "kvlistValue" in any_value:
+        values = any_value["kvlistValue"].get("values") or []
+        return {kv["key"]: otlp_value(kv.get("value") or {}) for kv in values}
+    if "intValue" in any_value:
+        return int(any_value["intValue"])
+    for key in ("stringValue", "boolValue", "doubleValue"):
+        if key in any_value:
+            return any_value[key]
     raise ValueError(f"no reference for {any_value!r}")
+
+
+def otlp_attribute_value(raw: dict, any_value: dict) -> Any:
+    """An OTLP JSON AnyValue as the sink stores it: read as a native value,
+    every bytesValue becoming its bytes, then the SDKs' attribute_value
+    rule, so a bytesValue at any depth is the bare marker with its decoded
+    length."""
+    return attribute_value(raw, otlp_value(any_value))
 
 
 # --- the fixtures ------------------------------------------------------------

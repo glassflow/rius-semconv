@@ -1471,7 +1471,13 @@ def test_a_lone_surrogate_is_written_escaped(base_data):
 ATTRIBUTE_VALUES = BYTE_OBJECTS["attribute_values"]["examples"]
 
 
-@pytest.mark.parametrize("example", ATTRIBUTE_VALUES, ids=[e["name"] for e in ATTRIBUTE_VALUES])
+REFERENCE_ATTRIBUTE_VALUES = [e for e in ATTRIBUTE_VALUES if e["language"] != "typescript"]
+TYPESCRIPT_ATTRIBUTE_VALUES = [e for e in ATTRIBUTE_VALUES if e["language"] == "typescript"]
+
+
+@pytest.mark.parametrize(
+    "example", REFERENCE_ATTRIBUTE_VALUES, ids=[e["name"] for e in REFERENCE_ATTRIBUTE_VALUES]
+)
 def test_attribute_value_examples_are_what_the_reference_makes(base_data, example):
     """A byte object set as an attribute value is the bare marker, no quotes."""
     raw = base_data["media_parts"]["raw_payloads"]
@@ -1486,7 +1492,44 @@ def test_attribute_value_examples_are_what_the_reference_makes(base_data, exampl
         assert media_parts.otlp_attribute_value(raw, any_value) == example["output"]
 
 
-def test_attribute_values_cover_python_and_the_sink():
+# The TypeScript SDK's attribute value rule: a byte object at any depth is the
+# bare marker, and an array that cannot stay homogeneous is its JSON, written
+# with the byte object replacer.
+ATTRIBUTE_VALUE_SCRIPT = (
+    BYTE_OBJECT_SCRIPT.split("const examples")[0]
+    + r"""
+const marker = (v) => `[stripped unknown ${v.byteLength} bytes]`;
+const attributeValue = (v) => {
+  if (isBytes(v)) return marker(v);
+  if (Array.isArray(v)) {
+    const out = v.map(attributeValue);
+    const mixed = v.some(isBytes) && !out.every((e) => typeof e === "string");
+    return mixed ? JSON.stringify(v, replacer) : out;
+  }
+  if (v !== null && typeof v === "object") {
+    return Object.fromEntries(Object.entries(v).map(([k, e]) => [k, attributeValue(e)]));
+  }
+  return v;
+};
+const examples = JSON.parse(process.argv[1]);
+console.log(JSON.stringify(examples.map((e) => attributeValue((0, eval)("(" + e + ")")))));
+"""
+)
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is not installed")
+def test_typescript_attribute_values_are_their_output():
+    values = [e["value"] for e in TYPESCRIPT_ATTRIBUTE_VALUES]
+    out = subprocess.run(
+        [shutil.which("node"), "-e", ATTRIBUTE_VALUE_SCRIPT, json.dumps(values)],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    assert json.loads(out) == [e["output"] for e in TYPESCRIPT_ATTRIBUTE_VALUES]
+
+
+def test_attribute_values_cover_every_language():
     assert {e["language"] for e in ATTRIBUTE_VALUES} == set(media_parts.ATTRIBUTE_VALUE_LANGUAGES)
 
 
