@@ -1641,6 +1641,151 @@ Output:
 
 Tokens: none.
 
+### Byte objects
+
+When an SDK serializes a value that is not a string into an attribute (an input or output it records, a tool's arguments or result), every byte object in it is written as the replacement with the unknown mime, `[stripped unknown <N> bytes]`, where N is its size in bytes (see size), as a JSON string literal in the place the value had. The byte objects are the types listed below for each SDK, subclasses included. The mime is always unknown, never read from a sibling such as mediaType: a serializer writes each value on its own. A byte object at the root is serialized like any other value that is not a string, so the attribute holds the JSON string literal, quotes included. An object key is never a byte object. The strip then runs as on any value, and since the marker is a complete replacement it is never stripped again and is never context for rule (e) (see idempotence). Rule (d) and this rule meet at the Node Buffer. A Buffer is a Uint8Array, so the TypeScript SDK writes it as this marker; it must read each value from its holder, as JSON.stringify calls a Buffer's toJSON, which writes {"type":"Buffer","data":[...]}, before a replacer sees the value. Rule (d) is for a Buffer that became that object before an SDK saw it, in a string another library serialized (the AI SDK's ai.prompt), and for the sink. Both count the same bytes; rule (d) may also read a mime type from the enclosing object, which this rule never does.
+
+**Size.** The size in bytes, never a count of items. Python: len of bytes and bytearray, nbytes of memoryview (so a memoryview cast to 4-byte items counts 4 per item); a released memoryview has no size, and its marker's size is unknown. TypeScript: byteLength of an ArrayBuffer, a SharedArrayBuffer and every ArrayBuffer view (ArrayBuffer.isView: each typed array, a Node Buffer and a DataView), the view's own length, not its buffer's.
+
+- Python: `bytes`, `bytearray`, `memoryview`
+- TypeScript: `ArrayBuffer`, `SharedArrayBuffer`, `every ArrayBuffer view (ArrayBuffer.isView): each typed array, Buffer and DataView`
+
+#### `python_bytes_in_a_dict`
+
+Value (python):
+
+```text
+{"image": b"\x89PNG"}
+```
+
+Attribute value:
+
+```text
+{"image":"[stripped unknown 4 bytes]"}
+```
+
+#### `python_bytearray_and_memoryview`
+
+Value (python):
+
+```text
+[bytearray(b"abc"), memoryview(b"abcdef")[2:]]
+```
+
+Attribute value:
+
+```text
+["[stripped unknown 3 bytes]","[stripped unknown 4 bytes]"]
+```
+
+#### `python_memoryview_counts_bytes_not_items`
+
+The view has 2 items of 4 bytes, so its size is 8. At the root, the attribute is the JSON string literal.
+
+Value (python):
+
+```text
+memoryview(bytes(8)).cast("I")
+```
+
+Attribute value:
+
+```text
+"[stripped unknown 8 bytes]"
+```
+
+#### `python_bytes_beside_a_media_type`
+
+The mime is unknown though mediaType names one, and the strip that follows leaves the marker: it is a complete replacement.
+
+Value (python):
+
+```text
+{"type": "file", "data": b"\x89PNG", "mediaType": "image/png"}
+```
+
+Attribute value:
+
+```text
+{"type":"file","data":"[stripped unknown 4 bytes]","mediaType":"image/png"}
+```
+
+#### `python_empty_bytes`
+
+Value (python):
+
+```text
+{"data": b""}
+```
+
+Attribute value:
+
+```text
+{"data":"[stripped unknown 0 bytes]"}
+```
+
+#### `typescript_uint8array`
+
+Value (typescript):
+
+```text
+{ u: new Uint8Array(3) }
+```
+
+Attribute value:
+
+```text
+{"u":"[stripped unknown 3 bytes]"}
+```
+
+#### `typescript_node_buffer_is_a_byte_object`
+
+A Buffer is written as the marker, never as {"type":"Buffer","data":[...]}, so its mime is unknown: compare vercel_buffer_in_ai_prompt, where rule (d) strips a Buffer the AI SDK serialized.
+
+Value (typescript):
+
+```text
+{ type: "file", data: Buffer.from([137, 80, 78, 71]), mediaType: "image/png" }
+```
+
+Attribute value:
+
+```text
+{"type":"file","data":"[stripped unknown 4 bytes]","mediaType":"image/png"}
+```
+
+#### `typescript_typed_array_counts_bytes_not_items`
+
+Two 2-byte items are 4 bytes. At the root, the attribute is the JSON string literal.
+
+Value (typescript):
+
+```text
+new Uint16Array(2)
+```
+
+Attribute value:
+
+```text
+"[stripped unknown 4 bytes]"
+```
+
+#### `typescript_array_buffer_and_data_view`
+
+A view counts its own length, not its buffer's.
+
+Value (typescript):
+
+```text
+[new ArrayBuffer(5), new DataView(new ArrayBuffer(8), 2, 3)]
+```
+
+Attribute value:
+
+```text
+["[stripped unknown 5 bytes]","[stripped unknown 3 bytes]"]
+```
+
 ## Input
 
 | Source | Shape | Becomes | Modality | Paths | Fixtures | Notes |
@@ -1678,6 +1823,7 @@ Tokens: none.
 | `openinference.llm` | `message_content.type = image with no image.url (image.media_type and image.type only, or nothing)` | blob | image | openinference | `openinference-js-anthropic/image_base64`, `openinference-js-anthropic/image_url` | What OpenInference's JS Anthropic instrumentor writes for an image. A base64 source leaves image.media_type (the mime type) and image.type = base64 but no data; a url source leaves only message_content.type = image. The blob carries the mime type when given, no byte_size, and stripped_reason redacted_upstream. |
 | `openinference.llm` | `media present only in input.value (audio input, PDF document)` | no part (raw payload stripped: `input.value`) | - | openinference | `openinference-openai/input_audio`, `openinference-js-openai/input_audio`, `openinference-anthropic/document_pdf`, `openinference-js-anthropic/document_pdf` | OpenInference (Python and JS) leaves OpenAI input_audio and an Anthropic base64 document out of the flattened messages, and keeps them only in the request JSON of input.value. No part is made; the raw payload is stripped per raw_payloads. |
 | `openllmetry.openai` | `image as a data URL: the instrumentor drops the prompt content; nothing to normalize` | no part | - | openllmetry | `openllmetry/image_base64` | Before 0.62 the span keeps only gen_ai.prompt.0.role, with no content; 0.62 writes no gen_ai.input.messages at all. This holds for every recorded version. |
+| `rius.sdk` | `byte object in a serialized value (Python bytes, bytearray, memoryview; TypeScript ArrayBuffer and its views, Buffer included)` | no part (raw payload stripped: `input.value`, `output.value`) | - | passthrough | none | No recorded family records one; covered by the SDK serialization unit tests. The SDK writes it as [stripped unknown &lt;N&gt; bytes] while serializing, per raw_payloads byte_objects, so no bytes reach the attribute. It makes no part. The same holds for a value recorded as output, and for a tool's arguments and result. |
 
 ## Output
 

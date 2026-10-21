@@ -33,7 +33,7 @@ def test_committed_file_is_clean(base_data):
 
 def test_every_row_has_a_source_shape_and_direction(base_data):
     rows = base_data["media_parts"]["rows"]
-    assert len(rows) == 36
+    assert len(rows) == 37
     assert {r["direction"] for r in rows} == {"input", "output"}
 
 
@@ -208,6 +208,11 @@ def test_raw_payload_rows(base_data):
         ("vercel.ai", "file part with Buffer data in ai.prompt"): ["ai.prompt"],
         ("vercel.ai", "image part with base64 image in ai.prompt"): ["ai.prompt"],
         ("vercel.ai", "file / image part with v7 tagged data in ai.prompt"): ["ai.prompt"],
+        (
+            "rius.sdk",
+            "byte object in a serialized value (Python bytes, bytearray, memoryview;"
+            " TypeScript ArrayBuffer and its views, Buffer included)",
+        ): ["input.value", "output.value"],
     }
     (oo,) = [r for r in rows if r["source"] == "openllmetry.openai"]
     assert "raw_payload" not in oo
@@ -1146,3 +1151,72 @@ def test_a_rule_e_without_its_new_fields_fails_lint(data):
     errors = media_parts.lint(data["media_parts"])
     assert_flags(errors, "detection rule e needs url_scheme")
     assert_flags(errors, "detection rule e needs base64_markers")
+
+
+# --- byte objects -------------------------------------------------------------
+
+BYTE_OBJECTS = Registry.load().media_parts["raw_payloads"]["byte_objects"]
+PYTHON_BYTE_OBJECTS = [e for e in BYTE_OBJECTS["examples"] if e["language"] == "python"]
+
+
+@pytest.mark.parametrize(
+    "example", PYTHON_BYTE_OBJECTS, ids=[e["name"] for e in PYTHON_BYTE_OBJECTS]
+)
+def test_python_byte_objects_serialize_to_their_output(base_data, example):
+    """The reference serializer writes each Python example's value as its
+    attribute value. The TypeScript examples are checked by the TypeScript
+    SDK; here they are checked to be final (lint)."""
+    raw = base_data["media_parts"]["raw_payloads"]
+    value = eval(
+        example["value"],
+        {"__builtins__": {}, "bytearray": bytearray, "bytes": bytes, "memoryview": memoryview},
+    )  # noqa: S307
+    assert media_parts.serialize_value(raw, value) == example["output"]
+
+
+def test_byte_objects_cover_both_languages():
+    assert {e["language"] for e in BYTE_OBJECTS["examples"]} == set(
+        media_parts.BYTE_OBJECT_LANGUAGES
+    )
+
+
+def test_a_released_memoryview_has_no_size(base_data):
+    raw = base_data["media_parts"]["raw_payloads"]
+    view = memoryview(b"abc")
+    view.release()
+    assert media_parts.serialize_value(raw, [view]) == '["[stripped unknown unknown bytes]"]'
+
+
+def test_a_byte_object_example_without_a_marker_fails_lint(data):
+    example = data["media_parts"]["raw_payloads"]["byte_objects"]["examples"][0]
+    example["output"] = '{"image":"<bytes 4 bytes>"}'
+    assert_flags(media_parts.lint(data["media_parts"]), "output holds no marker")
+
+
+def test_a_byte_object_example_with_a_known_mime_fails_lint(data):
+    example = data["media_parts"]["raw_payloads"]["byte_objects"]["examples"][0]
+    example["output"] = '{"image":"[stripped image/png 4 bytes]"}'
+    assert_flags(media_parts.lint(data["media_parts"]), "output holds no marker")
+
+
+def test_a_byte_object_example_that_a_strip_changes_fails_lint(data):
+    example = data["media_parts"]["raw_payloads"]["byte_objects"]["examples"][0]
+    example["output"] = '{"image":"[stripped unknown 4 bytes]","x":"data:image/png;base64,QUFB"}'
+    assert_flags(media_parts.lint(data["media_parts"]), "output is not final")
+
+
+def test_a_byte_object_example_needs_a_language(data):
+    data["media_parts"]["raw_payloads"]["byte_objects"]["examples"][0]["language"] = "go"
+    assert_flags(media_parts.lint(data["media_parts"]), "language must be one of")
+
+
+def test_byte_objects_are_required(data):
+    del data["media_parts"]["raw_payloads"]["byte_objects"]
+    assert_flags(media_parts.lint(data["media_parts"]), "raw_payloads needs byte_objects")
+
+
+def test_byte_objects_rendered(base_data):
+    table = media_parts.render_table(base_data["media_parts"])
+    assert "### Byte objects" in table
+    for example in BYTE_OBJECTS["examples"]:
+        assert f"`{example['name']}`" in table

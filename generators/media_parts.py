@@ -70,6 +70,7 @@ RAW_PAYLOAD_FIELDS = (
     "replacement",
     "detection",
     "golden",
+    "byte_objects",
 )
 #: The prose rulings, rendered in this order.
 RAW_PAYLOAD_PROSE = (
@@ -364,7 +365,55 @@ def lint_raw_payloads(raw: Any) -> list[str]:
         if not entry.get("key") or "<value>" not in str(entry.get("mime", "")):
             errors.append(f"{where} detection rule e mime_formats need a key and a <value> mime")
     if not errors:
+        errors += lint_byte_objects(raw)
         errors += lint_golden(raw)
+    return errors
+
+
+#: The languages a byte_objects example is written in, and their names.
+BYTE_OBJECT_LANGUAGES = {"python": "Python", "typescript": "TypeScript"}
+
+
+def lint_byte_objects(raw: dict) -> list[str]:
+    """The byte_objects section: the rule, the types each SDK treats as one,
+    and examples whose output holds a marker and is final (a strip changes
+    nothing in it)."""
+    where = "media_parts: raw_payloads byte_objects"
+    section = raw.get("byte_objects")
+    if not isinstance(section, dict):
+        return [f"{where} must be a mapping"]
+    errors = [
+        f"{where} needs {field}"
+        for field in ("rule", "size", *sorted(BYTE_OBJECT_LANGUAGES), "examples")
+        if not section.get(field)
+    ]
+    for field in ("rule", "size"):
+        if field in section and not isinstance(section[field], str):
+            errors.append(f"{where} {field} must be prose")
+    if errors:
+        return errors
+    unknown = re.escape(str(raw["replacement"]["unknown"]))
+    marker = re.compile(
+        re.escape(str(raw["replacement"]["format"]))
+        .replace("<mime>", unknown)
+        .replace("<byte_size>", f"([0-9]+|{unknown})")
+    )
+    names: set[str] = set()
+    for example in section["examples"]:
+        name = example.get("name")
+        if not name or name in names:
+            errors.append(f"{where} example needs a unique name, not {name!r}")
+        names.add(name)
+        if example.get("language") not in BYTE_OBJECT_LANGUAGES:
+            errors.append(f"{where} {name} language must be one of {sorted(BYTE_OBJECT_LANGUAGES)}")
+        output = example.get("output")
+        if not isinstance(example.get("value"), str) or not isinstance(output, str):
+            errors.append(f"{where} {name} needs a value and an output string")
+            continue
+        if not marker.search(output):
+            errors.append(f"{where} {name} output holds no marker with the unknown mime")
+        if strip(raw, output).text != output:
+            errors.append(f"{where} {name} output is not final: a strip changes it")
     return errors
 
 
@@ -1049,6 +1098,38 @@ def media_tokens(raw: dict, value: Any) -> list[Token]:
     return strip(raw, text).tokens
 
 
+# --- byte objects ----------------------------------------------------------------
+#
+# serialize_value is the reference for raw_payloads.byte_objects on the Python
+# side: a value written as the SDKs write a non-string attribute value, with
+# every byte object written as the replacement, then stripped.
+
+
+def byte_object_size(value: bytes | bytearray | memoryview) -> int | None:
+    """A byte object's length in bytes; None (unknown) for a released
+    memoryview."""
+    if isinstance(value, memoryview):
+        try:
+            return value.nbytes
+        except ValueError:
+            return None
+    return len(value)
+
+
+def serialize_value(raw: dict, value: Any) -> str:
+    """A value as an SDK writes it into an attribute: compact JSON with raw
+    UTF-8, every bytes, bytearray or memoryview in it written as the
+    replacement with the unknown mime, and the text then stripped."""
+
+    def default(obj: Any) -> str:
+        if isinstance(obj, (bytes, bytearray, memoryview)):
+            return replacement(raw, None, byte_object_size(obj))
+        raise TypeError(f"{type(obj).__name__} is not serializable")
+
+    text = json.dumps(value, default=default, separators=(",", ":"), ensure_ascii=False)
+    return strip_raw_payload(raw, text)
+
+
 # --- the fixtures ------------------------------------------------------------
 
 
@@ -1199,6 +1280,22 @@ def _render_raw_payloads(raw: dict) -> list[str]:
             lines += ["Output of a second pass over the output:", ""]
             lines += ["```text", golden["second_output"], "```", ""]
             lines += [f"Tokens of the second pass: {second or 'none'}.", ""]
+    lines += _render_byte_objects(raw["byte_objects"])
+    return lines
+
+
+def _render_byte_objects(section: dict) -> list[str]:
+    lines = ["### Byte objects", "", _prose(section["rule"]), ""]
+    lines += [f"**Size.** {_prose(section['size'])}", ""]
+    for language in sorted(BYTE_OBJECT_LANGUAGES):
+        lines.append(f"- {BYTE_OBJECT_LANGUAGES[language]}: " + _code_list(section[language]))
+    lines.append("")
+    for example in section["examples"]:
+        lines += [f"#### `{example['name']}`", ""]
+        if example.get("note"):
+            lines += [_prose(example["note"]), ""]
+        lines += [f"Value ({example['language']}):", "", "```text", example["value"], "```", ""]
+        lines += ["Attribute value:", "", "```text", example["output"], "```", ""]
     return lines
 
 
