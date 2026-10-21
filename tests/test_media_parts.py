@@ -751,6 +751,57 @@ def test_a_bare_file_part_is_not_canonical(base_data):
     assert_flags(errors, "has no file_id")
 
 
+def _blob(**members):
+    return {"type": "blob", "modality": "image", **members, "stripped_reason": "not_captured"}
+
+
+@pytest.mark.parametrize(
+    ("part", "fragment"),
+    [
+        (_blob(byte_size=-1), "has byte_size -1"),
+        (_blob(byte_size="8"), "has byte_size '8'"),
+        (_blob(byte_size=2.5), "has byte_size 2.5"),
+        (_blob(byte_size=8.0), "has byte_size 8.0"),
+        (_blob(byte_size=True), "has byte_size True"),
+        (_blob(byte_size=2**53), "has byte_size 9007199254740992"),
+        ({"type": "uri", "modality": "image", "uri": {"href": "h"}}, "has uri {'href': 'h'}"),
+        ({"type": "file", "modality": "image", "file_id": 5}, "has file_id 5"),
+        ({"type": "file", "modality": "picture", "file_id": "f"}, "has modality 'picture'"),
+        (
+            {"type": "blob", "modality": "image", "stripped_reason": "gone"},
+            "has stripped_reason 'gone'",
+        ),
+        (
+            {"type": "uri", "modality": "image", "mime_type": "image", "uri": "u"},
+            "has mime_type 'image'",
+        ),
+        ({"type": "uri", "modality": "image", "mime_type": 5, "uri": "u"}, "has mime_type 5"),
+    ],
+)
+def test_a_part_with_a_wrong_value_is_not_canonical(base_data, part, fragment):
+    assert_flags(media_parts.part_order_errors(base_data["media_parts"], part), fragment)
+
+
+def test_the_stripped_reasons_come_from_the_contract(base_data):
+    media = copy.deepcopy(base_data["media_parts"])
+    media["stripped_reasons"] = {"redacted_upstream": "x"}
+    errors = media_parts.part_order_errors(media, _blob())
+    assert_flags(errors, "has stripped_reason 'not_captured'")
+
+
+@pytest.mark.parametrize(
+    "part",
+    [
+        _blob(mime_type="image/png", byte_size=0),
+        _blob(byte_size=2**53 - 1),
+        {"type": "uri", "modality": "video", "uri": ""},
+        {"type": "file", "modality": "document", "file_id": ""},
+    ],
+)
+def test_a_part_with_canonical_values_passes(base_data, part):
+    assert media_parts.part_order_errors(base_data["media_parts"], part) == []
+
+
 def _parts(value):
     """The parts of a message-key value: each message's parts, or the system
     instructions' list itself."""

@@ -185,6 +185,9 @@ PART_MEMBERS = {
 REQUIRED_MEMBER = {"blob": "stripped_reason", "uri": "uri", "file": "file_id"}
 #: Members whose unknown value is omitted rather than written as null.
 OMITTABLE = {"mime_type", "byte_size"}
+#: The largest byte_size a part may carry: the largest integer a JSON number
+#: holds exactly.
+MAX_BYTE_SIZE = 2**53 - 1
 
 
 def part_order_errors(data: dict, part: Any) -> list[str]:
@@ -206,12 +209,22 @@ def part_order_errors(data: dict, part: Any) -> list[str]:
             errors.append(f"has no {required}")
     mime_pattern = ((data.get("raw_payloads") or {}).get("replacement") or {}).get("mime_pattern")
     mime = part.get("mime_type")
-    if mime is not None and mime_pattern and not re.fullmatch(str(mime_pattern), str(mime)):
+    if mime is not None and (
+        not isinstance(mime, str) or (mime_pattern and not re.fullmatch(str(mime_pattern), mime))
+    ):
         errors.append(f"has mime_type {mime!r}, which is not a token/token MIME type")
     if part.get("modality") not in set(data.get("modalities") or []):
         errors.append(f"has modality {part.get('modality')!r}")
-    if kind == "blob" and part.get("stripped_reason") not in STRIPPED_REASONS:
+    if kind == "blob" and part.get("stripped_reason") not in set(
+        data.get("stripped_reasons") or []
+    ):
         errors.append(f"has stripped_reason {part.get('stripped_reason')!r}")
+    size = part.get("byte_size")
+    if size is not None and (type(size) is not int or not 0 <= size <= MAX_BYTE_SIZE):
+        errors.append(f"has byte_size {size!r}, which is not a whole number from 0 to 2^53 - 1")
+    for member in ("uri", "file_id"):
+        if member in part and part[member] is not None and not isinstance(part[member], str):
+            errors.append(f"has {member} {part[member]!r}, which is not a string")
     return errors
 
 
