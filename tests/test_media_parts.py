@@ -609,6 +609,11 @@ REQUIRED_GOLDEN = {
     "langchain_v0_base64_blocks_with_a_mime_type",
     "langchain_v0_blocks_with_no_base64_marker_are_left_alone",
     "the_vercel_and_langchain_v0_shapes_stripped_twice_change_nothing",
+    "a_wrapped_base64_data_url_under_a_url_key_is_replaced_whole",
+    "a_percent_encoded_data_url_under_a_url_key_is_replaced_whole",
+    "a_broken_base64_run_under_a_url_key_is_replaced_whole",
+    "tagged_data_outside_a_vercel_part_is_left_alone",
+    "a_base64_marker_reaches_data_alone",
 }
 
 
@@ -1125,14 +1130,18 @@ def test_keeps_urls_wins_over_a_sibling(base_data):
     but its key keeps URLs, so the link stays."""
     raw = base_data["media_parts"]["raw_payloads"]
     text = (
-        '{"data":{"type":"data","data":"https://example.com/a.pdf","mediaType":"application/pdf"}}'
+        '{"type":"file","data":{"type":"data","data":"https://example.com/a.pdf",'
+        '"mediaType":"application/pdf"}}'
     )
     assert media_parts.strip_raw_payload(raw, text) == text
 
 
 def test_a_tagged_data_reads_its_own_mime_first(base_data):
     raw = base_data["media_parts"]["raw_payloads"]
-    text = '{"mediaType":"image/png","data":{"type":"data","data":"QUFB","mediaType":"image/gif"}}'
+    text = (
+        '{"type":"file","mediaType":"image/png",'
+        '"data":{"type":"data","data":"QUFB","mediaType":"image/gif"}}'
+    )
     tokens = [t.as_dict() for t in media_parts.strip(raw, text).tokens]
     assert tokens == [{"rule": "e", "mime": "image/gif", "byte_size": 3}]
 
@@ -1255,3 +1264,42 @@ def test_a_generic_row_needs_no_modality(data):
     (row,) = [r for r in rows if r["normalized"] == "generic"]
     assert "modality" not in row
     assert media_parts.lint(data["media_parts"]) == []
+
+
+def test_a_base64_marker_without_its_keys_fails_lint(data):
+    (rule,) = [r for r in data["media_parts"]["raw_payloads"]["detection"] if r["id"] == "e"]
+    del rule["base64_markers"][0]["keys"]
+    assert_flags(
+        media_parts.lint(data["media_parts"]),
+        "detection rule e base64_markers need a key, a value and keys",
+    )
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "data:image/png;base64,iVBO\\nRw0KGgo=",
+        "data:image/png;base64,iVBO\\r\\nRw0KGgo=",
+        "data:image/png;base64,iVBO Rw0KGgo=",
+        "data:image/png;base64,iVBORw0KGgo=\\n",
+        "data:image/png,%89PNG%0D%0A",
+        "Data:image/png;charset=x,iVBORw0KGgo=",
+        "data:image/png;base64,@@@iVBORw0KGgo=",
+    ],
+)
+@pytest.mark.parametrize(
+    "template",
+    [
+        '[{"type":"image","image":"%s"}]',
+        '[{"type":"image","image":{"type":"data","data":"%s"}}]',
+        '[{"type":"file","data":"%s","mediaType":"image/png"}]',
+        '[{"type":"file","data":{"type":"data","data":"%s"},"mediaType":"image/png"}]',
+    ],
+)
+def test_no_payload_survives_a_url_key(base_data, template, value):
+    """A data: string under a key that keeps URLs loses every byte of its
+    payload, tagged or not, whatever breaks rule (b)'s run."""
+    raw = base_data["media_parts"]["raw_payloads"]
+    out = media_parts.strip_raw_payload(raw, template % value)
+    for fragment in ("Rw0KGgo", "iVBO", "%89PNG"):
+        assert fragment not in out, out

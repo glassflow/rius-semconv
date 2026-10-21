@@ -366,6 +366,13 @@ def lint_raw_payloads(raw: Any) -> list[str]:
                 errors.append(
                     f"{where} detection rule b pattern needs 3 groups (mime, parameters, base64)"
                 )
+    for marker in rules.get("e", {}).get("base64_markers") or []:
+        if (
+            not marker.get("key")
+            or not isinstance(marker.get("value"), str)
+            or not marker.get("keys")
+        ):
+            errors.append(f"{where} detection rule e base64_markers need a key, a value and keys")
     for entry in rules.get("e", {}).get("mime_formats") or []:
         if not entry.get("key") or "<value>" not in str(entry.get("mime", "")):
             errors.append(f"{where} detection rule e mime_formats need a key and a <value> mime")
@@ -650,14 +657,21 @@ def _keyed_string(raw: dict, value: Any) -> bool:
     return _non_empty_string(value) and not is_replacement(raw, value)
 
 
-def _typed_keys(rule: dict, members: Members, parent_key: str | None) -> list[dict]:
+def _typed_keys(
+    rule: dict, members: Members, parent_key: str | None, holder: Members | None
+) -> list[dict]:
     """The typed keys that hold in an object: one of its types is a type
-    member's value, and the parent key is one of its parent keys, if it names
-    any."""
+    member's value, the parent key is one of its parent keys, if it names
+    any, and the holder (the nearest enclosing object) has one of its holder
+    types, if it names any."""
     out = []
     for typed in rule["typed_keys"]:
         if "parent_keys" in typed and parent_key not in typed["parent_keys"]:
             continue
+        if "holder_types" in typed:
+            holder_types = typed["holder_types"]
+            if holder is None or _first(holder, "type", lambda v, h=holder_types: v in h) is None:
+                continue
         types = typed["types"]
         if _first(members, "type", lambda v, types=types: v in types) is not None:
             out.append(typed)
@@ -672,37 +686,61 @@ def is_url(raw: dict, value: Any) -> bool:
     return isinstance(value, str) and re.match(pattern, value) is not None
 
 
-def url_keys(raw: dict, value: dict | Members, parent_key: str | None) -> set[str]:
+def kept_url(raw: dict, value: Any) -> bool:
+    """Whether a typed key that keeps URLs leaves a string alone for rule b: it
+    starts with a URL scheme, and either the scheme is not data (in any ASCII
+    case) or the whole string is one rule b token, so rule b replaces all of
+    it. Any other data: string (wrapped, percent-encoded, or with a broken
+    run) stays a rule e token and is replaced whole."""
+    if not is_url(raw, value):
+        return False
+    if value.split(":", 1)[0].lower() != "data":
+        return True
+    return re.fullmatch(_rules(raw)["b"]["pattern"], value) is not None
+
+
+def url_keys(
+    raw: dict,
+    value: dict | Members,
+    parent_key: str | None,
+    holder: dict | Members | None = None,
+) -> set[str]:
     """The keys of an object whose URL strings rule e leaves to rule b: those
     of a typed key that keeps URLs and holds in the object."""
     rule = _rules(raw)["e"]
-    typed = _typed_keys(rule, _members(value), parent_key)
+    typed = _typed_keys(rule, _members(value), parent_key, _holder(holder))
     return {t["key"] for t in typed if t.get("keeps_urls")}
 
 
 def keyed_token(raw: dict, key: str, value: Any, urls: set[str]) -> bool:
     """A string rule e replaces under `key`: a keyed string, unless the key
-    keeps URLs and the string starts with a URL scheme."""
-    return _keyed_string(raw, value) and not (key in urls and is_url(raw, value))
+    keeps URLs and the string is one it leaves to rule b (kept_url)."""
+    return _keyed_string(raw, value) and not (key in urls and kept_url(raw, value))
 
 
-def keyed_base64(raw: dict, value: dict | Members, parent_key: str | None) -> list[int]:
+def _holder(holder: dict | Members | None) -> Members | None:
+    return None if holder is None else _members(holder)
+
+
+def keyed_base64(
+    raw: dict,
+    value: dict | Members,
+    parent_key: str | None,
+    holder: dict | Members | None = None,
+) -> list[int]:
     """Rule e: the positions of the members of `value` that hold base64 media,
     duplicates included: a keyed string, or an array holding one directly.
     Every member counts for the context: a sibling key with a non-empty string
-    value that is not a complete replacement, a base64 marker, the parent key,
-    or a base64 source. A blob's content, a typed key under one of its types
-    and a source's bytes need no other context. A typed key that keeps URLs
-    leaves a string that starts with a URL scheme to rule b."""
+    value that is not a complete replacement, the parent key, or a base64
+    source. A base64 marker is context for its own keys alone. A blob's
+    content, a typed key under one of its types (and its holder's, if it
+    names any) and a source's bytes need no other context. A typed key that
+    keeps URLs leaves a URL to rule b (kept_url). `holder` is the nearest
+    enclosing object, as for rule d."""
     rule = _rules(raw)["e"]
     members = _members(value)
     context = (
         any(k in rule["sibling_keys"] and _sibling_string(raw, v) for k, v in members)
-        or any(
-            k == marker["key"] and v == marker["value"]
-            for marker in rule["base64_markers"]
-            for k, v in members
-        )
         or parent_key in rule["parent_keys"]
         or (
             parent_key == rule["source_key"]
@@ -710,12 +748,15 @@ def keyed_base64(raw: dict, value: dict | Members, parent_key: str | None) -> li
         )
     )
     keys = set(rule["keys"]) if context else set()
+    for marker in rule["base64_markers"]:
+        if any(k == marker["key"] and v == marker["value"] for k, v in members):
+            keys.update(marker["keys"])
     if _first(members, "type", lambda v: v == rule["blob_type"]) is not None:
         keys.add(rule["blob_key"])
-    keys.update(t["key"] for t in _typed_keys(rule, members, parent_key))
+    keys.update(t["key"] for t in _typed_keys(rule, members, parent_key, _holder(holder)))
     if parent_key == rule["source_key"]:
         keys.update(rule["source_bytes_keys"])
-    urls = url_keys(raw, members, parent_key)
+    urls = url_keys(raw, members, parent_key, holder)
     return [
         i
         for i, (k, v) in enumerate(members)
@@ -753,7 +794,7 @@ def keyed_mime(
         mime = str(entry["mime"]).replace("<value>", sibling)
         if is_mime(raw, mime):
             return mime
-    typed = _typed_keys(rule, members, parent_key)
+    typed = _typed_keys(rule, members, parent_key, _holder(holder))
     if holder is not None and any(t.get("holder_mime") for t in typed):
         return _mime_key(raw, rule, holder)
     return None
@@ -1039,9 +1080,9 @@ def _walk(
             tokens.append(Token("d", mime, len(data)))
             edits.append((node.start, node.end, _literal(raw, mime, len(data))))
             return
-        keyed = set(keyed_base64(raw, members, parent_key))
+        keyed = set(keyed_base64(raw, members, parent_key, holder))
         mime = keyed_mime(raw, members, parent_key, holder) if keyed else None
-        urls = url_keys(raw, members, parent_key) if keyed else set()
+        urls = url_keys(raw, members, parent_key, holder) if keyed else set()
         for i, (key, child) in enumerate(node.members):
             if i not in keyed:
                 _walk(raw, child, key, members, depth + 1, tokens, edits)
@@ -1311,12 +1352,19 @@ def _param(value: Any) -> str:
             f"`{v['key']}` under type "
             + _code_list(v["types"])
             + (" and parent key " + _code_list(v["parent_keys"]) if v.get("parent_keys") else "")
+            + (
+                " in an object of type " + _code_list(v["holder_types"])
+                if v.get("holder_types")
+                else ""
+            )
             + (" (keeps URLs)" if v.get("keeps_urls") else "")
             + (" (the holder's mime)" if v.get("holder_mime") else "")
             for v in value
         )
     if isinstance(value, list) and all(isinstance(v, dict) and "value" in v for v in value):
-        return ", ".join(f"`{v['key']}` = `{v['value']}`" for v in value)
+        return ", ".join(
+            f"`{v['key']}` = `{v['value']}`, for " + _code_list(v.get("keys") or []) for v in value
+        )
     if isinstance(value, list) and all(isinstance(v, dict) for v in value):
         return ", ".join(
             "`"

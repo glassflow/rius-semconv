@@ -130,11 +130,13 @@ def _holds_media(
     *,
     key: str | None = None,
     depth: int | None = None,
+    holder: dict | None = None,
 ) -> bool:
     """Whether a value, or JSON nested in a string in it, holds base64 media.
     `key` is the attribute or column the value is under: in a message key a
     blob part has no content; elsewhere its content may be a replacement (rule a). `depth` is
-    how many JSON arrays and objects enclose the value, None outside JSON."""
+    how many JSON arrays and objects enclose the value, None outside JSON. `holder` is
+    the nearest enclosing object, through arrays, as rule (d) reads it."""
     raw = raw_payloads()
     inner = None if depth is None else depth + 1
     if isinstance(value, dict):
@@ -145,11 +147,11 @@ def _holds_media(
                 return True
         if media_parts.is_buffer(raw, value):  # (d)
             return True
-        if media_parts.keyed_base64(raw, value, parent_key):  # (e)
+        if media_parts.keyed_base64(raw, value, parent_key, holder):  # (e)
             return True
-        return any(_holds_media(v, k, key=key, depth=inner) for k, v in value.items())
+        return any(_holds_media(v, k, key=key, depth=inner, holder=value) for k, v in value.items())
     if isinstance(value, list):
-        return any(_holds_media(v, parent_key, key=key, depth=inner) for v in value)
+        return any(_holds_media(v, parent_key, key=key, depth=inner, holder=holder) for v in value)
     if isinstance(value, str):
         if media_parts.is_data_url(raw, value):  # (b), anywhere in the string
             return True

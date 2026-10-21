@@ -33,7 +33,7 @@ A normalized part in a message key is written with exactly these members, in ord
 - A blob whose `content` is a string is rebuilt with stripped_reason not_captured and a byte_size taken from the content under the size rule of the strip (omitted when the size is unknown). Its modality comes from its MIME type first, then from the modality it has, then document: a PDF blob labelled image is a document. A content string that is itself a data URL follows the data URL rules below, with the part's mime_type as the hint and the same modality order. A blob in a message key never carries content.
 - A blob with no string `content` keeps a stripped_reason that is one of stripped_reasons. Otherwise its stripped_reason is redacted_upstream when it has no content member or a null one, and not_captured when its content is any other value. It keeps a byte_size that is a whole, non-negative number no larger than 2^53 - 1 (8, 8.0 and 8e0 alike, written 8); any other byte_size is omitted.
 - A uri part, or a provider uri such as a Gemini file_data, whose URI is a data URL is never a uri: it becomes a blob under the data URL rules below. A native uri part takes that blob's modality as a blob whose content is a string does: from the MIME type first, then the modality it has, then document.
-- A URL of any scheme other than data: is a uri, its link kept as written: http, https, gs, s3, file and any other scheme alike. Only a data: URL, or inline data, becomes a blob. Where one value may hold either a URL or bare base64 (a Vercel file part's data or image part's image, as a plain string or as v7's {"type":"data"} data), it is a URL when it starts with a scheme: an ASCII letter, then any ASCII letters, digits, `+`, `-` or `.`, then a colon. Base64 holds no colon, so the two never meet; anything else is base64. A value v7 tags {"type":"url"} is a URL whatever it holds. The strip reads these values the same way: rule (e) leaves a value that starts with a scheme to rule (b) (raw_payloads, rule (e)'s url_scheme and keeps_urls).
+- A URL of any scheme other than data: is a uri, its link kept as written: http, https, gs, s3, file and any other scheme alike. Only a data: URL, or inline data, becomes a blob. Where one value may hold either a URL or bare base64 (a Vercel file part's data or image part's image, as a plain string or as v7's {"type":"data"} data), it is a URL when it starts with a scheme: an ASCII letter, then any ASCII letters, digits, `+`, `-` or `.`, then a colon. Base64 holds no colon, so the two never meet; anything else is base64. A value v7 tags {"type":"url"} is a URL whatever it holds. The strip reads these values the same way: rule (e) leaves a value that starts with a scheme to rule (b) (raw_payloads, rule (e)'s url_scheme and keeps_urls), except a data: value that rule (b)'s pattern does not match in full, which rule (e) replaces whole, as the part rules make it a blob.
 - In a provider media item, a URL or a file id that is empty, or that is the \_\_REDACTED\_\_ marker an instrumentor writes in its place, was dropped upstream. When the item has no other usable reference (one that is neither empty nor \_\_REDACTED\_\_), it becomes a blob with the stripped_reason redacted_upstream and no byte_size. It keeps the MIME type the item gives (an Anthropic source's media_type, a Gemini file_data's mime_type, a Vercel part's mediaType) and takes its modality by the rule above, so an image_url or input_image is image. This covers an image_url's url, an input_image's image_url and file_id, an Anthropic url or file source, a Gemini file_data's file_uri, a Vercel part's v7 {"type":"url"} data, an OpenAI file or input_file's file_id, file_data and file_url (an empty file_data counts as dropped too, since its item has nothing else to point to), and a LangChain v1 image, audio, video or file block's url and an image, audio or video block's file_id. An OpenAI file or input_file with no usable reference becomes this blob too when it has no reference member at all, or only ones that are not strings (a file_id of 5 or null): its type file would otherwise collide with a native file part. A usable reference wins: an input_image whose image_url is \_\_REDACTED\_\_ and whose file_id is usable is a file, and an OpenAI file with an empty file_id and non-empty file_data is a blob of that data. It matches OpenInference's \_\_REDACTED\_\_ on the flattened path. So no provider item this rule covers is left as a part of type file without a file_id. A native uri or file part is no provider item: its empty uri or file_id is kept, and so is a LangChain v1 file block's, since a file block whose file_id is a string has a native file part's shape and is read as one (below). Nor is a reference not yet mapped to a part (a Bedrock Converse source by s3Location): it stays as it came, empty or not.
 - A Vercel file part whose data, or image part whose image, is neither a string nor v7 tagged data holding one makes no part: it is dropped from its message's parts, never written as a bare {"type":"file"} or {"type":"image"}, and any raw payload holding its bytes is stripped per raw_payloads. So is a v7 {"type":"text"} whose text is not a string. A v7 tag no rule here names becomes a blob with the stripped_reason not_captured and no byte_size, keeping the part's mediaType: its size was never measured.
 - A LangChain v1 standard content block of type image, audio, video or file makes one part, by the first of these that applies. (1) A block of type file whose file_id is a string has a native file part's shape and is one, whatever else it holds: it is rebuilt as a native file part (above), its mime_type kept when valid, its modality from the MIME type, else document, and its file_id kept as written, empty or \_\_REDACTED\_\_ included. (2) A base64 that is a string is a blob (the bare base64 rule below). (3) A usable file_id, a string that is neither empty nor \_\_REDACTED\_\_, is a file part. (4) A usable url is a uri when it is not a data URL, its link kept as written, and a blob under the data URL rules when it is, the block's mime_type the hint. (5) When url or file_id is a string but neither is usable, the block becomes a blob with the stripped_reason redacted_upstream and no byte_size (above). Every one keeps the block's mime_type when it is valid and takes its modality by the rule above. A block with no base64, url or file_id that is a string makes no part this way and stays as it came. Only type, base64, url, file_id and mime_type are read: so a LangChain v0 block by url ({"type":"image","source_type":"url","url":...}) is read the same way, and a v0 block by base64 or by id holds none of them and stays as it came, its data stripped per raw_payloads. A block is read the same way on every path that delivers it: passthrough, and the provider blocks OpenLLMetry and Laminar write as gen_ai.prompt.N.content.
@@ -486,7 +486,7 @@ Raw payloads, never mined for parts: `input.value`, `output.value`, `lmnr.span.i
 
 **Members.** Every member of an object is visited, in document order, duplicate keys included. A condition on a key holds when any member with that key meets it (a type equal to Buffer, blob or base64 or to one of a typed key's types, a non-empty data array, a sibling), and a value read from a key (a mime type, a format, a Buffer's data array) is that of the first member with that key, in document order, that qualifies. Rule (e) applies to each member under one of its keys that qualifies, duplicates included, all with the context and mime type computed from all the siblings: `{"mediaType":"image/png","data":"QUFB","data":"QkJC"}` strips both data values. A sibling counts as context only when its value is a non-empty string that is not a complete replacement (see idempotence), the same rule as mime selection. Context and mime type are read from the member values as they were before the pass, so document order does not matter: in `{"mediaType":"data:image/png;base64,QUFB","data":"QkJC"}` mediaType is context, though rule (b) rewrites it in the same pass, and data is a token whichever comes first; its mime type is unknown, since the original mediaType is not a valid mime. `format` is not a sibling key: it counts only under the parent key input_audio or audio (which is context already), where it names audio/&lt;format&gt;, and elsewhere a format sibling is ignored; output_format counts anywhere. The mime type is chosen by the order of the mime key list, not by document order: the first mime key in list order whose value is a non-empty valid mime (see replacement) wins; else the first mime format, in order, whose sibling is a non-empty string, not a complete replacement, and whose mime is valid; else unknown. When a rule (e) key holds an array directly, each string element is its own token (when it is non-empty and not already a complete replacement), with the same context and mime type; any other element is visited as usual, with that key as its parent key.
 
-**Regex dialect.** The pattern of rule (b), rule (e)'s url_scheme and the replacement's mime_pattern use only constructs Python re, JavaScript RegExp and Go RE2 read the same way: literal characters, character classes with explicit ASCII members and ranges, the escapes `\t` `\n` `\f` `\r`, capturing groups, and the quantifiers `*`, `+` and `{m,n}`. No `\s`, `\d`, `\w`, `\b`, lookaround, backreference, non-capturing group or inline flag: the case-insensitive scheme is written `[dD][aA][tT][aA]:`, and the repeated RFC 2397 parameter is a capturing group. Neither the mime class nor the parameter class holds `;` or `:`. RFC 2045 lists `:` as a tspecial, so it cannot appear in an unquoted mime type or parameter token, and excluding it keeps the search linear: an attempt starts only at a `data:` and never reads past the next `:` (the one in the next `data:`), so no stretch of text is read by more than two attempts, and inside an attempt the text splits into mime and parameters in exactly one way, so backtracking gives back each character at most once. Rule (b) finds matches left to right without overlap (Python finditer, JavaScript matchAll, Go FindAllStringSubmatchIndex). mime_pattern must match the whole value: Python re.fullmatch, or `^` and `$` around it in JavaScript and Go (where, without the m flag, `$` is the end of the text; in Python `$` also matches before a final newline, so use fullmatch). url_scheme must match at the start of the unescaped value and need not reach its end: Python re.match, or `^` before it in JavaScript and Go.
+**Regex dialect.** The pattern of rule (b), rule (e)'s url_scheme and the replacement's mime_pattern use only constructs Python re, JavaScript RegExp and Go RE2 read the same way: literal characters, character classes with explicit ASCII members and ranges, the escapes `\t` `\n` `\f` `\r`, capturing groups, and the quantifiers `*`, `+` and `{m,n}`. No `\s`, `\d`, `\w`, `\b`, lookaround, backreference, non-capturing group or inline flag: the case-insensitive scheme is written `[dD][aA][tT][aA]:`, and the repeated RFC 2397 parameter is a capturing group. Neither the mime class nor the parameter class holds `;` or `:`. RFC 2045 lists `:` as a tspecial, so it cannot appear in an unquoted mime type or parameter token, and excluding it keeps the search linear: an attempt starts only at a `data:` and never reads past the next `:` (the one in the next `data:`), so no stretch of text is read by more than two attempts, and inside an attempt the text splits into mime and parameters in exactly one way, so backtracking gives back each character at most once. Rule (b) finds matches left to right without overlap (Python finditer, JavaScript matchAll, Go FindAllStringSubmatchIndex). mime_pattern must match the whole value: Python re.fullmatch, or `^` and `$` around it in JavaScript and Go (where, without the m flag, `$` is the end of the text; in Python `$` also matches before a final newline, so use fullmatch). url_scheme must match at the start of the unescaped value and need not reach its end: Python re.match, or `^` before it in JavaScript and Go. The scheme a keeps_urls key compares with data is the text before the first colon, which url_scheme makes ASCII. For that key, rule (b)'s pattern must match the whole unescaped value: Python re.fullmatch, or `^` and `$` around it in JavaScript and Go, as for mime_pattern.
 
 **Implementers.** Do not write the replacement, or any escape, with a standard library JSON encoder: Go's json.Marshal, for example, writes `<`, `>`, `&` and U+2028 as `\u003c`, `\u003e`, `\u0026` and `\u2028`, which no other implementation writes. Do not compute byte_size with a strict standard library base64 decoder either: decoders differ on whitespace, URL-safe input and padding. The escaping rules (spans), the size rules (byte_size) and the mime rule (replacement) here are exhaustive: write exactly what they say, and keep every other byte as it was. Read JSON with a parser that keeps the span of every value on the text and every duplicate member (members), and that counts the depth itself (json_candidate).
 
@@ -509,7 +509,7 @@ in an expected result, every token these find (in a string holding JSON too):
 | -- | -- | -- | -- |
 | (b) | data URL | A data:&lt;mime&gt;[;&lt;parameter&gt;]\*;base64,&lt;base64&gt; token anywhere in a string, the scheme in any case (DATA:, Data:) and RFC 2397 parameters allowed before ;base64, (data:image/png;name=a.png;base64,...). The pattern finds each one: group 1 the mime type (empty when none), group 2 the last parameter (unused), group 3 the base64 run (standard or URL-safe). A whole-string data URL is the special case. | pattern: `[dD][aA][tT][aA]:([^;,:\t\n\f\r "]*)(;[^;,:\t\n\f\r "]*)*;base64,([A-Za-z0-9+/_-]*={0,2})` |
 | (d) | Buffer object | An object {"type": "Buffer", "data": [...]} whose data is a non-empty array. | type: `Buffer`; array_key: `data`; mime_keys: `media_type`, `mediaType`, `mime_type`, `mimeType` |
-| (e) | keyed base64 string | A non-empty string (or each string of an array) under one of the keys, when its object has one of the sibling keys with a non-empty string value that is not a complete replacement, or one of the base64 markers (a member with exactly that key and that string value, as in the LangChain v0 block {"type":"image","source_type":"base64","data":...}), or its object's parent key is one of the parent keys, or its object is the value of a source key and has type base64 (the Anthropic {"source":{"type":"base64","media_type":...,"data":...}}: the object holding data is the source itself, not the content block around it); a non-empty string under content when its object has type blob (the semconv blob part, as in a raw payload like pydantic_ai.all_messages: the raw-payload twin of the fixture check's rule that a normalized blob part carries no content); a non-empty string under a typed key when its object has one of that key's types and, for a typed key that names parent keys, its object's parent key is one of them (a LangChain v1 standard content block {"type":"image","base64":...,"mime_type":...}, Mistral's audio chunk {"type":"input_audio","input_audio":...}, which its TypeScript SDK spells inputAudio, a Vercel image part {"type":"image","image":...}, or the v7 tagged data {"type":"data","data":...} a Vercel file part's data or image part's image holds); and a non-empty string under one of the source bytes keys when its object is the value of a source key, whatever its type (the Bedrock Converse {"image":{"format":"png","source":{"bytes":...}}}: as for Anthropic, the object holding bytes is the source). A typed key with keeps_urls leaves a string that starts with a URL scheme (url_scheme) to rule (b), whatever other way its key qualifies: an http URL under a Vercel image stays, and a data URL there is replaced by rule (b) with its own mime type. A typed key with holder_mime takes its mime type, when its own object names none, from the mime keys of the nearest object holding it, as rule (d) does, so a tagged data reads its Vercel part's mediaType. Never a string that is already a complete replacement (see idempotence). See members for duplicate keys, siblings and arrays. | keys: `data`, `b64_json`, `result`, `base64`; sibling_keys: `media_type`, `mediaType`, `mime_type`, `mimeType`, `output_format`; parent_keys: `input_audio`, `audio`, `inline_data`, `inlineData`; source_key: `source`; source_type: `base64`; blob_type: `blob`; blob_key: `content`; base64_markers: `source_type` = `base64`; typed_keys: `base64` under type `image`, `audio`, `video`, `file`, `text-plain`, `input_audio` under type `input_audio`, `inputAudio` under type `input_audio`, `image` under type `image` (keeps URLs), `data` under type `data` and parent key `data`, `image` (keeps URLs) (the holder's mime); url_scheme: `[A-Za-z][A-Za-z0-9+.-]*:`; source_bytes_keys: `bytes`; mime_keys: `media_type`, `mediaType`, `mime_type`, `mimeType`; mime_formats: `output_format` gives `image/<value>`, `format` gives `audio/<value>` under `input_audio`, `audio` |
+| (e) | keyed base64 string | A non-empty string (or each string of an array) under one of the keys, when its object has one of the sibling keys with a non-empty string value that is not a complete replacement, or its object's parent key is one of the parent keys, or its object is the value of a source key and has type base64 (the Anthropic {"source":{"type":"base64","media_type":...,"data":...}}: the object holding data is the source itself, not the content block around it); a non-empty string under content when its object has type blob (the semconv blob part, as in a raw payload like pydantic_ai.all_messages: the raw-payload twin of the fixture check's rule that a normalized blob part carries no content); a non-empty string under a typed key when its object has one of that key's types and, for a typed key that names parent keys, its object's parent key is one of them (a LangChain v1 standard content block {"type":"image","base64":...,"mime_type":...}, Mistral's audio chunk {"type":"input_audio","input_audio":...}, which its TypeScript SDK spells inputAudio, a Vercel image part {"type":"image","image":...}, or the v7 tagged data {"type":"data","data":...} a Vercel file part's data or image part's image holds); a non-empty string under one of the source bytes keys when its object is the value of a source key, whatever its type (the Bedrock Converse {"image":{"format":"png","source":{"bytes":...}}}: as for Anthropic, the object holding bytes is the source); and a non-empty string under one of a base64 marker's own keys when its object has the marker (a member with exactly the marker's key and string value, as in the LangChain v0 block {"type":"image","source_type":"base64","data":...}, whose marker reaches data and no other key). A typed key with holder_types counts only when the nearest object holding its object, through arrays, has one of those types: the v7 tagged data counts in a Vercel file or image part, never in a {"data":{"type":"data",...}} envelope of some other API. A typed key with keeps_urls leaves a string that starts with a URL scheme (url_scheme) to rule (b), whatever other way its key qualifies, when its scheme is not data (compared in ASCII case-insensitively) or rule (b)'s pattern matches the whole string: an http URL under a Vercel image stays, and a base64 data URL that is the whole value is replaced by rule (b) with its own mime type and size. Any other string that starts with data: (a base64 run wrapped at a newline, a percent-encoded data URL, a run rule (b) stops short in) is a rule (e) token like any other, replaced whole with the key's usual mime type, so no byte of its payload survives. A typed key with holder_mime takes its mime type, when its own object names none, from the mime keys of the nearest object holding it, as rule (d) does, so a tagged data reads its Vercel part's mediaType. Never a string that is already a complete replacement (see idempotence). See members for duplicate keys, siblings and arrays. | keys: `data`, `b64_json`, `result`, `base64`; sibling_keys: `media_type`, `mediaType`, `mime_type`, `mimeType`, `output_format`; parent_keys: `input_audio`, `audio`, `inline_data`, `inlineData`; source_key: `source`; source_type: `base64`; blob_type: `blob`; blob_key: `content`; base64_markers: `source_type` = `base64`, for `data`; typed_keys: `base64` under type `image`, `audio`, `video`, `file`, `text-plain`, `input_audio` under type `input_audio`, `inputAudio` under type `input_audio`, `image` under type `image` (keeps URLs), `data` under type `data` and parent key `data`, `image` in an object of type `file`, `image` (keeps URLs) (the holder's mime); url_scheme: `[A-Za-z][A-Za-z0-9+.-]*:`; source_bytes_keys: `bytes`; mime_keys: `media_type`, `mediaType`, `mime_type`, `mimeType`; mime_formats: `output_format` gives `image/<value>`, `format` gives `audio/<value>` under `input_audio`, `audio` |
 
 ### Golden examples
 
@@ -1610,7 +1610,7 @@ Tokens: none.
 
 #### `vercel_image_data_url_keeps_its_own_mime`
 
-A data URL under image is left to rule (b), so it is replaced with the URL's own mime type, not the part's mediaType, and with its size.
+A base64 data URL that is the whole value under image is left to rule (b), so it is replaced with the URL's own mime type, not the part's mediaType, and with its size.
 
 Input:
 
@@ -1664,7 +1664,7 @@ Tokens: (e) unknown, 8 bytes, (e) image/png, 8 bytes.
 
 #### `vercel_tagged_data_url_and_link`
 
-Tagged data keeps URLs too: a data URL in it gets rule (b) with its own mime type, and an https link stays.
+Tagged data keeps URLs too: a base64 data URL that is the whole value gets rule (b) with its own mime type, and an https link stays.
 
 Input:
 
@@ -1679,6 +1679,60 @@ Output:
 ```
 
 Tokens: (b) application/pdf, 5 bytes.
+
+#### `a_wrapped_base64_data_url_under_a_url_key_is_replaced_whole`
+
+A key that keeps URLs leaves a data URL to rule (b) only when rule (b)'s pattern matches the whole value. A base64 run wrapped at a newline (base64.encodebytes, a MIME encoder) ends the match early, so the value stays a rule (e) token and is replaced whole: no base64 after the break survives. Under image and tagged data, and under a plain data beside mediaType, alike; the mime type is the key's usual one, never the data URL's.
+
+Input:
+
+```text
+[{"type":"image","image":"data:image/png;base64,iVBO\nRw0KGgo="},{"type":"image","image":{"type":"data","data":"data:image/png;base64,iVBO\nRw0KGgo="}},{"type":"file","data":"data:image/png;base64,iVBO\nRw0KGgo=","mediaType":"image/png"},{"type":"file","data":{"type":"data","data":"data:image/png;base64,iVBO\nRw0KGgo="},"mediaType":"image/png"}]
+```
+
+Output:
+
+```text
+[{"type":"image","image":"[stripped unknown unknown bytes]"},{"type":"image","image":{"type":"data","data":"[stripped unknown unknown bytes]"}},{"type":"file","data":"[stripped image/png unknown bytes]","mediaType":"image/png"},{"type":"file","data":{"type":"data","data":"[stripped image/png unknown bytes]"},"mediaType":"image/png"}]
+```
+
+Tokens: (e) unknown, unknown bytes, (e) unknown, unknown bytes, (e) image/png, unknown bytes, (e) image/png, unknown bytes.
+
+#### `a_percent_encoded_data_url_under_a_url_key_is_replaced_whole`
+
+A data URL that is not base64 holds no rule (b) token, so under a key that keeps URLs it is a rule (e) token, tagged or not, the scheme in any case: the same Vercel payload is stripped whichever way it is written.
+
+Input:
+
+```text
+[{"type":"file","data":{"type":"data","data":"data:image/png,%89PNG"},"mediaType":"image/png"},{"type":"file","data":"data:image/png,%89PNG","mediaType":"image/png"},{"type":"image","image":"DATA:image/png,%89PNG"},{"type":"image","image":{"type":"data","data":"DATA:image/png,%89PNG"}}]
+```
+
+Output:
+
+```text
+[{"type":"file","data":{"type":"data","data":"[stripped image/png unknown bytes]"},"mediaType":"image/png"},{"type":"file","data":"[stripped image/png unknown bytes]","mediaType":"image/png"},{"type":"image","image":"[stripped unknown unknown bytes]"},{"type":"image","image":{"type":"data","data":"[stripped unknown unknown bytes]"}}]
+```
+
+Tokens: (e) image/png, unknown bytes, (e) image/png, unknown bytes, (e) unknown, unknown bytes, (e) unknown, unknown bytes.
+
+#### `a_broken_base64_run_under_a_url_key_is_replaced_whole`
+
+Rule (b) matches data:image/png;base64, with an empty run and stops before @@@, so it does not reach the end of the value: the value is a rule (e) token, tagged or not.
+
+Input:
+
+```text
+[{"type":"image","image":"data:image/png;base64,@@@"},{"type":"image","image":{"type":"data","data":"data:image/png;base64,@@@"}},{"type":"file","data":"data:image/png;base64,@@@","mediaType":"image/png"},{"type":"file","data":{"type":"data","data":"data:image/png;base64,@@@"},"mediaType":"image/png"}]
+```
+
+Output:
+
+```text
+[{"type":"image","image":"[stripped unknown unknown bytes]"},{"type":"image","image":{"type":"data","data":"[stripped unknown unknown bytes]"}},{"type":"file","data":"[stripped image/png unknown bytes]","mediaType":"image/png"},{"type":"file","data":{"type":"data","data":"[stripped image/png unknown bytes]"},"mediaType":"image/png"}]
+```
+
+Tokens: (e) unknown, unknown bytes, (e) unknown, unknown bytes, (e) image/png, unknown bytes, (e) image/png, unknown bytes.
 
 #### `image_and_tagged_data_outside_their_parts_are_left_alone`
 
@@ -1697,6 +1751,24 @@ Output:
 ```
 
 Tokens: none.
+
+#### `tagged_data_outside_a_vercel_part_is_left_alone`
+
+Tagged data counts only when the object holding it is a Vercel file or image part (holder_types): an envelope {"data":{"type":"data",...}} from another API, tagged data under image with no part around it, and tagged data in a text object are left alone; in a file part it is a token.
+
+Input:
+
+```text
+[{"data":{"type":"data","data":"hello world"}},{"image":{"type":"data","data":"iVBORw0KGgo="}},{"type":"text","data":{"type":"data","data":"iVBORw0KGgo="}},{"type":"file","data":{"type":"data","data":"iVBORw0KGgo="},"mediaType":"image/png"}]
+```
+
+Output:
+
+```text
+[{"data":{"type":"data","data":"hello world"}},{"image":{"type":"data","data":"iVBORw0KGgo="}},{"type":"text","data":{"type":"data","data":"iVBORw0KGgo="}},{"type":"file","data":{"type":"data","data":"[stripped image/png 8 bytes]"},"mediaType":"image/png"}]
+```
+
+Tokens: (e) image/png, 8 bytes.
 
 #### `langchain_v0_base64_block_without_a_mime_type`
 
@@ -1751,6 +1823,24 @@ Output:
 ```
 
 Tokens: none.
+
+#### `a_base64_marker_reaches_data_alone`
+
+source_type base64 is context for data in its own object and for no other key: result and b64_json beside it stay, with or without a data member.
+
+Input:
+
+```text
+[{"source_type":"base64","result":"ok","b64_json":"yes"},{"type":"text","source_type":"base64","data":"iVBORw0KGgo=","result":"iVBORw0KGgo="}]
+```
+
+Output:
+
+```text
+[{"source_type":"base64","result":"ok","b64_json":"yes"},{"type":"text","source_type":"base64","data":"[stripped unknown 8 bytes]","result":"iVBORw0KGgo="}]
+```
+
+Tokens: (e) unknown, 8 bytes.
 
 #### `the_vercel_and_langchain_v0_shapes_stripped_twice_change_nothing`
 
