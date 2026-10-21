@@ -1344,8 +1344,9 @@ def _usable(value: Any) -> bool:
 
 
 def _is_data_scheme(value: str) -> bool:
-    """A value that is a data URL: it starts with data:, in any ASCII case."""
-    return value[:5].lower() == "data:"
+    """A value that is a data URL: it starts with data:, or with data%3A (a
+    data URL percent-encoded whole), in any ASCII case."""
+    return value[:5].lower() == "data:" or value[:7].lower() == "data%3a"
 
 
 def _mime_modality(mime: str | None) -> str | None:
@@ -1381,14 +1382,17 @@ def _data_url_part(data: dict, url: str, hint: str | None, kind_modality: str | 
     """A data URL as a blob: rule (b)'s pattern matching the whole URL, or all
     of it but one final line break, is base64, with its run's size; any other
     is not base64, with no size, and redacted_upstream when its payload is
-    empty or None. The mime type is the URL's when valid, else the hint."""
+    empty or None. The mime type is the URL's when valid, else the hint. A
+    data URL percent-encoded whole is matched by percent_pattern, its mime
+    type and run percent-decoded as rule (b) reads them; when it does not
+    match, it is read as any other once each %XX is decoded."""
     raw = data["raw_payloads"]
     match = whole_data_url(raw, url, line_break=True)
     if match:
-        mime = _mime_or_unknown(raw, match.group(1)) or hint
-        size, reason = run_size(match.group(3)), "not_captured"
+        mime, size = _match_token(raw, match)
+        mime, reason = mime or hint, "not_captured"
     else:
-        rest = url.split(":", 1)[1]
+        rest = (url if url[4] == ":" else _percent_decode(url)).split(":", 1)[1]
         mime = _mime_or_unknown(raw, re.split("[;,]", rest, maxsplit=1)[0]) or hint
         payload = rest.split(",", 1)[1] if "," in rest else ""
         size, reason = None, "redacted_upstream" if payload in ("", "None") else "not_captured"
@@ -1549,7 +1553,8 @@ def _provider_uri(raw: dict, item: dict) -> tuple[Any, Any, str | None, bool] | 
     """The URI a provider item points at, with the item's MIME type, the
     modality its kind names (for an OpenAI input_file, its filename does) and
     whether a uri reads its path's extension. None for an item that points at
-    nothing by URI: a Vercel value with no URL scheme is base64."""
+    nothing by URI: a Vercel value with no URL scheme is base64, unless it is
+    a data URL percent-encoded whole (data%3A), which the data URL rules read."""
     kind = item.get("type")
     if kind == "image_url" and isinstance(item.get("image_url"), dict):
         return item["image_url"].get("url"), None, "image", False
@@ -1567,7 +1572,7 @@ def _provider_uri(raw: dict, item: dict) -> tuple[Any, Any, str | None, bool] | 
         value = item.get("data" if kind == "file" else "image")
         if isinstance(value, dict) and value.get("type") == "url":
             value = value.get("url")
-        elif not is_url(raw, value):
+        elif not (is_url(raw, value) or (isinstance(value, str) and _is_data_scheme(value))):
             return None
         return value, item.get("mediaType"), "image" if kind == "image" else None, kind == "file"
     if item.get(OPENINFERENCE_IMAGE_TYPE) == "image" and OPENINFERENCE_IMAGE_URL in item:
@@ -1607,8 +1612,9 @@ def provider_uri_part(data: dict, item: dict) -> dict | None:
     image_url is empty or __REDACTED__. A usable image_url beside a file_id
     stays a uri (or a blob, for a data URL), as the readers take it first.
 
-    An empty or __REDACTED__ URI was dropped upstream. A data URL follows the
-    data URL rules. A URI that holds data: anywhere else, in any ASCII case, is
+    An empty or __REDACTED__ URI was dropped upstream. A data URL, plain or
+    percent-encoded whole, follows the data URL rules. A URI that holds data:
+    anywhere else, in any ASCII case, is
     a blob with no byte_size, so no byte of it is kept. Any other URI is a uri,
     as it came. A blob's modality comes from the MIME type, then the item's
     kind (an input_file's filename), then document; a uri's from the same, then

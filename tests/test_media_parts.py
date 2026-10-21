@@ -1658,6 +1658,10 @@ REQUIRED_PROVIDER_EXAMPLES = {
     "image_url_by_a_data_url_that_ends_in_one_line_break",
     "vercel_image_by_a_wrapped_data_url_that_ends_in_one_line_break",
     "image_url_by_a_data_url_that_ends_in_two_line_breaks",
+    "image_url_by_a_whole_percent_encoded_data_url",
+    "vercel_image_by_a_percent_encoded_data_url_that_ends_in_one_line_break",
+    "image_url_by_a_partly_percent_encoded_data_url",
+    "image_url_by_a_link_holding_a_percent_encoded_data_url",
     "input_image_by_a_link_followed_by_a_percent_encoded_data_url",
     "anthropic_url_source_by_a_link_followed_by_a_data_url",
     "anthropic_document_url_source_by_a_link_followed_by_a_data_url",
@@ -1727,6 +1731,7 @@ def test_native_part_examples_cover_the_native_uri_holding_a_data_url():
     assert {e["name"] for e in NATIVE_PART_EXAMPLES} >= {
         "uri_led_by_whitespace_holding_a_data_url",
         "uri_that_is_a_data_url_and_one_final_line_break",
+        "uri_that_is_a_percent_encoded_data_url",
     }
 
 
@@ -1774,6 +1779,22 @@ def test_native_parts_left_as_they_came(base_data, part):
         (
             '{"type":"uri","modality":"audio","mime_type":"image/png","uri":"x data:y"}',
             '{"type":"blob","modality":"image","mime_type":"image/png","stripped_reason":"not_captured"}',
+        ),
+        (
+            '{"type":"uri","uri":"data%3Aimage%2Fpng%2C"}',
+            '{"type":"blob","modality":"image","mime_type":"image/png","stripped_reason":"redacted_upstream"}',
+        ),
+        (
+            '{"type":"uri","mime_type":"audio/wav","uri":"data%3A%3Bbase64%2CQUFB%20"}',
+            '{"type":"blob","modality":"audio","mime_type":"audio/wav","stripped_reason":"not_captured"}',
+        ),
+        (
+            '{"type":"blob","content":"data%3Aimage%2Fpng%3Bbase64%2CQUFB"}',
+            '{"type":"blob","modality":"image","mime_type":"image/png","byte_size":3,"stripped_reason":"not_captured"}',
+        ),
+        (
+            '{"type":"uri","uri":"https://e/?u=data%3Aimage%2Fpng%3Bbase64%2CQUFB"}',
+            '{"type":"uri","modality":"document","uri":"https://e/?u=data%3Aimage%2Fpng%3Bbase64%2CQUFB"}',
         ),
         (
             '{"type":"blob","stripped_reason":"lost","content":null,"byte_size":-1}',
