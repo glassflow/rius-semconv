@@ -535,6 +535,9 @@ NEAR_MATCHES = {
     "data_a_semicolon": "data:a;" * 6_000,
     "blank_continuations": "data:a/b;base64,A" + "\n " * 20_000 + "!",
     "data_url_lines": "data:a/b;base64,A\n" * 2_000 + "!",
+    "quoted_continuations": "data:a/b;base64,A" + "\n>" * 20_000 + "!",
+    "lines_at_the_cap": "data:a/b;base64," + ("A" * 76 + "\n") * 500 + "!",
+    "lines_past_the_cap": ("data:a/b;base64," + "A" * 77 + "\n") * 400 + "!",
 }
 TIME_BOUND = 0.5
 
@@ -569,6 +572,37 @@ def test_a_long_data_url_without_base64_is_linear(base_data):
     raw = base_data["media_parts"]["raw_payloads"]
     assert media_parts.data_url_spans(raw, "data:x" + "a" * 200_000) == []
     assert media_parts.data_url_spans(raw, "data:x" + ";a" * 100_000) == []
+
+
+@pytest.mark.parametrize("tail", [" ", "!", "\n!", "\n" + "A" * 77 + " "])
+def test_a_whole_value_that_fails_is_linear(base_data, tail):
+    # Anchored and checked at the end, a long run that does not reach the end
+    # of the value fails at once, where fullmatch would try each way to share
+    # a line between the capped run and the uncapped tail.
+    raw = base_data["media_parts"]["raw_payloads"]
+    value = "data:a/b;base64," + "A" * 400_000 + tail
+    start = time.perf_counter()
+    assert media_parts.whole_data_url(raw, value) is None
+    assert not media_parts.kept_url(raw, value)
+    assert time.perf_counter() - start < TIME_BOUND
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "data:a/b;base64,QUFB",
+        "data:a/b;base64," + "A" * 76 + "\n" + "A" * 76 + "\nAAAA",
+        "data:a/b;base64," + "A" * 77 + "\nAAAA",
+        "data:a/b;base64,QUFB\n" + "A" * 80 + "\nAAAA",
+        "data:a/b;base64,QUFB\n> QUFB",
+        "data:a/b;base64,QUE=\nQUFB",
+        "data:a/b;base64,QUFB\n\nQUFB",
+    ],
+)
+def test_a_whole_value_is_what_fullmatch_says(base_data, value):
+    raw = base_data["media_parts"]["raw_payloads"]
+    expected = re.fullmatch(media_parts._rules(raw)["b"]["pattern"], value) is not None
+    assert (media_parts.whole_data_url(raw, value) is not None) == expected
 
 
 def test_in_text_example_is_what_the_rule_does(base_data):
@@ -652,6 +686,9 @@ REQUIRED_GOLDEN = {
     "a_wrapped_data_url_in_prose",
     "a_wrapped_uppercase_data_url_in_prose",
     "an_unpadded_run_takes_the_first_word_of_the_next_line",
+    "a_long_data_url_at_a_line_end_keeps_the_lines_after_it",
+    "a_tiny_data_url_at_a_line_end_takes_the_one_word_lines_after_it",
+    "a_wrapped_data_url_in_a_quoted_reply",
     "a_data_url_never_runs_into_the_next",
     "a_whole_data_url_is_unchanged_by_the_continuation",
     "a_percent_encoded_data_url_under_a_url_key_is_replaced_whole",
@@ -1112,7 +1149,8 @@ def test_data_url_pattern_is_portable(base_data):
     assert rule["pattern"].startswith("[dD][aA][tT][aA]:")
     assert '([^;,:\\t\\n\\f\\r "]*)(;[^;,:\\t\\n\\f\\r "]*)*' in rule["pattern"]
     assert "[A-Za-z0-9+/_-]" in rule["pattern"]
-    assert "(\\r{0,1}\\n[ \\t]*[A-Za-z0-9+/_-]+)*" in rule["pattern"]
+    assert "([A-Za-z0-9+/_-]{0,76}(\\r{0,1}\\n[ \\t>]*[A-Za-z0-9+/_-]+)*" in rule["pattern"]
+    assert "[A-Za-z0-9+/_-]*={0,2})" in rule["pattern"]
     assert "?" not in rule["pattern"] and "|" not in rule["pattern"]
 
 

@@ -235,7 +235,8 @@ raw_payloads:
     write (`\u0022`, `\/`).
   byte_size: >-
     Rule (e) computes it on the string's unescaped value, and rule (b) on its
-    base64 run, the same way. Remove space, tab, newline and carriage return.
+    base64 run, the same way. Remove space, tab, newline and carriage return,
+    and for rule (b) also each `>` (the quote marker its run goes on over).
     When what is left is not valid base64, byte_size is unknown. Valid means:
     every character before the padding is from one alphabet, `A-Z a-z 0-9 + /` or
     `A-Z a-z 0-9 - _` (never `+` or `/` together with `-` or `_`); the padding is
@@ -291,19 +292,31 @@ raw_payloads:
     JavaScript and Go). Each piece that matches gives one token, so tokens never
     overlap and a run that continues over a line break never takes the start of
     the next data URL (`...;base64,QUFB\ndata:...` is two tokens). The search is
-    linear: each character is in one piece and read by one attempt, and inside
-    an attempt the text splits into mime, parameters, run and continuation lines
-    in exactly one way, so backtracking gives back each character at most once.
+    linear: each character is in one piece and read by one attempt, the mime
+    type and parameters split in exactly one way, and once `;base64,` is read
+    the rest of the pattern cannot fail, so the run is taken greedily with no
+    backtracking into it. The run's first line is capped by `{0,76}`, so line
+    breaks are crossed only after a first line of at most 76; a longer first
+    line goes on in the last `[A-Za-z0-9+/_-]*` and ends the run at its line
+    break. Continuation lines are not capped: a capped quantifier inside the
+    repeated group makes V8 keep backtracking state for each character, and
+    its regex stack then overflows on a few megabytes of wrapped input. `[ \t>]*` after a line break takes the
+    indent of a block and the `>` of a quoted reply.
     mime_pattern must match the whole value: Python re.fullmatch, or `^` and `$`
     around it in JavaScript and Go (where, without the m flag, `$` is the end of
     the text; in Python `$` also matches before a final newline, so use
     fullmatch). url_scheme must match at the start of the unescaped value and
     need not reach its end: Python re.match, or `^` before it in JavaScript and
     Go. A keeps_urls key searches its value for `[dD][aA][tT][aA]:` anywhere,
-    with no trimming. For that key, rule (b)'s pattern must match the whole
-    unescaped value: Python re.fullmatch, or `^` and `$` around it in JavaScript
-    and Go, as for mime_pattern; a whole value that holds a second `data:` never
-    matches, since the pattern holds no colon after the scheme.
+    with no trimming. For that key, and wherever a part rule asks for rule
+    (b)'s pattern to match a whole value, the pattern matches the whole value
+    when its match anchored at the start (Python re.match, or `^` before it in
+    JavaScript and Go) ends at the end of the value. Do not use re.fullmatch
+    or `$` for rule (b): the greedy match reaches furthest, so they agree, but
+    when a long value fails they try each way to share a line between `{0,76}`
+    and the last `*`, many times slower in Python. A whole value that holds a
+    second `data:` never matches, since the pattern holds no colon after the
+    scheme.
   implementers: >-
     Do not write the replacement, or any escape, with a
     standard library JSON encoder: Go's json.Marshal, for example, writes `<`,
@@ -348,7 +361,7 @@ raw_payloads:
       after: 'see [stripped image/png 8 bytes] here'
     tokens:
       - token: A data URL (rule b), anywhere in a string
-        replaced: 'The URL characters alone, from data: (in any case) to the end of the base64 run, parameters included, with no quotes added. A run wrapped at a line break goes on over each next line that starts with base64, after any spaces or tabs, so nothing of a wrapped payload is left. The text around it stays byte-identical; a string that is only the data URL becomes the replacement text.'
+        replaced: 'The URL characters alone, from data: (in any case) to the end of the base64 run, parameters included, with no quotes added. A run wrapped at a line break goes on over each next line that starts with base64, after any spaces, tabs or >, when its first line holds at most 76 base64 characters, so nothing of a payload an encoder wrapped is left. The text around it stays byte-identical; a string that is only the data URL becomes the replacement text.'
         mime: The URL's media type when it is token/token; unknown when it names none, or anything else.
         byte_size: The base64 run's size, per byte_size; unknown when the run is not valid base64.
       - token: A base64 string value (rule e)
@@ -362,8 +375,8 @@ raw_payloads:
   detection:
     - id: b
       name: data URL
-      description: 'A data:<mime>[;<parameter>]*;base64,<base64> token anywhere in a string, the scheme in any case (DATA:, Data:) and RFC 2397 parameters allowed before ;base64, (data:image/png;name=a.png;base64,...). The base64 run may be wrapped: at a line break (a newline, or a carriage return and a newline) followed by any spaces or tabs and more base64, as base64.encodebytes, MIME and PEM encoders and an indented block write it, the run goes on, line after line, and ends at the padding or at the first character that is no base64. So the first word of a line that follows an unpadded data URL is replaced with it, the cost of leaving no wrapped payload behind; a padded run ends at its padding. The pattern finds each one, tried at each data: and never past the next (see regex_dialect): group 1 the mime type (empty when none), group 2 the last parameter (unused), group 3 the base64 run (standard or URL-safe), its line breaks included, group 4 its last continuation line (unused). A whole-string data URL is the special case.'
-      pattern: '[dD][aA][tT][aA]:([^;,:\t\n\f\r "]*)(;[^;,:\t\n\f\r "]*)*;base64,([A-Za-z0-9+/_-]*(\r{0,1}\n[ \t]*[A-Za-z0-9+/_-]+)*={0,2})'
+      description: 'A data:<mime>[;<parameter>]*;base64,<base64> token anywhere in a string, the scheme in any case (DATA:, Data:) and RFC 2397 parameters allowed before ;base64, (data:image/png;name=a.png;base64,...). The base64 run may be wrapped: at a line break (a newline, or a carriage return and a newline) followed by any spaces, tabs or > (an indented block or a quoted reply) and more base64, the run goes on, line after line, as base64.encodebytes, MIME and PEM encoders write it, and ends at the padding or at the first character that is no base64. It goes on over line breaks only when its first line, counted from ;base64,, holds at most 76 base64 characters, the most RFC 2045 lets a MIME line hold and what every wrapping encoder writes or less. A real image as a single-line data URL is far longer, so the prose after it stays whole. The cost: a tiny unpadded data URL (a run of 76 characters or fewer, about 57 bytes or less) at the end of a line takes each next line that starts with base64 with it, whatever that line''s length, up to its first character that is no base64; and a payload wrapped wider than 76 keeps everything after its first line. A padded run ends at its padding. The pattern finds each one, tried at each data: and never past the next (see regex_dialect): group 1 the mime type (empty when none), group 2 the last parameter (unused), group 3 the base64 run (standard or URL-safe), its line breaks included, group 4 its last continuation line (unused). A whole-string data URL is the special case.'
+      pattern: '[dD][aA][tT][aA]:([^;,:\t\n\f\r "]*)(;[^;,:\t\n\f\r "]*)*;base64,([A-Za-z0-9+/_-]{0,76}(\r{0,1}\n[ \t>]*[A-Za-z0-9+/_-]+)*[A-Za-z0-9+/_-]*={0,2})'
     - id: d
       name: Buffer object
       description: 'An object {"type": "Buffer", "data": [...]} whose data is a non-empty array.'
@@ -913,12 +926,31 @@ raw_payloads:
       tokens:
         - {rule: b, mime: image/png, byte_size: 8}
     - name: an_unpadded_run_takes_the_first_word_of_the_next_line
-      note: 'An unpadded run cannot tell the next line''s first word from more base64, so that word goes with it: the cost of leaving no wrapped payload behind. The rest of the line stays. A padded run ends at its padding, so the next line stays whole.'
+      note: 'A tiny unpadded run (76 base64 characters or fewer) cannot tell the next line''s first word from more base64, so that word goes with it: the cost of leaving no wrapped payload behind. The rest of the line stays. A padded run ends at its padding, so the next line stays whole.'
       input: "data:image/png;base64,iVBORw0KGgo\nThanks, bye. data:image/png;base64,iVBORw0KGgo=\nThanks"
       output: "[stripped image/png unknown bytes], bye. [stripped image/png 8 bytes]\nThanks"
       tokens:
         - {rule: b, mime: image/png, byte_size: unknown}
         - {rule: b, mime: image/png, byte_size: 8}
+    - name: a_long_data_url_at_a_line_end_keeps_the_lines_after_it
+      note: 'A run longer than 76 base64 characters on one line is no wrapped payload, since no encoder writes a longer line, so it ends at its line break even unpadded: a sign-off of one-word lines and a --- rule after it stay whole, and the size is the payload''s alone.'
+      input: "data:image/png;base64,AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7\nThanks\nBest\nAlex and data:image/png;base64,AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7\n---\nNext"
+      output: "[stripped image/png 60 bytes]\nThanks\nBest\nAlex and [stripped image/png 60 bytes]\n---\nNext"
+      tokens:
+        - {rule: b, mime: image/png, byte_size: 60}
+        - {rule: b, mime: image/png, byte_size: 60}
+    - name: a_tiny_data_url_at_a_line_end_takes_the_one_word_lines_after_it
+      note: 'The accepted cost of the 76-character guard: a tiny unpadded data URL at the end of a line goes on over each next line that is one base64 word, and its size is then unknown. A line with a character that is no base64 stops it there.'
+      input: "data:image/gif;base64,R0lGODlhAQABAAAAACw\nThanks\nBest\nAlex, bye"
+      output: "[stripped image/gif unknown bytes], bye"
+      tokens:
+        - {rule: b, mime: image/gif, byte_size: unknown}
+    - name: a_wrapped_data_url_in_a_quoted_reply
+      note: 'After a line break, the > of a quoted reply is skipped like an indent, so a wrapped payload in a quoted message is replaced whole and the quoted line after it stays.'
+      input: "> see data:image/png;base64,ZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpuc\n> nZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7w=\n> Thanks"
+      output: "> see [stripped image/png 89 bytes]\n> Thanks"
+      tokens:
+        - {rule: b, mime: image/png, byte_size: 89}
     - name: a_data_url_never_runs_into_the_next
       note: 'Each data: starts its own token: a run that goes on over a newline, or a run glued to the next data URL, stops where the next data: starts, so both payloads are replaced.'
       input: "data:image/png;base64,QUFB\ndata:image/png;base64,QkJC and data:image/png;base64,QUFBdata:image/png;base64,QkJC"

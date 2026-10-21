@@ -842,11 +842,11 @@ Raw payloads, never mined for parts: `input.value`, `output.value`, `lmnr.span.i
 
 **Spans.** Every span is on the original text; nothing is re-serialized. (d) The object token, from its `{` to its matching `}`, is replaced by the replacement as a JSON string literal, quotes included. (e) The string literal, quotes included, is replaced by the replacement as a JSON string literal, quotes included. (b) In a JSON string, only the URL's characters are replaced: the replacement goes inside the existing quotes, with no quotes added. (b) In a string that is not JSON (or did not parse), the URL's characters are replaced by the replacement, with no quotes. Rules (b) and (e) read a JSON string's unescaped value, so a span starts at the first raw character of its first character and ends after the last raw character of its last, escapes included (`data:image\/png` is read as `data:image/png`). Text written into a JSON string is escaped for its level with the minimal escapes JSON.stringify writes, and no others: `\"` for a quote, `\\` for a backslash, `\b` `\f` `\n` `\r` `\t`, `\u00xx` (lowercase hex) for any other control character, `\udxxx` for a lone surrogate. In a JSON string nested in a JSON string, the inner replacement is escaped once per level, and every byte outside the replaced tokens is kept as it was, including escapes the re-encoder would not write (`\u0022`, `\/`).
 
-**Byte size.** Rule (e) computes it on the string's unescaped value, and rule (b) on its base64 run, the same way. Remove space, tab, newline and carriage return. When what is left is not valid base64, byte_size is unknown. Valid means: every character before the padding is from one alphabet, `A-Z a-z 0-9 + /` or `A-Z a-z 0-9 - _` (never `+` or `/` together with `-` or `_`); the padding is at most two `=`, only at the end; and the length, padding counted, is a multiple of 4 (so unpadded base64 is not valid). For valid base64, byte_size is length times 3 / 4, minus the number of `=`. Rule (d) takes the length of its data array.
+**Byte size.** Rule (e) computes it on the string's unescaped value, and rule (b) on its base64 run, the same way. Remove space, tab, newline and carriage return, and for rule (b) also each `>` (the quote marker its run goes on over). When what is left is not valid base64, byte_size is unknown. Valid means: every character before the padding is from one alphabet, `A-Z a-z 0-9 + /` or `A-Z a-z 0-9 - _` (never `+` or `/` together with `-` or `_`); the padding is at most two `=`, only at the end; and the length, padding counted, is a multiple of 4 (so unpadded base64 is not valid). For valid base64, byte_size is length times 3 / 4, minus the number of `=`. Rule (d) takes the length of its data array.
 
 **Members.** Every member of an object is visited, in document order, duplicate keys included. A condition on a key holds when any member with that key meets it (a type equal to Buffer, blob or base64 or to one of a typed key's types, a non-empty data array, a sibling), and a value read from a key (a mime type, a format, a Buffer's data array) is that of the first member with that key, in document order, that qualifies. Rule (e) applies to each member under one of its keys that qualifies, duplicates included, all with the context and mime type computed from all the siblings: `{"mediaType":"image/png","data":"QUFB","data":"QkJC"}` strips both data values. A sibling counts as context only when its value is a non-empty string that is not a complete replacement (see idempotence), the same rule as mime selection. Context and mime type are read from the member values as they were before the pass, so document order does not matter: in `{"mediaType":"data:image/png;base64,QUFB","data":"QkJC"}` mediaType is context, though rule (b) rewrites it in the same pass, and data is a token whichever comes first; its mime type is unknown, since the original mediaType is not a valid mime. `format` is not a sibling key: it counts only under the parent key input_audio or audio (which is context already), where it names audio/&lt;format&gt;, and elsewhere a format sibling is ignored; output_format counts anywhere. The mime type is chosen by the order of the mime key list, not by document order: the first mime key in list order whose value is a non-empty valid mime (see replacement) wins; else the first mime format, in order, whose sibling is a non-empty string, not a complete replacement, and whose mime is valid; else unknown. When a rule (e) key holds an array directly, each string element is its own token (when it is non-empty and not already a complete replacement), with the same context and mime type; any other element is visited as usual, with that key as its parent key.
 
-**Regex dialect.** The pattern of rule (b), rule (e)'s url_scheme and the replacement's mime_pattern use only constructs Python re, JavaScript RegExp and Go RE2 read the same way: literal characters, character classes with explicit ASCII members and ranges, the escapes `\t` `\n` `\f` `\r`, capturing groups, and the quantifiers `*`, `+` and `{m,n}`. No `\s`, `\d`, `\w`, `\b`, `?`, lookaround, backreference, non-capturing group, alternation or inline flag: the case-insensitive scheme is written `[dD][aA][tT][aA]:`, an optional carriage return `\r{0,1}`, and the repeated RFC 2397 parameter and the repeated continuation line are capturing groups. Neither the mime class nor the parameter class holds `;` or `:`. RFC 2045 lists `:` as a tspecial, so it cannot appear in an unquoted mime type or parameter token. Rule (b) finds its tokens this way: cut the string before each `data:` (in any ASCII case, `[dD][aA][tT][aA]:` searched left to right; two never overlap), and try the pattern once at the start of each piece, never past its end (Python `pattern.match(text, start, end)`, or `^` before it on the piece in JavaScript and Go). Each piece that matches gives one token, so tokens never overlap and a run that continues over a line break never takes the start of the next data URL (`...;base64,QUFB\ndata:...` is two tokens). The search is linear: each character is in one piece and read by one attempt, and inside an attempt the text splits into mime, parameters, run and continuation lines in exactly one way, so backtracking gives back each character at most once. mime_pattern must match the whole value: Python re.fullmatch, or `^` and `$` around it in JavaScript and Go (where, without the m flag, `$` is the end of the text; in Python `$` also matches before a final newline, so use fullmatch). url_scheme must match at the start of the unescaped value and need not reach its end: Python re.match, or `^` before it in JavaScript and Go. A keeps_urls key searches its value for `[dD][aA][tT][aA]:` anywhere, with no trimming. For that key, rule (b)'s pattern must match the whole unescaped value: Python re.fullmatch, or `^` and `$` around it in JavaScript and Go, as for mime_pattern; a whole value that holds a second `data:` never matches, since the pattern holds no colon after the scheme.
+**Regex dialect.** The pattern of rule (b), rule (e)'s url_scheme and the replacement's mime_pattern use only constructs Python re, JavaScript RegExp and Go RE2 read the same way: literal characters, character classes with explicit ASCII members and ranges, the escapes `\t` `\n` `\f` `\r`, capturing groups, and the quantifiers `*`, `+` and `{m,n}`. No `\s`, `\d`, `\w`, `\b`, `?`, lookaround, backreference, non-capturing group, alternation or inline flag: the case-insensitive scheme is written `[dD][aA][tT][aA]:`, an optional carriage return `\r{0,1}`, and the repeated RFC 2397 parameter and the repeated continuation line are capturing groups. Neither the mime class nor the parameter class holds `;` or `:`. RFC 2045 lists `:` as a tspecial, so it cannot appear in an unquoted mime type or parameter token. Rule (b) finds its tokens this way: cut the string before each `data:` (in any ASCII case, `[dD][aA][tT][aA]:` searched left to right; two never overlap), and try the pattern once at the start of each piece, never past its end (Python `pattern.match(text, start, end)`, or `^` before it on the piece in JavaScript and Go). Each piece that matches gives one token, so tokens never overlap and a run that continues over a line break never takes the start of the next data URL (`...;base64,QUFB\ndata:...` is two tokens). The search is linear: each character is in one piece and read by one attempt, the mime type and parameters split in exactly one way, and once `;base64,` is read the rest of the pattern cannot fail, so the run is taken greedily with no backtracking into it. The run's first line is capped by `{0,76}`, so line breaks are crossed only after a first line of at most 76; a longer first line goes on in the last `[A-Za-z0-9+/_-]*` and ends the run at its line break. Continuation lines are not capped: a capped quantifier inside the repeated group makes V8 keep backtracking state for each character, and its regex stack then overflows on a few megabytes of wrapped input. `[ \t>]*` after a line break takes the indent of a block and the `>` of a quoted reply. mime_pattern must match the whole value: Python re.fullmatch, or `^` and `$` around it in JavaScript and Go (where, without the m flag, `$` is the end of the text; in Python `$` also matches before a final newline, so use fullmatch). url_scheme must match at the start of the unescaped value and need not reach its end: Python re.match, or `^` before it in JavaScript and Go. A keeps_urls key searches its value for `[dD][aA][tT][aA]:` anywhere, with no trimming. For that key, and wherever a part rule asks for rule (b)'s pattern to match a whole value, the pattern matches the whole value when its match anchored at the start (Python re.match, or `^` before it in JavaScript and Go) ends at the end of the value. Do not use re.fullmatch or `$` for rule (b): the greedy match reaches furthest, so they agree, but when a long value fails they try each way to share a line between `{0,76}` and the last `*`, many times slower in Python. A whole value that holds a second `data:` never matches, since the pattern holds no colon after the scheme.
 
 **Implementers.** Do not write the replacement, or any escape, with a standard library JSON encoder: Go's json.Marshal, for example, writes `<`, `>`, `&` and U+2028 as `\u003c`, `\u003e`, `\u0026` and `\u2028`, which no other implementation writes. Do not compute byte_size with a strict standard library base64 decoder either: decoders differ on whitespace, URL-safe input and padding. The escaping rules (spans), the size rules (byte_size) and the mime rule (replacement) here are exhaustive: write exactly what they say, and keep every other byte as it was. Read JSON with a parser that keeps the span of every value on the text and every duplicate member (members), and that counts the depth itself (json_candidate).
 
@@ -858,7 +858,7 @@ A data URL inside other text: only the token is replaced, so `see data:image/png
 
 | Token | Replaced | Mime | Byte size |
 | -- | -- | -- | -- |
-| A data URL (rule b), anywhere in a string | The URL characters alone, from data: (in any case) to the end of the base64 run, parameters included, with no quotes added. A run wrapped at a line break goes on over each next line that starts with base64, after any spaces or tabs, so nothing of a wrapped payload is left. The text around it stays byte-identical; a string that is only the data URL becomes the replacement text. | The URL's media type when it is token/token; unknown when it names none, or anything else. | The base64 run's size, per byte_size; unknown when the run is not valid base64. |
+| A data URL (rule b), anywhere in a string | The URL characters alone, from data: (in any case) to the end of the base64 run, parameters included, with no quotes added. A run wrapped at a line break goes on over each next line that starts with base64, after any spaces, tabs or &gt;, when its first line holds at most 76 base64 characters, so nothing of a payload an encoder wrapped is left. The text around it stays byte-identical; a string that is only the data URL becomes the replacement text. | The URL's media type when it is token/token; unknown when it names none, or anything else. | The base64 run's size, per byte_size; unknown when the run is not valid base64. |
 | A base64 string value (rule e) | The string literal, quotes included, by the replacement as a JSON string literal; for an array under the key, each string element the same way. | The first of media_type, mediaType, mime_type, mimeType, in that order, that holds a token/token mime; else image/&lt;output_format&gt;; else audio/&lt;format&gt; under input_audio or audio; else, under a typed key with holder_mime (a Vercel v7 tagged data), the enclosing object's first such mime key; else unknown. | The unescaped value's size, per byte_size; unknown when it is not valid base64. |
 | A Buffer object (rule d) | The whole object token, from { to its matching }, by the replacement as a JSON string literal. | The first of the enclosing object's media_type, mediaType, mime_type, mimeType, in that order, that holds a token/token mime; else unknown. | The length of the data array. |
 
@@ -867,7 +867,7 @@ in an expected result, every token these find (in a string holding JSON too):
 
 | Rule | Name | Matches | Parameters |
 | -- | -- | -- | -- |
-| (b) | data URL | A data:&lt;mime&gt;[;&lt;parameter&gt;]\*;base64,&lt;base64&gt; token anywhere in a string, the scheme in any case (DATA:, Data:) and RFC 2397 parameters allowed before ;base64, (data:image/png;name=a.png;base64,...). The base64 run may be wrapped: at a line break (a newline, or a carriage return and a newline) followed by any spaces or tabs and more base64, as base64.encodebytes, MIME and PEM encoders and an indented block write it, the run goes on, line after line, and ends at the padding or at the first character that is no base64. So the first word of a line that follows an unpadded data URL is replaced with it, the cost of leaving no wrapped payload behind; a padded run ends at its padding. The pattern finds each one, tried at each data: and never past the next (see regex_dialect): group 1 the mime type (empty when none), group 2 the last parameter (unused), group 3 the base64 run (standard or URL-safe), its line breaks included, group 4 its last continuation line (unused). A whole-string data URL is the special case. | pattern: `[dD][aA][tT][aA]:([^;,:\t\n\f\r "]*)(;[^;,:\t\n\f\r "]*)*;base64,([A-Za-z0-9+/_-]*(\r{0,1}\n[ \t]*[A-Za-z0-9+/_-]+)*={0,2})` |
+| (b) | data URL | A data:&lt;mime&gt;[;&lt;parameter&gt;]\*;base64,&lt;base64&gt; token anywhere in a string, the scheme in any case (DATA:, Data:) and RFC 2397 parameters allowed before ;base64, (data:image/png;name=a.png;base64,...). The base64 run may be wrapped: at a line break (a newline, or a carriage return and a newline) followed by any spaces, tabs or &gt; (an indented block or a quoted reply) and more base64, the run goes on, line after line, as base64.encodebytes, MIME and PEM encoders write it, and ends at the padding or at the first character that is no base64. It goes on over line breaks only when its first line, counted from ;base64,, holds at most 76 base64 characters, the most RFC 2045 lets a MIME line hold and what every wrapping encoder writes or less. A real image as a single-line data URL is far longer, so the prose after it stays whole. The cost: a tiny unpadded data URL (a run of 76 characters or fewer, about 57 bytes or less) at the end of a line takes each next line that starts with base64 with it, whatever that line's length, up to its first character that is no base64; and a payload wrapped wider than 76 keeps everything after its first line. A padded run ends at its padding. The pattern finds each one, tried at each data: and never past the next (see regex_dialect): group 1 the mime type (empty when none), group 2 the last parameter (unused), group 3 the base64 run (standard or URL-safe), its line breaks included, group 4 its last continuation line (unused). A whole-string data URL is the special case. | pattern: `[dD][aA][tT][aA]:([^;,:\t\n\f\r "]*)(;[^;,:\t\n\f\r "]*)*;base64,([A-Za-z0-9+/_-]{0,76}(\r{0,1}\n[ \t>]*[A-Za-z0-9+/_-]+)*[A-Za-z0-9+/_-]*={0,2})` |
 | (d) | Buffer object | An object {"type": "Buffer", "data": [...]} whose data is a non-empty array. | type: `Buffer`; array_key: `data`; mime_keys: `media_type`, `mediaType`, `mime_type`, `mimeType` |
 | (e) | keyed base64 string | A non-empty string (or each string of an array) under one of the keys, when its object has one of the sibling keys with a non-empty string value that is not a complete replacement, or its object's parent key is one of the parent keys, or its object is the value of a source key and has type base64 (the Anthropic {"source":{"type":"base64","media_type":...,"data":...}}: the object holding data is the source itself, not the content block around it); a non-empty string under content when its object has type blob (the semconv blob part, as in a raw payload like pydantic_ai.all_messages: the raw-payload twin of the fixture check's rule that a normalized blob part carries no content); a non-empty string under a typed key when its object has one of that key's types and, for a typed key that names parent keys, its object's parent key is one of them (a LangChain v1 standard content block {"type":"image","base64":...,"mime_type":...}, Mistral's audio chunk {"type":"input_audio","input_audio":...}, which its TypeScript SDK spells inputAudio, a Vercel image part {"type":"image","image":...}, or the v7 tagged data {"type":"data","data":...} a Vercel file part's data or image part's image holds); a non-empty string under one of the source bytes keys when its object is the value of a source key, whatever its type (the Bedrock Converse {"image":{"format":"png","source":{"bytes":...}}}: as for Anthropic, the object holding bytes is the source); and a non-empty string under one of a base64 marker's own keys when its object has the marker (a member with exactly the marker's key and string value, as in the LangChain v0 block {"type":"image","source_type":"base64","data":...}, whose marker reaches data and no other key). A typed key with holder_types counts only when the nearest object holding its object, through arrays, has one of those types: the v7 tagged data counts in a Vercel file or image part, never in a {"data":{"type":"data",...}} envelope of some other API. A typed key with keeps_urls leaves a string that starts with a URL scheme (url_scheme) to rule (b), whatever other way its key qualifies, when it holds no data: (searched anywhere, in any ASCII case) or rule (b)'s pattern matches the whole string: an http URL under a Vercel image stays, and a base64 data URL that is the whole value, wrapped or not, is replaced by rule (b) with its own mime type and size. Any other string that holds data: (a percent-encoded data URL, a run rule (b) stops short in, a link with a data URL after it) is a rule (e) token like any other, replaced whole with the key's usual mime type, so no byte of its payload survives. The search has no word boundary, so a link with data: in its path (https://e/metadata:x.png) is replaced too. A typed key with holder_mime takes its mime type, when its own object names none, from the mime keys of the nearest object holding it, as rule (d) does, so a tagged data reads its Vercel part's mediaType. Never a string that is already a complete replacement (see idempotence). See members for duplicate keys, siblings and arrays. | keys: `data`, `b64_json`, `result`, `base64`; sibling_keys: `media_type`, `mediaType`, `mime_type`, `mimeType`, `output_format`; parent_keys: `input_audio`, `audio`, `inline_data`, `inlineData`; source_key: `source`; source_type: `base64`; blob_type: `blob`; blob_key: `content`; base64_markers: `source_type` = `base64`, for `data`; typed_keys: `base64` under type `image`, `audio`, `video`, `file`, `text-plain`, `input_audio` under type `input_audio`, `inputAudio` under type `input_audio`, `image` under type `image` (keeps URLs), `data` under type `data` and parent key `data`, `image` in an object of type `file`, `image` (keeps URLs) (the holder's mime); url_scheme: `[A-Za-z][A-Za-z0-9+.-]*:`; source_bytes_keys: `bytes`; mime_keys: `media_type`, `mediaType`, `mime_type`, `mimeType`; mime_formats: `output_format` gives `image/<value>`, `format` gives `audio/<value>` under `input_audio`, `audio` |
 
@@ -2207,7 +2207,7 @@ Tokens: (b) image/png, 8 bytes.
 
 #### `an_unpadded_run_takes_the_first_word_of_the_next_line`
 
-An unpadded run cannot tell the next line's first word from more base64, so that word goes with it: the cost of leaving no wrapped payload behind. The rest of the line stays. A padded run ends at its padding, so the next line stays whole.
+A tiny unpadded run (76 base64 characters or fewer) cannot tell the next line's first word from more base64, so that word goes with it: the cost of leaving no wrapped payload behind. The rest of the line stays. A padded run ends at its padding, so the next line stays whole.
 
 Input:
 
@@ -2225,6 +2225,76 @@ Thanks
 ```
 
 Tokens: (b) image/png, unknown bytes, (b) image/png, 8 bytes.
+
+#### `a_long_data_url_at_a_line_end_keeps_the_lines_after_it`
+
+A run longer than 76 base64 characters on one line is no wrapped payload, since no encoder writes a longer line, so it ends at its line break even unpadded: a sign-off of one-word lines and a --- rule after it stay whole, and the size is the payload's alone.
+
+Input:
+
+```text
+data:image/png;base64,AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7
+Thanks
+Best
+Alex and data:image/png;base64,AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7
+---
+Next
+```
+
+Output:
+
+```text
+[stripped image/png 60 bytes]
+Thanks
+Best
+Alex and [stripped image/png 60 bytes]
+---
+Next
+```
+
+Tokens: (b) image/png, 60 bytes, (b) image/png, 60 bytes.
+
+#### `a_tiny_data_url_at_a_line_end_takes_the_one_word_lines_after_it`
+
+The accepted cost of the 76-character guard: a tiny unpadded data URL at the end of a line goes on over each next line that is one base64 word, and its size is then unknown. A line with a character that is no base64 stops it there.
+
+Input:
+
+```text
+data:image/gif;base64,R0lGODlhAQABAAAAACw
+Thanks
+Best
+Alex, bye
+```
+
+Output:
+
+```text
+[stripped image/gif unknown bytes], bye
+```
+
+Tokens: (b) image/gif, unknown bytes.
+
+#### `a_wrapped_data_url_in_a_quoted_reply`
+
+After a line break, the &gt; of a quoted reply is skipped like an indent, so a wrapped payload in a quoted message is replaced whole and the quoted line after it stays.
+
+Input:
+
+```text
+> see data:image/png;base64,ZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpuc
+> nZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7w=
+> Thanks
+```
+
+Output:
+
+```text
+> see [stripped image/png 89 bytes]
+> Thanks
+```
+
+Tokens: (b) image/png, 89 bytes.
 
 #### `a_data_url_never_runs_into_the_next`
 

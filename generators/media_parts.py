@@ -571,6 +571,12 @@ def base64_size(value: str) -> int | None:
     return len(text) * 3 // 4 - padding
 
 
+def run_size(run: str) -> int | None:
+    """The size of a rule b run: its base64 size with the > of each quoted
+    line it goes on over removed too."""
+    return base64_size(run.replace(">", ""))
+
+
 @dataclass(frozen=True)
 class Token:
     """A media token a strip replaced: its rule, mime type and size (None is
@@ -635,8 +641,16 @@ def data_url_spans(raw: dict, value: str) -> list[Span]:
         m = pattern.match(value, start, end)
         if m:
             mime = _mime_or_unknown(raw, m.group(1))
-            spans.append(Span(m.start(), m.end(), mime, base64_size(m.group(3))))
+            spans.append(Span(m.start(), m.end(), mime, run_size(m.group(3))))
     return spans
+
+
+def whole_data_url(raw: dict, value: str) -> re.Match | None:
+    """Rule b's match when it is the whole string: the pattern anchored at the
+    start, its match ending at the end. The same as fullmatch, since the run's
+    greedy match reaches furthest, but fast when a long value fails."""
+    m = re.compile(_rules(raw)["b"]["pattern"]).match(value)
+    return m if m and m.end() == len(value) else None
 
 
 def is_data_url(raw: dict, value: str) -> bool:
@@ -771,7 +785,7 @@ def kept_url(raw: dict, value: Any) -> bool:
         return False
     if _DATA_ANYWHERE.search(value) is None:
         return True
-    return re.fullmatch(_rules(raw)["b"]["pattern"], value) is not None
+    return whole_data_url(raw, value) is not None
 
 
 def url_keys(
@@ -1283,10 +1297,10 @@ def _data_url_part(data: dict, url: str, hint: str | None, kind_modality: str | 
     redacted_upstream when its payload is empty or None. The mime type is the
     URL's when valid, else the hint."""
     raw = data["raw_payloads"]
-    match = re.fullmatch(_rules(raw)["b"]["pattern"], url)
+    match = whole_data_url(raw, url)
     if match:
         mime = _mime_or_unknown(raw, match.group(1)) or hint
-        size, reason = base64_size(match.group(3)), "not_captured"
+        size, reason = run_size(match.group(3)), "not_captured"
     else:
         rest = url.split(":", 1)[1]
         mime = _mime_or_unknown(raw, re.split("[;,]", rest, maxsplit=1)[0]) or hint
