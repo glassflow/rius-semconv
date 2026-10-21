@@ -455,7 +455,7 @@ def lint_byte_objects(raw: dict) -> list[str]:
         if not _attribute_markers(marker, example.get("output")):
             errors.append(
                 f"{where} attribute_values {name} output must be a bare marker,"
-                " or an array or mapping holding one, or an array's JSON holding one"
+                " or an array or mapping holding one, or its JSON holding one"
             )
     if not attributes.get("examples"):
         errors.append(f"{where} attribute_values needs examples")
@@ -464,8 +464,8 @@ def lint_byte_objects(raw: dict) -> list[str]:
 
 def _attribute_markers(marker: re.Pattern, output: Any) -> bool:
     """Whether an attribute value holds a marker: a string that is one, an
-    array or mapping whose values hold one, or an array's JSON fallback that
-    does. Anything that is no attribute value holds none."""
+    array or mapping whose values hold one, or an array's or a mapping's JSON
+    fallback that does. Anything that is no attribute value holds none."""
     if isinstance(output, dict):
         values = list(output.values())
     elif isinstance(output, list):
@@ -477,7 +477,7 @@ def _attribute_markers(marker: re.Pattern, output: Any) -> bool:
             fallback = json.loads(output)
         except ValueError:
             return False
-        return isinstance(fallback, list) and _attribute_markers(marker, fallback)
+        return isinstance(fallback, (list, dict)) and _attribute_markers(marker, fallback)
     else:
         return False
     found = False
@@ -1402,7 +1402,9 @@ def attribute_value(raw: dict, value: Any) -> Any:
     the bare marker, at any depth of arrays and mappings. An array that holds
     a byte object beside an element that is then no string cannot stay
     homogeneous, so it is the SDK's JSON of the array (serialize_value), one
-    string. Anything else is kept."""
+    string. Anything else is kept. This is the form the Python SDK sets, as
+    OpenTelemetry Python holds a mapping and a nested array; the TypeScript
+    SDK sets a walked mapping or nested array as the JSON of the value."""
     if isinstance(value, BYTE_OBJECT_TYPES):
         return replacement(raw, None, byte_object_size(value))
     if isinstance(value, dict):

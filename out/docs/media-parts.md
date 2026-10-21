@@ -2167,7 +2167,7 @@ Attribute value:
 
 #### Byte objects as attribute values
 
-A byte object used directly as an OpenTelemetry attribute value (of a span, an event or a link), or anywhere inside one (an element of an array or a value of a mapping, at any depth), has no serializer around it: it becomes the marker as a bare string, `[stripped unknown <N> bytes]`, with no JSON quotes, and N its size by the size rule above. Every other value is kept. An OpenTelemetry array is homogeneous, so each array is looked at on its own once its elements are replaced. One that held a byte object and whose elements are then all strings is that array of strings. One that held a byte object beside any element that is then no string (a number, a bool, null, an array, a mapping) is instead one string: the JSON the SDK serializes the array to under the rule above, `[1,"[stripped unknown 2 bytes]"]`, its numbers written as that SDK writes them. An array that held no byte object is kept, its elements walked. The sink does the same with an OTLP AnyValue: a bytes_value, alone or at any depth of array_value and kvlist_value, is the marker, N the number of bytes it holds, and an array_value that mixes a bytes_value with a value that is then no string is its compact JSON, an int_value written as a JSON number and a kvlist_value as an object. In OTLP JSON a bytes_value is base64: the proto3 JSON mapping writes it in the standard alphabet with padding, and a parser accepts the standard or the URL-safe alphabet, padded or not, so N is the length it decodes to (`_-__` is 3 bytes, `iVBORw0KGgo` 8). This differs from the root of a serialized value (above), which is JSON and so quoted. generators/media_parts.py attribute_value and otlp_attribute_value are the reference, and the TypeScript examples run through the replacer the tests hold; each example's output is the attribute value: a string, an array of them, a mapping, or an array's JSON.
+A byte object used directly as an OpenTelemetry attribute value (of a span, an event or a link), or anywhere inside one (an element of an array or a value of a mapping, at any depth), has no serializer around it: it becomes the marker as a bare string, `[stripped unknown <N> bytes]`, with no JSON quotes, and N its size by the size rule above. Every other value is kept. An OpenTelemetry array is homogeneous, so each array is looked at on its own once its elements are replaced. One that held a byte object and whose elements are then all strings is that array of strings. One that held a byte object beside any element that is then no string (a number, a bool, null, an array, a mapping) is instead one string: the JSON the SDK serializes the array to under the rule above, `[1,"[stripped unknown 2 bytes]"]`, its numbers written as that SDK writes them. An array that held no byte object is kept, its elements walked. The SDK then sets the walked value in the form its OpenTelemetry attribute API holds. OpenTelemetry Python holds a mapping and a nested array, so it sets them as they are. OpenTelemetry JS holds neither, so a walked value that held a byte object and is then a mapping or an array holding an array or a mapping is set as one string: the JSON the SDK serializes the value to under the rule above, every byte object a quoted marker and every array an array, so `{k: [1, bytes]}` is `{"k":[1,"[stripped unknown 2 bytes]"]}`, encoded once, never holding a mixed array's own JSON as a string. The sink does the same with an OTLP AnyValue: a bytes_value, alone or at any depth of array_value and kvlist_value, is the marker, N the number of bytes it holds, and an array_value that mixes a bytes_value with a value that is then no string is its compact JSON, an int_value written as a JSON number and a kvlist_value as an object. In OTLP JSON a bytes_value is base64: the proto3 JSON mapping writes it in the standard alphabet with padding, and a parser accepts the standard or the URL-safe alphabet, padded or not, so N is the length it decodes to (`_-__` is 3 bytes, `iVBORw0KGgo` 8). This differs from the root of a serialized value (above), which is JSON and so quoted. generators/media_parts.py attribute_value and otlp_attribute_value are the reference, and the TypeScript examples run through the replacer the tests hold; each example's output is the attribute value the SDK sets: a string, an array of them, a mapping (Python and the sink), or an array's or a mapping's JSON.
 
 ##### `python_bytes_attribute`
 
@@ -2243,6 +2243,54 @@ Attribute value:
 [1,"[stripped unknown 2 bytes]"]
 ```
 
+##### `python_byte_object_in_a_mapping`
+
+OpenTelemetry Python holds a mapping, so it is set as a mapping.
+
+Value (Python):
+
+```text
+{"img": b"abc"}
+```
+
+Attribute value:
+
+```text
+{"img": "[stripped unknown 3 bytes]"}
+```
+
+##### `python_byte_object_beside_a_number_in_a_mapping`
+
+The mixed array is its JSON, and the mapping around it stays a mapping.
+
+Value (Python):
+
+```text
+{"k": [1, b"ab"]}
+```
+
+Attribute value:
+
+```text
+{"k": "[1,\"[stripped unknown 2 bytes]\"]"}
+```
+
+##### `python_byte_object_beside_a_number_in_a_nested_array`
+
+The inner array is its JSON, so the outer one is an array of strings.
+
+Value (Python):
+
+```text
+[[1, b"a"]]
+```
+
+Attribute value:
+
+```text
+["[1,\"[stripped unknown 1 bytes]\"]"]
+```
+
 ##### `typescript_buffer_attribute`
 
 Value (TypeScript):
@@ -2271,9 +2319,23 @@ Attribute value:
 ["[stripped unknown 2 bytes]", "[stripped unknown 3 bytes]"]
 ```
 
+##### `typescript_byte_objects_beside_strings_in_an_array_attribute`
+
+Value (TypeScript):
+
+```text
+[new Uint8Array(2), "x"]
+```
+
+Attribute value:
+
+```text
+["[stripped unknown 2 bytes]", "x"]
+```
+
 ##### `typescript_byte_objects_in_a_mapping_and_a_nested_array`
 
-A Uint16Array of 2 items is 4 bytes.
+OpenTelemetry JS holds no mapping, so the mapping is its JSON, one string. A Uint16Array of 2 items is 4 bytes.
 
 Value (TypeScript):
 
@@ -2284,7 +2346,23 @@ Value (TypeScript):
 Attribute value:
 
 ```text
-{"k": "[stripped unknown 4 bytes]", "n": [["[stripped unknown 3 bytes]"], ["x"]]}
+{"k":"[stripped unknown 4 bytes]","n":[["[stripped unknown 3 bytes]"],["x"]]}
+```
+
+##### `typescript_byte_object_in_a_nested_array`
+
+OpenTelemetry JS holds no nested array, so the array is its JSON.
+
+Value (TypeScript):
+
+```text
+[[new Uint8Array(3)], ["x"]]
+```
+
+Attribute value:
+
+```text
+[["[stripped unknown 3 bytes]"],["x"]]
 ```
 
 ##### `typescript_byte_object_beside_a_number`
@@ -2299,6 +2377,38 @@ Attribute value:
 
 ```text
 [1,"[stripped unknown 2 bytes]"]
+```
+
+##### `typescript_byte_object_beside_a_number_in_a_mapping`
+
+The mapping is its JSON, encoded once, so the mixed array in it is an array, not its own JSON as a string.
+
+Value (TypeScript):
+
+```text
+{ k: [1, new Uint8Array(2)] }
+```
+
+Attribute value:
+
+```text
+{"k":[1,"[stripped unknown 2 bytes]"]}
+```
+
+##### `typescript_byte_object_beside_a_number_in_a_nested_array`
+
+The inner array is its JSON, so the outer one is an array of strings, which OpenTelemetry JS holds.
+
+Value (TypeScript):
+
+```text
+[[1, new Uint8Array(1)]]
+```
+
+Attribute value:
+
+```text
+["[1,\"[stripped unknown 1 bytes]\"]"]
 ```
 
 ##### `otlp_bytes_value`

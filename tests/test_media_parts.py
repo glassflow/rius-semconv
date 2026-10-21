@@ -1510,7 +1510,8 @@ def test_attribute_value_examples_are_what_the_reference_makes(base_data, exampl
 
 # The TypeScript SDK's attribute value rule: a byte object at any depth is the
 # bare marker, and an array that cannot stay homogeneous is its JSON, written
-# with the byte object replacer.
+# with the byte object replacer. OpenTelemetry JS holds no mapping and no
+# nested array, so a walked value that is one is the JSON of the value.
 ATTRIBUTE_VALUE_SCRIPT = (
     BYTE_OBJECT_SCRIPT.split("const examples")[0]
     + r"""
@@ -1527,8 +1528,16 @@ const attributeValue = (v) => {
   }
   return v;
 };
+const holdsBytes = (v) =>
+  isBytes(v) || (v !== null && typeof v === "object" && Object.values(v).some(holdsBytes));
+const primitive = (v) => v === null || typeof v !== "object";
+const setValue = (v) => {
+  const out = attributeValue(v);
+  const held = Array.isArray(out) ? out.every(primitive) : primitive(out);
+  return held || !holdsBytes(v) ? out : JSON.stringify(v, replacer);
+};
 const examples = JSON.parse(process.argv[1]);
-console.log(JSON.stringify(examples.map((e) => attributeValue((0, eval)("(" + e + ")")))));
+console.log(JSON.stringify(examples.map((e) => setValue((0, eval)("(" + e + ")")))));
 """
 )
 
