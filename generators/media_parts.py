@@ -1492,6 +1492,16 @@ def _provider_uri(raw: dict, item: dict) -> tuple[Any, Any, str | None, bool] | 
 OTHER_REFERENCES = {"input_image": ("file_id",), "input_file": ("file_id", "file_data")}
 
 
+def _another_reference_wins(item: dict, uri: Any) -> bool:
+    """Whether the item's reader takes another reference before its URI. An
+    input_file takes a usable file_id or file_data first. An input_image takes
+    its image_url first, so its file_id wins only when the image_url is not
+    usable."""
+    if item.get("type") == "input_image" and _usable(uri):
+        return False
+    return any(_usable(item.get(key)) for key in OTHER_REFERENCES.get(item.get("type"), ()))
+
+
 def provider_uri_part(data: dict, item: dict) -> dict | None:
     """The part a provider item that points at its media by URI makes: an
     OpenAI image_url's url, an input_image's image_url, an Anthropic image or
@@ -1499,9 +1509,10 @@ def provider_uri_part(data: dict, item: dict) -> dict | None:
     file_data's file_uri, a Vercel file or image part by URL (a value that
     starts with a URL scheme, or v7's {"type":"url"} data), and OpenInference's
     flattened image url. None for any other item, for a URI that is not a
-    string, and for an item that holds another usable reference (an
-    input_image's file_id, an input_file's file_id or file_data): that
-    reference wins, so the item is no part this reads.
+    string, and for an item whose reader takes another usable reference first:
+    an input_file's file_id or file_data, and an input_image's file_id when its
+    image_url is empty or __REDACTED__. A usable image_url beside a file_id
+    stays a uri (or a blob, for a data URL), as the readers take it first.
 
     An empty or __REDACTED__ URI was dropped upstream. A data URL follows the
     data URL rules. A URI that holds data: anywhere else, in any ASCII case, is
@@ -1518,8 +1529,7 @@ def provider_uri_part(data: dict, item: dict) -> dict | None:
         kind_modality = _filename_modality(data, item.get("filename"))
     if not isinstance(uri, str):
         return None
-    others = OTHER_REFERENCES.get(item.get("type"), ())
-    if any(_usable(item.get(key)) for key in others):
+    if _another_reference_wins(item, uri):
         return None
     mime = _mime_or_unknown(raw, mime)
     blob_modality = _mime_modality(mime) or kind_modality or "document"

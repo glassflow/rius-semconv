@@ -300,8 +300,9 @@ raw_payloads:
     line goes on in the last `[A-Za-z0-9+/_-]*` and ends the run at its line
     break. Continuation lines are not capped: a capped quantifier inside the
     repeated group makes V8 keep backtracking state for each character, and
-    its regex stack then overflows on a few megabytes of wrapped input. `[ \t>]*` after a line break takes the
-    indent of a block and the `>` of a quoted reply.
+    its regex stack then overflows on a few megabytes of wrapped input.
+    `[ \t>]*` after a line break takes the indent of a block and the `>` of a
+    quoted reply.
     mime_pattern must match the whole value: Python re.fullmatch, or `^` and `$`
     around it in JavaScript and Go (where, without the m flag, `$` is the end of
     the text; in Python `$` also matches before a final newline, so use
@@ -1405,6 +1406,10 @@ part_shapes:
     - name: openai_file_with_an_empty_file_id
       from: 'An OpenAI chat file item whose file is {"file_id":"","filename":"a.png"}: it is no file part without a file_id, but a blob whose modality the filename names.'
       part: '{"type":"blob","modality":"image","stripped_reason":"redacted_upstream"}'
+    - name: input_image_with_a_usable_url_and_a_file_id
+      from: 'An OpenAI input_image whose image_url is https://x/a.png and whose file_id is file-abc123: the image_url is read first, so the item is a uri.'
+      provider: '{"type":"input_image","image_url":"https://x/a.png","file_id":"file-abc123"}'
+      part: '{"type":"uri","modality":"image","uri":"https://x/a.png"}'
     - name: input_image_with_a_redacted_url_and_a_file_id
       from: 'An OpenAI input_image whose image_url is __REDACTED__ and whose file_id is file-abc123: the usable reference wins.'
       part: '{"type":"file","modality":"image","file_id":"file-abc123"}'

@@ -268,6 +268,14 @@ An OpenAI chat file item whose file is {"file_id":"","filename":"a.png"}: it is 
 {"type":"blob","modality":"image","stripped_reason":"redacted_upstream"}
 ```
 
+#### `input_image_with_a_usable_url_and_a_file_id`
+
+An OpenAI input_image whose image_url is https://x/a.png and whose file_id is file-abc123: the image_url is read first, so the item is a uri.
+
+```json
+{"type":"uri","modality":"image","uri":"https://x/a.png"}
+```
+
 #### `input_image_with_a_redacted_url_and_a_file_id`
 
 An OpenAI input_image whose image_url is \_\_REDACTED\_\_ and whose file_id is file-abc123: the usable reference wins.

@@ -1525,7 +1525,6 @@ def test_provider_part_examples_are_what_the_reference_makes(base_data, example)
         '{"type":"input_file","file_id":"file-abc"}',
         '{"type":"input_image","image_url":"__REDACTED__","file_id":"file-abc123"}',
         '{"type":"input_image","image_url":"","file_id":"file-abc123"}',
-        '{"type":"input_image","image_url":"https://x/a.png","file_id":"file-abc123"}',
         '{"type":"input_file","file_url":"__REDACTED__","file_id":"file-abc"}',
         '{"type":"input_file","file_url":"","file_data":"data:application/pdf;base64,JVBERi0="}',
         '{"type":"text","text":"https://x/a.png data:image/png;base64,QUFB"}',
