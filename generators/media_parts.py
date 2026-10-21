@@ -1228,10 +1228,8 @@ def _usable(value: Any) -> bool:
     return isinstance(value, str) and value not in ("", REDACTED)
 
 
-def _usable_url(raw: dict, value: Any) -> bool:
-    """A usable url: a usable reference that starts with a URL scheme
-    (url_scheme), nothing trimmed first, so a url led by whitespace is not."""
-    return _usable(value) and is_url(raw, value)
+#: data: anywhere in a value, in any ASCII case.
+_DATA_ANYWHERE = re.compile("[dD][aA][tT][aA]:")
 
 
 def _is_data_scheme(value: str) -> bool:
@@ -1293,7 +1291,7 @@ def langchain_v1_part(data: dict, block: dict) -> dict | None:
     when it makes none and stays as it came. Only type, base64, url, file_id
     and mime_type are read, but for a native file part ((1) and (5)), which
     keeps a valid modality member first. A text-plain block reads its base64
-    alone, in (2) and (6)."""
+    alone, in (2)."""
     raw = data["raw_payloads"]
     kind = block.get("type")
     if kind not in LANGCHAIN_V1_TYPES:
@@ -1309,8 +1307,11 @@ def langchain_v1_part(data: dict, block: dict) -> dict | None:
     # (1) A file block by a usable file_id: a native file part.
     if kind == "file" and _usable(file_id):
         return _part("file", native or "document", mime_type=mime, file_id=file_id)
-    # (2) A usable base64: a blob, or the data URL rules when it is one.
-    if _usable(base64):
+    # (2) A string base64: a blob, or the data URL rules when it is one. An
+    # empty or __REDACTED__ one beside a file block's string file_id is no
+    # usable reference, and the block reads on.
+    dropped = kind == "file" and isinstance(file_id, str) and base64 in ("", REDACTED)
+    if isinstance(base64, str) and not dropped:
         if _is_data_scheme(base64):
             return _data_url_part(data, base64, mime, kind_modality)
         return _part(
@@ -1323,19 +1324,23 @@ def langchain_v1_part(data: dict, block: dict) -> dict | None:
     # (3) A usable file_id: a file part.
     if _usable(file_id):
         return _part("file", modality or "document", mime_type=mime, file_id=file_id)
-    # (4) A usable url: a uri, or a blob when it is a data URL.
-    if _usable_url(raw, url):
+    # (4) A usable url: a blob when it is a data URL, or holds data: anywhere
+    # else; otherwise a uri, as it came.
+    if _usable(url):
         if _is_data_scheme(url):
             return _data_url_part(data, url, mime, kind_modality)
+        if _DATA_ANYWHERE.search(url):
+            return _part(
+                "blob", modality or "document", mime_type=mime, stripped_reason="not_captured"
+            )
         modality = modality or _extension_modality(data, url)
         return _part("uri", modality, mime_type=mime, uri=url)
     # (5) A file block whose file_id is a string and has no other usable
     # reference: a native file part, its file_id kept as written.
     if kind == "file" and isinstance(file_id, str):
         return _part("file", native or "document", mime_type=mime, file_id=file_id)
-    # (6) A base64, url or file_id that is a string, none usable: dropped
-    # upstream.
-    if any(isinstance(ref, str) for ref in (base64, url, file_id)):
+    # (6) A url or file_id that is a string, none usable: dropped upstream.
+    if isinstance(url, str) or isinstance(file_id, str):
         return _part(
             "blob", modality or "document", mime_type=mime, stripped_reason="redacted_upstream"
         )

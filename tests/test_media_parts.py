@@ -1340,6 +1340,10 @@ REQUIRED_PART_EXAMPLES = {
     "langchain_v1_file_by_empty_file_id_and_redacted_base64",
     "langchain_v1_image_by_redacted_base64",
     "langchain_v1_audio_by_empty_base64",
+    "langchain_v1_file_by_a_relative_url",
+    "langchain_v1_image_by_a_rooted_relative_url",
+    "langchain_v1_image_by_a_link_followed_by_a_data_url",
+    "uri_led_by_whitespace_holding_a_data_url",
 }
 
 
