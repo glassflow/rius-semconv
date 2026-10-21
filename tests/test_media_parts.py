@@ -1496,6 +1496,9 @@ REQUIRED_PROVIDER_EXAMPLES = {
     "vercel_file_by_a_url_tag_holding_a_data_url_after_a_link",
     "vercel_image_by_a_link_followed_by_a_data_url",
     "openinference_image_url_by_a_link_followed_by_a_data_url",
+    "openinference_image_url_by_a_data_url_with_a_media_type",
+    "openinference_image_url_by_a_link_holding_a_data_url_with_a_media_type",
+    "openinference_image_url_by_a_link_with_a_media_type",
     "image_url_that_is_empty",
     "vercel_file_by_url_with_no_media_type",
 }

@@ -1449,6 +1449,7 @@ def native_part(data: dict, part: dict) -> dict | None:
 #: its message_content prefix.
 OPENINFERENCE_IMAGE_TYPE = "message_content.type"
 OPENINFERENCE_IMAGE_URL = "message_content.image.image.url"
+OPENINFERENCE_IMAGE_MEDIA_TYPE = "message_content.image.media_type"
 
 
 def _filename_modality(data: dict, filename: Any) -> str | None:
@@ -1484,7 +1485,12 @@ def _provider_uri(raw: dict, item: dict) -> tuple[Any, Any, str | None, bool] | 
             return None
         return value, item.get("mediaType"), "image" if kind == "image" else None, kind == "file"
     if item.get(OPENINFERENCE_IMAGE_TYPE) == "image" and OPENINFERENCE_IMAGE_URL in item:
-        return item[OPENINFERENCE_IMAGE_URL], None, "image", False
+        return (
+            item[OPENINFERENCE_IMAGE_URL],
+            item.get(OPENINFERENCE_IMAGE_MEDIA_TYPE),
+            "image",
+            False,
+        )
     return None
 
 
@@ -1508,8 +1514,9 @@ def provider_uri_part(data: dict, item: dict) -> dict | None:
     document by a url source, an OpenAI input_file's file_url, a Gemini
     file_data's file_uri, a Vercel file or image part by URL (a value that
     starts with a URL scheme, or v7's {"type":"url"} data), and OpenInference's
-    flattened image url. None for any other item, for a URI that is not a
-    string, and for an item whose reader takes another usable reference first:
+    flattened image url, with its flattened image media_type as the MIME type
+    the item gives. None for any other item, for a URI that is not a string,
+    and for an item whose reader takes another usable reference first:
     an input_file's file_id or file_data, and an input_image's file_id when its
     image_url is empty or __REDACTED__. A usable image_url beside a file_id
     stays a uri (or a blob, for a data URL), as the readers take it first.
