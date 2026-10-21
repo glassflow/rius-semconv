@@ -1488,15 +1488,20 @@ def _provider_uri(raw: dict, item: dict) -> tuple[Any, Any, str | None, bool] | 
     return None
 
 
+#: The references beside a provider URI that win over it when usable.
+OTHER_REFERENCES = {"input_image": ("file_id",), "input_file": ("file_id", "file_data")}
+
+
 def provider_uri_part(data: dict, item: dict) -> dict | None:
     """The part a provider item that points at its media by URI makes: an
     OpenAI image_url's url, an input_image's image_url, an Anthropic image or
     document by a url source, an OpenAI input_file's file_url, a Gemini
     file_data's file_uri, a Vercel file or image part by URL (a value that
     starts with a URL scheme, or v7's {"type":"url"} data), and OpenInference's
-    flattened image url. None for any other item, or a URI that is not a
-    string. Only the URI and the item's hints are read, so an item holding
-    another reference (an input_image's file_id) is not one of its tests.
+    flattened image url. None for any other item, for a URI that is not a
+    string, and for an item that holds another usable reference (an
+    input_image's file_id, an input_file's file_id or file_data): that
+    reference wins, so the item is no part this reads.
 
     An empty or __REDACTED__ URI was dropped upstream. A data URL follows the
     data URL rules. A URI that holds data: anywhere else, in any ASCII case, is
@@ -1512,6 +1517,9 @@ def provider_uri_part(data: dict, item: dict) -> dict | None:
     if item.get("type") == "input_file":
         kind_modality = _filename_modality(data, item.get("filename"))
     if not isinstance(uri, str):
+        return None
+    others = OTHER_REFERENCES.get(item.get("type"), ())
+    if any(_usable(item.get(key)) for key in others):
         return None
     mime = _mime_or_unknown(raw, mime)
     blob_modality = _mime_modality(mime) or kind_modality or "document"
