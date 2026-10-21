@@ -35,7 +35,7 @@ NORMALIZED = {"blob", "uri", "file", "text", "generic", NONE}
 STRIPPED_REASONS = {"not_captured", "redacted_upstream"}
 #: The detection rules raw_payloads must define, and the fields each needs.
 DETECTION_FIELDS = {
-    "b": ("pattern",),
+    "b": ("pattern", "escaped_pattern"),
     "d": ("type", "array_key", "mime_keys"),
     "e": (
         "keys",
@@ -328,6 +328,13 @@ def lint_part_shapes(data: dict) -> list[str]:
     return errors
 
 
+#: Rule b's patterns, the groups each must have, and what they are.
+RULE_B_PATTERNS = (
+    ("pattern", 4, "mime, parameters, base64, continuation"),
+    ("escaped_pattern", 5, "mime, parameters, base64, continuation, escaped continuation"),
+)
+
+
 def lint_raw_payloads(raw: Any) -> list[str]:
     """The raw_payloads section: the source rule, the strip rule, the
     replacement and the detection rules."""
@@ -367,17 +374,16 @@ def lint_raw_payloads(raw: Any) -> list[str]:
         for field in ("name", "description", *fields):
             if not rule.get(field):
                 errors.append(f"{where} detection rule {rule_id} needs {field}")
-    if rules.get("b", {}).get("pattern"):
+    for field, count, names in RULE_B_PATTERNS:
+        if not rules.get("b", {}).get(field):
+            continue
         try:
-            groups = re.compile(rules["b"]["pattern"]).groups
+            groups = re.compile(rules["b"][field]).groups
         except re.error as exc:
-            errors.append(f"{where} detection rule b pattern does not compile ({exc})")
+            errors.append(f"{where} detection rule b {field} does not compile ({exc})")
         else:
-            if groups != 4:
-                errors.append(
-                    f"{where} detection rule b pattern needs 4 groups"
-                    " (mime, parameters, base64, continuation)"
-                )
+            if groups != count:
+                errors.append(f"{where} detection rule b {field} needs {count} groups ({names})")
     for marker in rules.get("e", {}).get("base64_markers") or []:
         if (
             not marker.get("key")
@@ -571,10 +577,16 @@ def base64_size(value: str) -> int | None:
     return len(text) * 3 // 4 - padding
 
 
+#: A line break written as a JSON escape, as escaped_pattern reads one: a
+#: backslash, an optional r, an optional backslash, then n.
+_ESCAPED_LINE_BREAK = re.compile(r"\\r{0,1}\\{0,1}n")
+
+
 def run_size(run: str) -> int | None:
     """The size of a rule b run: its base64 size with the > of each quoted
-    line it goes on over removed too."""
-    return base64_size(run.replace(">", ""))
+    line and each escaped line break it goes on over removed too. Only
+    escaped_pattern's run holds a backslash."""
+    return base64_size(_ESCAPED_LINE_BREAK.sub("", run).replace(">", ""))
 
 
 @dataclass(frozen=True)
@@ -628,13 +640,15 @@ def _mime_or_unknown(raw: dict, mime: str | None) -> str | None:
 _DATA_ANYWHERE = re.compile("[dD][aA][tT][aA]:")
 
 
-def data_url_spans(raw: dict, value: str) -> list[Span]:
+def data_url_spans(raw: dict, value: str, escaped: bool = False) -> list[Span]:
     """Rule b: every data URL token in a string, wherever it sits. The string
     is cut before each data: (in any ASCII case), and the pattern is tried at
     the start of each piece and never past its end, so a run that continues
     over a line break never takes the start of the next data URL. A media type
-    that is not token/token is unknown."""
-    pattern = re.compile(_rules(raw)["b"]["pattern"])
+    that is not token/token is unknown. `escaped`, for the text of a JSON
+    candidate that does not parse, tries escaped_pattern instead, whose run
+    also goes on over a line break written as a JSON escape."""
+    pattern = re.compile(_rules(raw)["b"]["escaped_pattern" if escaped else "pattern"])
     starts = [m.start() for m in _DATA_ANYWHERE.finditer(value)]
     spans = []
     for start, end in zip(starts, [*starts[1:], len(value)], strict=False):
@@ -1139,18 +1153,20 @@ _Edit = tuple[int, int, str]
 def _strip_text(raw: dict, text: str, tokens: list[Token], depth: int = 0) -> list[_Edit]:
     """The edits on a string's text (a raw attribute, or a JSON string's
     unescaped value inside `depth` arrays and objects): the JSON walk when it is
-    a candidate that parses, else rule b alone. A complete replacement is never
-    stripped again."""
+    a candidate that parses, else rule b alone, by escaped_pattern for a
+    candidate that does not parse. A complete replacement is never stripped
+    again."""
     if is_replacement(raw, text):
         return []
-    if is_json_candidate(text):
+    candidate = is_json_candidate(text)
+    if candidate:
         document = _parse(text, depth)
         if document is not None:
             edits: list[_Edit] = []
             _walk(raw, document, None, None, depth, tokens, edits)
             return edits
     edits = []
-    for span in data_url_spans(raw, text):
+    for span in data_url_spans(raw, text, escaped=candidate):
         tokens.append(Token("b", span.mime, span.byte_size))
         edits.append((span.start, span.end, replacement(raw, span.mime, span.byte_size)))
     return edits

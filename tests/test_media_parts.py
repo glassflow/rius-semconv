@@ -510,6 +510,52 @@ def test_a_run_goes_on_over_a_line_break_but_never_into_the_next_data_url(base_d
 
 
 @pytest.mark.parametrize(
+    ("text", "run"),
+    [
+        ("data:a/b;base64,QUFB\\nQkJD", "QUFB\\nQkJD"),
+        ("data:a/b;base64,QUFB\\r\\nQkJD", "QUFB\\r\\nQkJD"),
+        ("data:a/b;base64,QUFB\\n> QkJD=", "QUFB\\n> QkJD="),
+        ("data:a/b;base64,QUFB\\n\\nQkJD", "QUFB"),
+        ("data:a/b;base64,QUFB\\rQkJD", "QUFB"),
+        ("data:a/b;base64,QUFB\\tQkJD", "QUFB"),
+        ("data:a/b;base64,QUE=\\nQkJD", "QUE="),
+        ("data:a/b;base64,QUFB\\n", "QUFB"),
+        ("data:a/b;base64,QUFB\nQkJD\\nQ0ND", "QUFB\nQkJD\\nQ0ND"),
+        ("data:a/b;base64,QUFB\\nQkJD\nQ0ND", "QUFB\\nQkJD"),
+        ("data:a/b;base64," + "A" * 77 + "\\nQkJD", "A" * 77),
+        ("data:a/b;base64,QUFB\\ndata:a/b;base64,QkJD", "QUFB"),
+    ],
+)
+def test_an_escaped_run_goes_on_over_an_escaped_line_break(base_data, text, run):
+    raw = base_data["media_parts"]["raw_payloads"]
+    span = media_parts.data_url_spans(raw, text, escaped=True)[0]
+    assert text[span.start : span.end] == "data:a/b;base64," + run
+
+
+@pytest.mark.parametrize(
+    ("text", "size"),
+    [
+        ('{"u":"data:a/b;base64,QUFB\\nQkJD', 6),
+        ('{"u":"data:a/b;base64,QUFB\\r\\n> QkJD', 6),
+        ('{"u":"data:a/b;base64,QUFB\\nQkJD"}', 6),
+    ],
+)
+def test_only_json_that_does_not_parse_takes_an_escaped_line_break(base_data, text, size):
+    raw = base_data["media_parts"]["raw_payloads"]
+    (token,) = media_parts.strip(raw, text).tokens
+    assert token.byte_size == size
+    # The same text outside a candidate keeps to the raw pattern.
+    (token,) = media_parts.strip(raw, "x " + text).tokens
+    assert token.byte_size == 3
+
+
+def test_data_url_escaped_pattern_needs_its_five_groups(data):
+    (rule,) = [r for r in data["media_parts"]["raw_payloads"]["detection"] if r["id"] == "b"]
+    rule["escaped_pattern"] = rule["pattern"]
+    assert_flags(media_parts.lint(data["media_parts"]), "escaped_pattern needs 5 groups")
+
+
+@pytest.mark.parametrize(
     ("text", "mime"),
     [
         ("data:image/png;base64,AAAA", "image/png"),
@@ -538,6 +584,11 @@ NEAR_MATCHES = {
     "quoted_continuations": "data:a/b;base64,A" + "\n>" * 20_000 + "!",
     "lines_at_the_cap": "data:a/b;base64," + ("A" * 76 + "\n") * 500 + "!",
     "lines_past_the_cap": ("data:a/b;base64," + "A" * 77 + "\n") * 400 + "!",
+    # JSON that does not parse, so escaped_pattern is tried.
+    "escaped_blank_continuations": '{"a":"data:a/b;base64,A' + "\\n " * 20_000 + "!",
+    "escaped_one_character_lines": '{"a":"data:a/b;base64,' + "A\\n" * 20_000 + "!",
+    "escaped_lines_at_the_cap": '{"a":"data:a/b;base64,' + ("A" * 76 + "\\r\\n") * 500 + "!",
+    "escaped_backslashes": '{"a":"data:a/b;base64,A' + "\\" * 40_000,
 }
 TIME_BOUND = 0.5
 
@@ -638,6 +689,8 @@ GOLDEN = Registry.load().media_parts["raw_payloads"]["golden"]
 
 #: The cases the contract must pin, by golden name.
 REQUIRED_GOLDEN = {
+    "a_wrapped_data_url_in_json_that_does_not_parse",
+    "an_escaped_line_break_outside_json_ends_the_run",
     "a_base64_data_url_that_ends_in_one_line_break_under_a_url_key",
     "anthropic_base64_image_pretty_printed",
     "openai_input_audio_wav",
@@ -1164,7 +1217,8 @@ def test_data_url_pattern_is_portable(base_data):
     raw = base_data["media_parts"]["raw_payloads"]
     (rule,) = [r for r in raw["detection"] if r["id"] == "b"]
     (keyed,) = [r for r in raw["detection"] if r["id"] == "e"]
-    for pattern in (rule["pattern"], raw["replacement"]["mime_pattern"], keyed["url_scheme"]):
+    patterns = (rule["pattern"], rule["escaped_pattern"])
+    for pattern in (*patterns, raw["replacement"]["mime_pattern"], keyed["url_scheme"]):
         assert "(?" not in pattern, "no lookaround, named group or inline flag"
         for match in re.finditer(r"\\(.)", pattern):
             assert match.group(1) in PORTABLE_ESCAPES, f"\\{match.group(1)} is not portable"
@@ -1174,6 +1228,12 @@ def test_data_url_pattern_is_portable(base_data):
     assert "([A-Za-z0-9+/_-]{0,76}(\\r{0,1}\\n[ \\t>]*[A-Za-z0-9+/_-]+)*" in rule["pattern"]
     assert "[A-Za-z0-9+/_-]*={0,2})" in rule["pattern"]
     assert "?" not in rule["pattern"] and "|" not in rule["pattern"]
+    # escaped_pattern is pattern with one more continuation group, its escaped
+    # break holding no group (a group there lowers V8's stack limit).
+    continuation = "(\\r{0,1}\\n[ \\t>]*[A-Za-z0-9+/_-]+)*"
+    escaped = "(\\\\r{0,1}\\\\{0,1}n[ \\t>]*[A-Za-z0-9+/_-]+)*"
+    assert rule["escaped_pattern"] == rule["pattern"].replace(continuation, continuation + escaped)
+    assert "?" not in rule["escaped_pattern"] and "|" not in rule["escaped_pattern"]
 
 
 def test_portability_check_bites():
