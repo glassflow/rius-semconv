@@ -182,10 +182,14 @@ raw_payloads:
     (e) through the parent key audio; in the same way, the enclosing object rule
     (d) takes its mime type from is the nearest object holding the Buffer,
     directly or through arrays, and so is the holder whose mime type a typed key
-    with holder_mime reads. A string that a typed key with keeps_urls leaves
-    alone, because it starts with a URL scheme, is no (e) token, so (b) is tried
-    on it: a data URL there is replaced with its own mime type, and any other
-    URL stays.
+    with holder_mime reads. A typed key with keeps_urls leaves a string that
+    starts with a URL scheme to (b) only when its scheme is not data, or when
+    (b)'s pattern matches the whole unescaped string: such a string is no (e)
+    token, so (b) is tried on it, and a base64 data URL that is the whole value
+    is replaced with its own mime type and size, while any other URL stays. Any
+    other string that starts with data: under that key (a run wrapped at a
+    newline, a percent-encoded payload, a run (b) stops short in) is an (e)
+    token, replaced whole with the key's usual mime type (see rule (e)).
   idempotence: >-
     Every implementation follows this rule: a string that is already a complete
     replacement, `[stripped <mime> <byte_size> bytes]` whose mime is unknown or
@@ -1600,7 +1604,7 @@ rows:
     paths: [vercel]
     fixtures: []
     reason: No recorded family writes it; covered by the golden examples and the TypeScript SDK and sink unit tests.
-    note: 'v7 writes the payload as {"type":"data","data":"<base64>"} under a file part''s data or an image part''s image. ai.prompt is a raw payload, so it makes no part; the inner data is stripped per raw_payloads, mime type from the part''s mediaType, else unknown. A URL in it stays, and a data URL is replaced with its own mime type.'
+    note: 'v7 writes the payload as {"type":"data","data":"<base64>"} under a file part''s data or an image part''s image. ai.prompt is a raw payload, so it makes no part; the inner data is stripped per raw_payloads, mime type from the part''s mediaType, else unknown. A URL in it stays. A data URL that rule (b)''s pattern matches in full is replaced with its own mime type and size; any other data: string (wrapped, percent-encoded, or with a broken run) is replaced whole as a rule (e) token, with the part''s mediaType, else unknown.'
 
   - source: vercel.ai_otel
     shape: blob part with modality image for a non-image file, in gen_ai.input.messages
