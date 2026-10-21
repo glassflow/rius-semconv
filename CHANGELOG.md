@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.0](https://github.com/glassflow/rius-semconv/compare/v1.7.0...v1.8.0) (2026-10-21)
+
+
+### Features
+
+* register a compaction convention every producer can fill ([#78](https://github.com/glassflow/rius-semconv/issues/78)) ([6e538d5](https://github.com/glassflow/rius-semconv/commit/6e538d5f4713c9f3bf059f7425bd9b39cbf45ccd))
+
 ## [1.7.0](https://github.com/glassflow/rius-semconv/compare/v1.6.0...v1.7.0) (2026-10-21)
 
 
