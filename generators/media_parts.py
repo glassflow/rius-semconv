@@ -661,7 +661,8 @@ def _is_percent(raw: dict, value: str, start: int = 0) -> bool:
 def _match_token(raw: dict, m: re.Match) -> tuple[str | None, int | None]:
     """The mime type and size of one rule b match. A percent-encoded one's
     mime type is its header up to its first %3B, percent-decoded, and its run
-    is percent-decoded (%2B, %2F and %3D) before it is sized."""
+    is percent-decoded (%2B, %2F, %3D, and the line breaks %0A and %0D that
+    byte_size then removes) before it is sized."""
     if m.group(0)[4] == ":":
         return _mime_or_unknown(raw, m.group(1)), run_size(m.group(3))
     head = _PERCENT_SEMICOLON.split(m.group(1), maxsplit=1)[0]
@@ -696,6 +697,9 @@ def data_url_spans(raw: dict, value: str, escaped: bool = False) -> list[Span]:
 #: The one final line break a key that keeps URLs lets follow a whole data
 #: URL: base64.encodebytes ends its output with a newline.
 FINAL_LINE_BREAKS = ("\n", "\r\n")
+#: The same line break percent-encoded, which a data URL percent-encoded whole
+#: may end in too, its hex digits in either case.
+PERCENT_FINAL_LINE_BREAKS = ("%0A", "%0D%0A")
 
 
 def whole_data_url(raw: dict, value: str, line_break: bool = False) -> re.Match | None:
@@ -704,14 +708,16 @@ def whole_data_url(raw: dict, value: str, line_break: bool = False) -> re.Match 
     ending at the end. The same as fullmatch, since the run's greedy match
     reaches furthest, but fast when a long value fails. With `line_break`, as
     a key that keeps URLs reads it, the match may also end one final line
-    break (a newline, or a carriage return and newline) before the end."""
+    break (a newline, or a carriage return and newline) before the end, and
+    a percent-encoded one also one final %0A or %0D%0A."""
     rule = _rules(raw)["b"]
-    field = "percent_pattern" if _is_percent(raw, value) else "pattern"
-    m = re.compile(rule[field]).match(value)
+    percent = _is_percent(raw, value)
+    m = re.compile(rule["percent_pattern" if percent else "pattern"]).match(value)
     if m is None:
         return None
     rest = value[m.end() :]
-    return m if rest == "" or (line_break and rest in FINAL_LINE_BREAKS) else None
+    breaks = FINAL_LINE_BREAKS + (PERCENT_FINAL_LINE_BREAKS if percent else ())
+    return m if rest == "" or (line_break and rest.upper() in breaks) else None
 
 
 def is_data_url(raw: dict, value: str) -> bool:

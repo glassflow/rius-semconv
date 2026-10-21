@@ -574,7 +574,11 @@ def test_a_percent_encoded_data_url_is_one_token(base_data, text, mime, size):
 @pytest.mark.parametrize(
     ("text", "token"),
     [
-        ("x data%3Aa%2Fb%3Bbase64%2CQUFB%0AQkJD", "data%3Aa%2Fb%3Bbase64%2CQUFB"),
+        ("x data%3Aa%2Fb%3Bbase64%2CQUFB%0AQkJD", "data%3Aa%2Fb%3Bbase64%2CQUFB%0AQkJD"),
+        ("data%3Aa%2Fb%3Bbase64%2CQUFB%0d%0aQkJD%0A ", "data%3Aa%2Fb%3Bbase64%2CQUFB%0d%0aQkJD%0A"),
+        ("data%3Aa%2Fb%3Bbase64%2CQUFB%3D%0AQkJD", "data%3Aa%2Fb%3Bbase64%2CQUFB%3D"),
+        ("data%3Aa%2Fb%3Bbase64%2CQUFB%20QkJD", "data%3Aa%2Fb%3Bbase64%2CQUFB"),
+        ("data%3Aa%2Fb%3Bbase64%2CQUFB%0CQkJD", "data%3Aa%2Fb%3Bbase64%2CQUFB"),
         ("data%3Aa%2Fb%3Bbase64%2CQUFB%2C", "data%3Aa%2Fb%3Bbase64%2CQUFB"),
         ("data%3Aa%2Fb%3Bbase64%2CQUFB&w=1", "data%3Aa%2Fb%3Bbase64%2CQUFB"),
         (
@@ -601,7 +605,11 @@ def test_a_percent_encoded_data_url_ends_where_its_run_does(base_data, text, tok
         ("data%3Aimage%2Fpng%3Bbase64%2CiVBORw0KGgo%3D", True),
         ("data%3Aimage%2Fpng%3Bbase64%2CiVBORw0KGgo%3D\n", True),
         ("data%3Aimage%2Fpng%3Bbase64%2CiVBORw0KGgo%3D ", False),
-        ("data%3Aimage%2Fpng%3Bbase64%2CiVBORw0KGgo%3D%0A", False),
+        ("data%3Aimage%2Fpng%3Bbase64%2CiVBORw0KGgo%3D%0A", True),
+        ("data%3Aimage%2Fpng%3Bbase64%2CiVBORw0KGgo%3D%0d%0A", True),
+        ("data%3Aimage%2Fpng%3Bbase64%2CiVBORw0KGgo%3D%0A%0A", False),
+        ("data%3Aimage%2Fpng%3Bbase64%2CiVBORw0KGgo%3D%0A\n", False),
+        ("data:image/png;base64,iVBORw0KGgo=%0A", False),
         ("https://x/?u=data%3Aimage%2Fpng%3Bbase64%2CiVBORw0KGgo%3D", True),
         (" data%3Aimage%2Fpng%3Bbase64%2CiVBORw0KGgo%3D", False),
     ],
@@ -661,6 +669,8 @@ NEAR_MATCHES = {
     "percent_headers_with_no_comma": "data%3A" + "%3Bbase64" * 4_000,
     "percent_tokens": "data%3Aa%3Bbase64%2C" * 2_000,
     "percent_escaped_run": "data%3Aa%2Fb%3Bbase64%2C" + "%2B" * 13_000 + "!",
+    "percent_line_breaks": "data%3Aa%2Fb%3Bbase64%2C" + "A%0D%0A" * 6_000 + "!",
+    "percent_wrapped_tokens": "data%3Aa%2Fb%3Bbase64%2CQUFB%0A" * 1_500,
 }
 TIME_BOUND = 0.5
 
@@ -764,6 +774,7 @@ REQUIRED_GOLDEN = {
     "a_percent_encoded_data_url_in_prose",
     "a_percent_encoded_data_url_in_json_and_under_keys",
     "a_percent_encoded_run_ends_at_any_other_escape",
+    "a_percent_encoded_data_url_wrapped_before_it_was_encoded",
     "a_wrapped_data_url_in_json_that_does_not_parse",
     "an_escaped_line_break_outside_json_ends_the_run",
     "a_base64_data_url_that_ends_in_one_line_break_under_a_url_key",
@@ -1318,7 +1329,10 @@ def test_data_url_pattern_is_portable(base_data):
     # in C, so %2C ends the header.
     assert rule["percent_pattern"].startswith(rule["percent_scheme"])
     assert '(%[0-9A-Fa-f][0-9ABD-Fabd-f][^%;,:\\t\\n\\f\\r "]*)*)' in rule["percent_pattern"]
-    assert "([A-Za-z0-9+/_-]*(%2[BbFf][A-Za-z0-9+/_-]*)*(%3[dD]){0,2})" in rule["percent_pattern"]
+    assert (
+        "([A-Za-z0-9+/_-]*(%[02][ABDFabdf][A-Za-z0-9+/_-]*)*(%3[dD]){0,2})"
+        in rule["percent_pattern"]
+    )
     assert "?" not in rule["percent_pattern"] and "|" not in rule["percent_pattern"]
 
 
