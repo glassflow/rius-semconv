@@ -20,9 +20,11 @@ tools/check_fixtures.py refuses in an expected result. No input raises out of
 
 from __future__ import annotations
 
+import base64
 import json
 import pathlib
 import re
+import string
 from dataclasses import dataclass
 from typing import Any
 
@@ -44,7 +46,9 @@ DETECTION_FIELDS = {
         "blob_type",
         "blob_key",
         "typed_keys",
+        "url_scheme",
         "source_bytes_keys",
+        "base64_markers",
         "mime_keys",
         "mime_formats",
     ),
@@ -68,6 +72,7 @@ RAW_PAYLOAD_FIELDS = (
     "replacement",
     "detection",
     "golden",
+    "byte_objects",
 )
 #: The prose rulings, rendered in this order.
 RAW_PAYLOAD_PROSE = (
@@ -151,7 +156,7 @@ def lint(data: dict) -> list[str]:
                 errors.append(f"{label} raw_payload {key} is not one of raw_payloads.raw_keys")
         modality = row.get("modality")
         if modality is None:
-            if normalized not in (["text"], [NONE]):
+            if normalized not in (["text"], [NONE], ["generic"]):
                 errors.append(f"{label} needs a modality")
         elif modality != FROM_MIME and modality not in modalities:
             errors.append(f"{label} modality must be one of {[*sorted(modalities), FROM_MIME]}")
@@ -270,6 +275,15 @@ def lint_part_shapes(data: dict) -> list[str]:
         if isinstance(part, dict):
             seen_types.add(part.get("type"))
         errors += [f"{where} example {name} {e}" for e in part_order_errors(data, part)]
+        for field in ("block", "native"):
+            if field not in example:
+                continue
+            try:
+                source = json.loads(str(example[field]))
+            except ValueError:
+                source = None
+            if not isinstance(source, dict):
+                errors.append(f"{where} example {name} {field} must be a JSON object")
     for example in shapes.get("in_place_examples") or []:
         name = example.get("name")
         try:
@@ -299,6 +313,11 @@ def lint_part_shapes(data: dict) -> list[str]:
         except (KeyError, ValueError):
             errors.append(f"{where} message example {name} needs JSON input and output")
             continue
+        attributes = example.get("attributes", {})
+        if not isinstance(attributes, dict) or not all(
+            isinstance(k, str) and isinstance(v, str) for k, v in attributes.items()
+        ):
+            errors.append(f"{where} message example {name} attributes must map keys to strings")
         for part in _json_objects(after):
             if part.get("type") in PART_MEMBERS:
                 errors += [
@@ -358,12 +377,118 @@ def lint_raw_payloads(raw: Any) -> list[str]:
                 errors.append(
                     f"{where} detection rule b pattern needs 3 groups (mime, parameters, base64)"
                 )
+    for marker in rules.get("e", {}).get("base64_markers") or []:
+        if (
+            not marker.get("key")
+            or not isinstance(marker.get("value"), str)
+            or not marker.get("keys")
+        ):
+            errors.append(f"{where} detection rule e base64_markers need a key, a value and keys")
     for entry in rules.get("e", {}).get("mime_formats") or []:
         if not entry.get("key") or "<value>" not in str(entry.get("mime", "")):
             errors.append(f"{where} detection rule e mime_formats need a key and a <value> mime")
     if not errors:
+        errors += lint_byte_objects(raw)
         errors += lint_golden(raw)
     return errors
+
+
+#: The languages a byte_objects example is written in, and their names.
+BYTE_OBJECT_LANGUAGES = {"python": "Python", "typescript": "TypeScript"}
+#: The languages an attribute_values example is written in.
+ATTRIBUTE_VALUE_LANGUAGES = {
+    "python": "Python",
+    "typescript": "TypeScript",
+    "otlp": "OTLP JSON (the sink)",
+}
+
+
+def lint_byte_objects(raw: dict) -> list[str]:
+    """The byte_objects section: the rule, the types each SDK treats as one,
+    and examples whose output holds a marker and is final (a strip changes
+    nothing in it)."""
+    where = "media_parts: raw_payloads byte_objects"
+    section = raw.get("byte_objects")
+    if not isinstance(section, dict):
+        return [f"{where} must be a mapping"]
+    errors = [
+        f"{where} needs {field}"
+        for field in ("rule", "size", *sorted(BYTE_OBJECT_LANGUAGES), "examples")
+        if not section.get(field)
+    ]
+    for field in ("rule", "size"):
+        if field in section and not isinstance(section[field], str):
+            errors.append(f"{where} {field} must be prose")
+    if errors:
+        return errors
+    unknown = re.escape(str(raw["replacement"]["unknown"]))
+    marker = re.compile(
+        re.escape(str(raw["replacement"]["format"]))
+        .replace("<mime>", unknown)
+        .replace("<byte_size>", f"([0-9]+|{unknown})")
+    )
+    names: set[str] = set()
+    for example in section["examples"]:
+        name = example.get("name")
+        if not name or name in names:
+            errors.append(f"{where} example needs a unique name, not {name!r}")
+        names.add(name)
+        if example.get("language") not in BYTE_OBJECT_LANGUAGES:
+            errors.append(f"{where} {name} language must be one of {sorted(BYTE_OBJECT_LANGUAGES)}")
+        output = example.get("output")
+        if not isinstance(example.get("value"), str) or not isinstance(output, str):
+            errors.append(f"{where} {name} needs a value and an output string")
+            continue
+        if not marker.search(output):
+            errors.append(f"{where} {name} output holds no marker with the unknown mime")
+        if strip(raw, output).text != output:
+            errors.append(f"{where} {name} output is not final: a strip changes it")
+    attributes = section.get("attribute_values")
+    if not isinstance(attributes, dict) or not attributes.get("rule"):
+        errors.append(f"{where} needs attribute_values with a rule")
+        return errors
+    for example in attributes.get("examples") or []:
+        name = example.get("name")
+        if example.get("language") not in ATTRIBUTE_VALUE_LANGUAGES:
+            errors.append(
+                f"{where} attribute_values {name} language must be one of "
+                f"{sorted(ATTRIBUTE_VALUE_LANGUAGES)}"
+            )
+        if not _attribute_markers(marker, example.get("output")):
+            errors.append(
+                f"{where} attribute_values {name} output must be a bare marker,"
+                " or an array or mapping holding one, or its JSON holding one"
+            )
+    if not attributes.get("examples"):
+        errors.append(f"{where} attribute_values needs examples")
+    return errors
+
+
+def _attribute_markers(marker: re.Pattern, output: Any) -> bool:
+    """Whether an attribute value holds a marker: a string that is one, an
+    array or mapping whose values hold one, or an array's or a mapping's JSON
+    fallback that does. Anything that is no attribute value holds none."""
+    if isinstance(output, dict):
+        values = list(output.values())
+    elif isinstance(output, list):
+        values = output
+    elif isinstance(output, str):
+        if marker.fullmatch(output):
+            return True
+        try:
+            fallback = json.loads(output)
+        except ValueError:
+            return False
+        return isinstance(fallback, (list, dict)) and _attribute_markers(marker, fallback)
+    else:
+        return False
+    found = False
+    for value in values:
+        if isinstance(value, (dict, list, str)):
+            found = _attribute_markers(marker, value) or found
+        elif not isinstance(value, (bool, int, float)) and value is not None:
+            return False
+    return found
 
 
 def lint_golden(raw: dict) -> list[str]:
@@ -594,13 +719,86 @@ def _keyed_string(raw: dict, value: Any) -> bool:
     return _non_empty_string(value) and not is_replacement(raw, value)
 
 
-def keyed_base64(raw: dict, value: dict | Members, parent_key: str | None) -> list[int]:
+def _typed_keys(
+    rule: dict, members: Members, parent_key: str | None, holder: Members | None
+) -> list[dict]:
+    """The typed keys that hold in an object: one of its types is a type
+    member's value, the parent key is one of its parent keys, if it names
+    any, and the holder (the nearest enclosing object) has one of its holder
+    types, if it names any."""
+    out = []
+    for typed in rule["typed_keys"]:
+        if "parent_keys" in typed and parent_key not in typed["parent_keys"]:
+            continue
+        if "holder_types" in typed:
+            holder_types = typed["holder_types"]
+            if holder is None or _first(holder, "type", lambda v, h=holder_types: v in h) is None:
+                continue
+        types = typed["types"]
+        if _first(members, "type", lambda v, types=types: v in types) is not None:
+            out.append(typed)
+    return out
+
+
+def is_url(raw: dict, value: Any) -> bool:
+    """Whether a string starts with a URL scheme (rule e's url_scheme): an ASCII
+    letter, then letters, digits, `+`, `-` or `.`, then a colon. Base64 holds no
+    colon, so a base64 string never does."""
+    pattern = str(_rules(raw)["e"]["url_scheme"])
+    return isinstance(value, str) and re.match(pattern, value) is not None
+
+
+def kept_url(raw: dict, value: Any) -> bool:
+    """Whether a typed key that keeps URLs leaves a string alone for rule b: it
+    starts with a URL scheme, and either the scheme is not data (in any ASCII
+    case) or the whole string is one rule b token, so rule b replaces all of
+    it. Any other data: string (wrapped, percent-encoded, or with a broken
+    run) stays a rule e token and is replaced whole."""
+    if not is_url(raw, value):
+        return False
+    if value.split(":", 1)[0].lower() != "data":
+        return True
+    return re.fullmatch(_rules(raw)["b"]["pattern"], value) is not None
+
+
+def url_keys(
+    raw: dict,
+    value: dict | Members,
+    parent_key: str | None,
+    holder: dict | Members | None = None,
+) -> set[str]:
+    """The keys of an object whose URL strings rule e leaves to rule b: those
+    of a typed key that keeps URLs and holds in the object."""
+    rule = _rules(raw)["e"]
+    typed = _typed_keys(rule, _members(value), parent_key, _holder(holder))
+    return {t["key"] for t in typed if t.get("keeps_urls")}
+
+
+def keyed_token(raw: dict, key: str, value: Any, urls: set[str]) -> bool:
+    """A string rule e replaces under `key`: a keyed string, unless the key
+    keeps URLs and the string is one it leaves to rule b (kept_url)."""
+    return _keyed_string(raw, value) and not (key in urls and kept_url(raw, value))
+
+
+def _holder(holder: dict | Members | None) -> Members | None:
+    return None if holder is None else _members(holder)
+
+
+def keyed_base64(
+    raw: dict,
+    value: dict | Members,
+    parent_key: str | None,
+    holder: dict | Members | None = None,
+) -> list[int]:
     """Rule e: the positions of the members of `value` that hold base64 media,
     duplicates included: a keyed string, or an array holding one directly.
     Every member counts for the context: a sibling key with a non-empty string
     value that is not a complete replacement, the parent key, or a base64
-    source. A blob's content, a typed key under one of its types and a source's
-    bytes need no other context."""
+    source. A base64 marker is context for its own keys alone. A blob's
+    content, a typed key under one of its types (and its holder's, if it
+    names any) and a source's bytes need no other context. A typed key that
+    keeps URLs leaves a URL to rule b (kept_url). `holder` is the nearest
+    enclosing object, as for rule d."""
     rule = _rules(raw)["e"]
     members = _members(value)
     context = (
@@ -612,30 +810,38 @@ def keyed_base64(raw: dict, value: dict | Members, parent_key: str | None) -> li
         )
     )
     keys = set(rule["keys"]) if context else set()
+    for marker in rule["base64_markers"]:
+        if any(k == marker["key"] and v == marker["value"] for k, v in members):
+            keys.update(marker["keys"])
     if _first(members, "type", lambda v: v == rule["blob_type"]) is not None:
         keys.add(rule["blob_key"])
-    for typed in rule["typed_keys"]:
-        types = typed["types"]
-        if _first(members, "type", lambda v, types=types: v in types) is not None:
-            keys.add(typed["key"])
+    keys.update(t["key"] for t in _typed_keys(rule, members, parent_key, _holder(holder)))
     if parent_key == rule["source_key"]:
         keys.update(rule["source_bytes_keys"])
+    urls = url_keys(raw, members, parent_key, holder)
     return [
         i
         for i, (k, v) in enumerate(members)
         if k in keys
         and (
-            _keyed_string(raw, v)
-            or (isinstance(v, list) and any(_keyed_string(raw, item) for item in v))
+            keyed_token(raw, k, v, urls)
+            or (isinstance(v, list) and any(keyed_token(raw, k, item, urls) for item in v))
         )
     ]
 
 
-def keyed_mime(raw: dict, value: dict | Members, parent_key: str | None) -> str | None:
+def keyed_mime(
+    raw: dict,
+    value: dict | Members,
+    parent_key: str | None,
+    holder: dict | Members | None = None,
+) -> str | None:
     """Rule e's mime type: the first mime key with a valid mime, else the first
     mime_formats entry whose sibling is a non-empty string and not a complete
     replacement (and whose parent keys, if any, include the parent) and whose
-    mime is valid."""
+    mime is valid. Else, when a typed key that reads the holder's mime holds in
+    the object, the first mime key of `holder` (the nearest enclosing object,
+    as for rule d) with a valid mime."""
     rule = _rules(raw)["e"]
     members = _members(value)
     mime = _mime_key(raw, rule, members)
@@ -650,6 +856,9 @@ def keyed_mime(raw: dict, value: dict | Members, parent_key: str | None) -> str 
         mime = str(entry["mime"]).replace("<value>", sibling)
         if is_mime(raw, mime):
             return mime
+    typed = _typed_keys(rule, members, parent_key, _holder(holder))
+    if holder is not None and any(t.get("holder_mime") for t in typed):
+        return _mime_key(raw, rule, holder)
     return None
 
 
@@ -933,8 +1142,9 @@ def _walk(
             tokens.append(Token("d", mime, len(data)))
             edits.append((node.start, node.end, _literal(raw, mime, len(data))))
             return
-        keyed = set(keyed_base64(raw, members, parent_key))
-        mime = keyed_mime(raw, members, parent_key) if keyed else None
+        keyed = set(keyed_base64(raw, members, parent_key, holder))
+        mime = keyed_mime(raw, members, parent_key, holder) if keyed else None
+        urls = url_keys(raw, members, parent_key, holder) if keyed else set()
         for i, (key, child) in enumerate(node.members):
             if i not in keyed:
                 _walk(raw, child, key, members, depth + 1, tokens, edits)
@@ -943,7 +1153,7 @@ def _walk(
             else:
                 # A string array under the key: each string element is a token.
                 for item in child.items:
-                    if _keyed_string(raw, item.value):
+                    if keyed_token(raw, key, item.value, urls):
                         _keyed_token(raw, item, mime, tokens, edits)
                     else:
                         _walk(raw, item, key, members, depth + 2, tokens, edits)
@@ -994,6 +1204,345 @@ def media_tokens(raw: dict, value: Any) -> list[Token]:
     else as JSON."""
     text = value if isinstance(value, str) else json.dumps(value)
     return strip(raw, text).tokens
+
+
+# --- LangChain v1 blocks -------------------------------------------------------
+#
+# langchain_v1_part is the reference for the part_shapes rule on a LangChain v1
+# standard content block: the part one block makes, by the rule's numbered
+# order, with its modality and MIME type. The v1 part examples are its tests.
+
+#: The block types the rule maps, and the modality each names (None: none).
+#: A text-plain block is mapped by its base64 alone.
+LANGCHAIN_V1_TYPES = {
+    "image": "image",
+    "audio": "audio",
+    "video": "video",
+    "file": None,
+    "text-plain": None,
+}
+#: The marker an instrumentor writes in place of a dropped reference.
+REDACTED = "__REDACTED__"
+
+
+def _usable(value: Any) -> bool:
+    """A usable reference: a string that is neither empty nor __REDACTED__."""
+    return isinstance(value, str) and value not in ("", REDACTED)
+
+
+#: data: anywhere in a value, in any ASCII case.
+_DATA_ANYWHERE = re.compile("[dD][aA][tT][aA]:")
+
+
+def _is_data_scheme(value: str) -> bool:
+    """A value that is a data URL: it starts with data:, in any ASCII case."""
+    return value[:5].lower() == "data:"
+
+
+def _mime_modality(mime: str | None) -> str | None:
+    """The modality a valid MIME type's prefix names, case-insensitively;
+    document for any other valid type, None when there is none."""
+    if mime is None:
+        return None
+    prefix = mime.split("/", 1)[0].lower()
+    return prefix if prefix in ("image", "audio", "video") else "document"
+
+
+def _extension_modality(data: dict, uri: str) -> str:
+    """The modality a URI path's extension names (part_shapes extensions):
+    query and fragment cut, the file name after the last '/', the extension
+    after its last '.', ASCII case folded; document for any other."""
+    path = re.split("[?#]", uri, maxsplit=1)[0]
+    name = path.rsplit("/", 1)[-1]
+    extension = name.rsplit(".", 1)[1] if "." in name else ""
+    folded = extension.translate(str.maketrans(string.ascii_uppercase, string.ascii_lowercase))
+    for modality, extensions in data["part_shapes"]["extensions"].items():
+        if folded in extensions:
+            return modality
+    return "document"
+
+
+def _part(kind: str, modality: str, **members: Any) -> dict:
+    """A part with its members in the pinned order, unknown ones omitted."""
+    part = {"type": kind, "modality": modality, **members}
+    return {m: part[m] for m in PART_MEMBERS[kind] if part.get(m) is not None}
+
+
+def _data_url_part(data: dict, url: str, hint: str | None, kind_modality: str | None) -> dict:
+    """A data URL as a blob: rule (b)'s pattern matching the whole URL is
+    base64, with its run's size; any other is not base64, with no size, and
+    redacted_upstream when its payload is empty or None. The mime type is the
+    URL's when valid, else the hint."""
+    raw = data["raw_payloads"]
+    match = re.fullmatch(_rules(raw)["b"]["pattern"], url)
+    if match:
+        mime = _mime_or_unknown(raw, match.group(1)) or hint
+        size, reason = base64_size(match.group(3)), "not_captured"
+    else:
+        rest = url.split(":", 1)[1]
+        mime = _mime_or_unknown(raw, re.split("[;,]", rest, maxsplit=1)[0]) or hint
+        payload = rest.split(",", 1)[1] if "," in rest else ""
+        size, reason = None, "redacted_upstream" if payload in ("", "None") else "not_captured"
+    modality = _mime_modality(mime) or kind_modality or "document"
+    return _part("blob", modality, mime_type=mime, byte_size=size, stripped_reason=reason)
+
+
+def langchain_v1_part(data: dict, block: dict) -> dict | None:
+    """The part a LangChain v1 block of type image, audio, video or file, or
+    a text-plain block by base64, makes, by the first case that applies; None
+    when it makes none and stays as it came. Only type, base64, url, file_id
+    and mime_type are read, but for a native file part ((1) and (5)), which
+    keeps a valid modality member first. A text-plain block reads its base64
+    alone, in (2)."""
+    raw = data["raw_payloads"]
+    kind = block.get("type")
+    if kind not in LANGCHAIN_V1_TYPES:
+        return None
+    kind_modality = LANGCHAIN_V1_TYPES[kind]
+    mime = _mime_or_unknown(raw, block.get("mime_type"))
+    modality = _mime_modality(mime) or kind_modality
+    base64, url, file_id = block.get("base64"), block.get("url"), block.get("file_id")
+    if kind == "text-plain":
+        url = file_id = None
+    own = block.get("modality")
+    native = own if own in data["modalities"] else modality
+    # (1) A file block by a usable file_id: a native file part.
+    if kind == "file" and _usable(file_id):
+        return _part("file", native or "document", mime_type=mime, file_id=file_id)
+    # (2) A string base64: a blob, or the data URL rules when it is one. An
+    # empty or __REDACTED__ one beside a file block's string file_id is no
+    # usable reference, and the block reads on.
+    dropped = kind == "file" and isinstance(file_id, str) and base64 in ("", REDACTED)
+    if isinstance(base64, str) and not dropped:
+        if _is_data_scheme(base64):
+            return _data_url_part(data, base64, mime, kind_modality)
+        return _part(
+            "blob",
+            modality or "document",
+            mime_type=mime,
+            byte_size=base64_size(base64),
+            stripped_reason="not_captured",
+        )
+    # (3) A usable file_id: a file part.
+    if _usable(file_id):
+        return _part("file", modality or "document", mime_type=mime, file_id=file_id)
+    # (4) A usable url: a blob when it is a data URL, or holds data: anywhere
+    # else; otherwise a uri, as it came.
+    if _usable(url):
+        if _is_data_scheme(url):
+            return _data_url_part(data, url, mime, kind_modality)
+        if _DATA_ANYWHERE.search(url):
+            return _part(
+                "blob", modality or "document", mime_type=mime, stripped_reason="not_captured"
+            )
+        modality = modality or _extension_modality(data, url)
+        return _part("uri", modality, mime_type=mime, uri=url)
+    # (5) A file block whose file_id is a string and has no other usable
+    # reference: a native file part, its file_id kept as written.
+    if kind == "file" and isinstance(file_id, str):
+        return _part("file", native or "document", mime_type=mime, file_id=file_id)
+    # (6) A url or file_id that is a string, none usable: dropped upstream.
+    if isinstance(url, str) or isinstance(file_id, str):
+        return _part(
+            "blob", modality or "document", mime_type=mime, stripped_reason="redacted_upstream"
+        )
+    return None
+
+
+def _byte_size_kept(value: Any) -> int | None:
+    """A native blob's byte_size, kept when it is a whole, non-negative number
+    no larger than MAX_BYTE_SIZE (8.0 is 8); None otherwise."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    if value != value or value % 1 or not 0 <= value <= MAX_BYTE_SIZE:
+        return None
+    return int(value)
+
+
+def native_part(data: dict, part: dict) -> dict | None:
+    """The part a native blob, uri or file part in a message key is rebuilt
+    into; None when it is left as it came (a uri or file_id that is not a
+    string). An object of type file holding a string base64 or url is a
+    LangChain v1 file block, read by langchain_v1_part."""
+    raw = data["raw_payloads"]
+    kind = part.get("type")
+    mime = _mime_or_unknown(raw, part.get("mime_type"))
+    own = part.get("modality") if part.get("modality") in data["modalities"] else None
+    if kind == "file":
+        if isinstance(part.get("base64"), str) or isinstance(part.get("url"), str):
+            return langchain_v1_part(data, part)
+        if not isinstance(part.get("file_id"), str):
+            return None
+        modality = own or _mime_modality(mime) or "document"
+        return _part("file", modality, mime_type=mime, file_id=part["file_id"])
+    if kind == "uri":
+        uri = part.get("uri")
+        if not isinstance(uri, str):
+            return None
+        blob_modality = _mime_modality(mime) or own
+        if _is_data_scheme(uri):
+            return _data_url_part(data, uri, mime, own)
+        if _DATA_ANYWHERE.search(uri):
+            return _part(
+                "blob",
+                blob_modality or "document",
+                mime_type=mime,
+                stripped_reason="not_captured",
+            )
+        modality = own or _mime_modality(mime) or _extension_modality(data, uri)
+        return _part("uri", modality, mime_type=mime, uri=uri)
+    if kind == "blob":
+        content = part.get("content")
+        if isinstance(content, str):
+            if _is_data_scheme(content):
+                return _data_url_part(data, content, mime, own)
+            return _part(
+                "blob",
+                _mime_modality(mime) or own or "document",
+                mime_type=mime,
+                byte_size=base64_size(content),
+                stripped_reason="not_captured",
+            )
+        reason = part.get("stripped_reason")
+        if not isinstance(reason, str) or reason not in data["stripped_reasons"]:
+            reason = "redacted_upstream" if content is None else "not_captured"
+        return _part(
+            "blob",
+            own or _mime_modality(mime) or "document",
+            mime_type=mime,
+            byte_size=_byte_size_kept(part.get("byte_size")),
+            stripped_reason=reason,
+        )
+    return None
+
+
+def part_text(part: dict) -> str:
+    """A part as a message key holds it: compact JSON, members in order."""
+    return json.dumps(part, separators=(",", ":"), ensure_ascii=False)
+
+
+# --- byte objects ----------------------------------------------------------------
+#
+# serialize_value is the reference for raw_payloads.byte_objects on the Python
+# side: a value written as the SDKs write a non-string attribute value, with
+# every byte object written as the replacement, then stripped.
+
+
+def byte_object_size(value: bytes | bytearray | memoryview) -> int | None:
+    """A byte object's length in bytes; None (unknown) for a released
+    memoryview."""
+    if isinstance(value, memoryview):
+        try:
+            return value.nbytes
+        except ValueError:
+            return None
+    return len(value)
+
+
+#: A lone surrogate: a code point a Python string can hold and UTF-8 cannot.
+_SURROGATE = re.compile("[\ud800-\udfff]")
+
+
+def serialize_value(raw: dict, value: Any) -> str:
+    """A value as an SDK writes it into an attribute: compact JSON with raw
+    UTF-8, every bytes, bytearray or memoryview in it written as the
+    replacement with the unknown mime, and the text then stripped. A lone
+    surrogate, which raw UTF-8 cannot carry, is written as its \\uXXXX escape
+    in lower-case hex, as the Python SDK and JSON.stringify write it. The
+    SDKs' size cap and their fallback for a value JSON cannot hold are theirs,
+    not this reference's."""
+
+    def default(obj: Any) -> str:
+        if isinstance(obj, (bytes, bytearray, memoryview)):
+            return replacement(raw, None, byte_object_size(obj))
+        raise TypeError(f"{type(obj).__name__} is not serializable")
+
+    text = json.dumps(value, default=default, separators=(",", ":"), ensure_ascii=False)
+    text = _SURROGATE.sub(lambda m: f"\\u{ord(m.group()):04x}", text)
+    return strip_raw_payload(raw, text)
+
+
+#: The Python byte objects.
+BYTE_OBJECT_TYPES = (bytes, bytearray, memoryview)
+
+
+class KvList(dict):
+    """An OTLP kvlist_value: the mapping a JSON reader sees, where the last of
+    a duplicate key wins, that still lists every member in wire order. items()
+    gives every member, so json.dumps writes each one, as the sink does."""
+
+    def __init__(self, members: Any = ()) -> None:
+        self.members = list(members)
+        super().__init__(self.members)
+
+    def items(self) -> list[tuple[str, Any]]:  # type: ignore[override]
+        return list(self.members)
+
+
+def attribute_value(raw: dict, value: Any) -> Any:
+    """A value an SDK sets directly as an attribute value: a byte object is
+    the bare marker, at any depth of arrays and mappings. An array that holds
+    a byte object beside an element that is then no string cannot stay
+    homogeneous, so it is the SDK's JSON of the array (serialize_value), one
+    string. Anything else is kept. This is the form the Python SDK sets, as
+    OpenTelemetry Python holds a mapping and a nested array; the TypeScript
+    SDK sets a walked mapping, or an array OpenTelemetry JS cannot hold, as
+    the JSON of the value."""
+    if isinstance(value, BYTE_OBJECT_TYPES):
+        return replacement(raw, None, byte_object_size(value))
+    if isinstance(value, KvList):
+        return KvList((k, attribute_value(raw, v)) for k, v in value.items())
+    if isinstance(value, dict):
+        return {k: attribute_value(raw, v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        out = [attribute_value(raw, v) for v in value]
+        if any(isinstance(v, BYTE_OBJECT_TYPES) for v in value) and not all(
+            isinstance(v, str) for v in out
+        ):
+            return serialize_value(raw, list(value))
+        return out
+    return value
+
+
+def otlp_bytes(text: str) -> bytes:
+    """An OTLP JSON bytesValue as a protobuf JSON parser reads it: standard or
+    URL-safe base64, padded or not (proto3 JSON emits standard, padded)."""
+    if set("+/") & set(text) and set("-_") & set(text):
+        raise ValueError(f"{text!r} mixes the base64 alphabets")
+    body = text.rstrip("=").replace("-", "+").replace("_", "/")
+    if len(body) % 4 == 1:
+        raise ValueError(f"{text!r} is not base64")
+    return base64.b64decode(body + "=" * (-len(body) % 4), validate=True)
+
+
+def otlp_value(any_value: dict) -> Any:
+    """An OTLP JSON AnyValue as a native value: a bytesValue is bytes, an
+    arrayValue a list, a kvlistValue a KvList (every member kept, in wire
+    order), an intValue an int (OTLP JSON may write it as a string), and an
+    empty AnyValue, which OTLP defines as an empty value, None."""
+    if "bytesValue" in any_value:
+        return otlp_bytes(any_value["bytesValue"])
+    if "arrayValue" in any_value:
+        return [otlp_value(v) for v in any_value["arrayValue"].get("values") or []]
+    if "kvlistValue" in any_value:
+        values = any_value["kvlistValue"].get("values") or []
+        return KvList((kv["key"], otlp_value(kv.get("value") or {})) for kv in values)
+    if "intValue" in any_value:
+        return int(any_value["intValue"])
+    for key in ("stringValue", "boolValue", "doubleValue"):
+        if key in any_value:
+            return any_value[key]
+    if not any_value:
+        return None
+    raise ValueError(f"no reference for {any_value!r}")
+
+
+def otlp_attribute_value(raw: dict, any_value: dict) -> Any:
+    """An OTLP JSON AnyValue as the sink stores it: read as a native value,
+    every bytesValue becoming its bytes, then the SDKs' attribute_value
+    rule, so a bytesValue at any depth is the bare marker with its decoded
+    length."""
+    return attribute_value(raw, otlp_value(any_value))
 
 
 # --- the fixtures ------------------------------------------------------------
@@ -1146,13 +1695,56 @@ def _render_raw_payloads(raw: dict) -> list[str]:
             lines += ["Output of a second pass over the output:", ""]
             lines += ["```text", golden["second_output"], "```", ""]
             lines += [f"Tokens of the second pass: {second or 'none'}.", ""]
+    lines += _render_byte_objects(raw["byte_objects"])
+    return lines
+
+
+def _render_byte_objects(section: dict) -> list[str]:
+    lines = ["### Byte objects", "", _prose(section["rule"]), ""]
+    lines += [f"**Size.** {_prose(section['size'])}", ""]
+    for language in sorted(BYTE_OBJECT_LANGUAGES):
+        lines.append(f"- {BYTE_OBJECT_LANGUAGES[language]}: " + _code_list(section[language]))
+    lines.append("")
+    for example in section["examples"]:
+        lines += [f"#### `{example['name']}`", ""]
+        if example.get("note"):
+            lines += [_prose(example["note"]), ""]
+        lines += [f"Value ({example['language']}):", "", "```text", example["value"], "```", ""]
+        lines += ["Attribute value:", "", "```text", example["output"], "```", ""]
+    attributes = section["attribute_values"]
+    lines += ["#### Byte objects as attribute values", "", _prose(attributes["rule"]), ""]
+    for example in attributes["examples"]:
+        lines += [f"##### `{example['name']}`", ""]
+        if example.get("note"):
+            lines += [_prose(example["note"]), ""]
+        language = ATTRIBUTE_VALUE_LANGUAGES[example["language"]]
+        lines += [f"Value ({language}):", "", "```text", example["value"], "```", ""]
+        output = example["output"]
+        shown = output if isinstance(output, str) else json.dumps(output, ensure_ascii=False)
+        lines += ["Attribute value:", "", "```text", shown, "```", ""]
     return lines
 
 
 def _param(value: Any) -> str:
     """A detection rule parameter, for the table."""
     if isinstance(value, list) and all(isinstance(v, dict) and "types" in v for v in value):
-        return ", ".join(f"`{v['key']}` under type " + _code_list(v["types"]) for v in value)
+        return ", ".join(
+            f"`{v['key']}` under type "
+            + _code_list(v["types"])
+            + (" and parent key " + _code_list(v["parent_keys"]) if v.get("parent_keys") else "")
+            + (
+                " in an object of type " + _code_list(v["holder_types"])
+                if v.get("holder_types")
+                else ""
+            )
+            + (" (keeps URLs)" if v.get("keeps_urls") else "")
+            + (" (the holder's mime)" if v.get("holder_mime") else "")
+            for v in value
+        )
+    if isinstance(value, list) and all(isinstance(v, dict) and "value" in v for v in value):
+        return ", ".join(
+            f"`{v['key']}` = `{v['value']}`, for " + _code_list(v.get("keys") or []) for v in value
+        )
     if isinstance(value, list) and all(isinstance(v, dict) for v in value):
         return ", ".join(
             "`"
@@ -1189,7 +1781,12 @@ def _render_part_shapes(shapes: dict) -> list[str]:
         lines += ["Output:", "", "```json", example["output"], "```", ""]
     for example in shapes.get("message_examples") or []:
         lines += [f"#### `{example['name']}`", "", _prose(example["from"]), ""]
-        lines += [f"Input ({example['source']}):", "", "```json", example["input"], "```", ""]
+        beside = "".join(
+            f", with `{key}` = `{value}`"
+            for key, value in (example.get("attributes") or {}).items()
+        )
+        source = f"{example['source']}{beside}"
+        lines += [f"Input ({source}):", "", "```json", example["input"], "```", ""]
         lines += ["Output (gen_ai.input.messages):", "", "```json", example["output"], "```", ""]
     return lines
 

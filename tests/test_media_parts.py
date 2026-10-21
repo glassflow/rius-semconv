@@ -10,6 +10,8 @@ import copy
 import json
 import random
 import re
+import shutil
+import subprocess
 import time
 
 import pytest
@@ -33,7 +35,7 @@ def test_committed_file_is_clean(base_data):
 
 def test_every_row_has_a_source_shape_and_direction(base_data):
     rows = base_data["media_parts"]["rows"]
-    assert len(rows) == 33
+    assert len(rows) == 39
     assert {r["direction"] for r in rows} == {"input", "output"}
 
 
@@ -206,6 +208,13 @@ def test_raw_payload_rows(base_data):
             "media present only in output.value (audio output)",
         ): ["output.value"],
         ("vercel.ai", "file part with Buffer data in ai.prompt"): ["ai.prompt"],
+        ("vercel.ai", "image part with base64 image in ai.prompt"): ["ai.prompt"],
+        ("vercel.ai", "file / image part with v7 tagged data in ai.prompt"): ["ai.prompt"],
+        (
+            "rius.sdk",
+            "byte object in a serialized value (Python bytes, bytearray, memoryview;"
+            " TypeScript ArrayBuffer and its views, Buffer included)",
+        ): ["input.value", "output.value"],
     }
     (oo,) = [r for r in rows if r["source"] == "openllmetry.openai"]
     assert "raw_payload" not in oo
@@ -589,6 +598,24 @@ REQUIRED_GOLDEN = {
     "mistral_typescript_input_audio_string",
     "input_audio_string_with_no_type_is_left_alone",
     "the_new_shapes_stripped_twice_change_nothing",
+    "vercel_image_part_base64_in_ai_prompt",
+    "vercel_image_part_base64_without_a_media_type",
+    "vercel_image_string_that_is_not_base64",
+    "vercel_image_url_is_left_alone",
+    "vercel_image_data_url_keeps_its_own_mime",
+    "vercel_tagged_file_data_in_ai_prompt",
+    "vercel_tagged_image_data",
+    "vercel_tagged_data_url_and_link",
+    "image_and_tagged_data_outside_their_parts_are_left_alone",
+    "langchain_v0_base64_block_without_a_mime_type",
+    "langchain_v0_base64_blocks_with_a_mime_type",
+    "langchain_v0_blocks_with_no_base64_marker_are_left_alone",
+    "the_vercel_and_langchain_v0_shapes_stripped_twice_change_nothing",
+    "a_wrapped_base64_data_url_under_a_url_key_is_replaced_whole",
+    "a_percent_encoded_data_url_under_a_url_key_is_replaced_whole",
+    "a_broken_base64_run_under_a_url_key_is_replaced_whole",
+    "tagged_data_outside_a_vercel_part_is_left_alone",
+    "a_base64_marker_reaches_data_alone",
 }
 
 
@@ -696,16 +723,22 @@ def test_rows_with_a_part_example_follow_the_member_order(base_data):
                 assert list(part) == [m for m in members[part["type"]] if m in part]
 
 
-def test_in_place_example_changes_only_the_part(base_data):
-    for example in base_data["media_parts"]["part_shapes"]["in_place_examples"]:
-        before, after = example["input"], example["output"]
-        start = after.index('{"type":')
-        end = after.index("}", start) + 1
-        assert after[:start] == before[: before.index('{"type"')]
-        assert after[end:] == before[before.index("}", before.index('{"type"')) + 1 :]
-        assert list(json.loads(after[start:end])) == [
-            "type", "modality", "mime_type", "byte_size", "stripped_reason",
-        ]  # fmt: skip
+IN_PLACE_EXAMPLES = Registry.load().media_parts["part_shapes"]["in_place_examples"]
+
+
+@pytest.mark.parametrize("example", IN_PLACE_EXAMPLES, ids=[e["name"] for e in IN_PLACE_EXAMPLES])
+def test_in_place_example_changes_only_the_part(base_data, example):
+    """Only the part object is replaced, by what native_part makes of it."""
+    before, after = example["input"], example["output"]
+    start = after.index('{"type":')
+    end = after.index("}", start) + 1
+    assert after[:start] == before[: before.index('{"type"')]
+    assert after[end:] == before[before.index("}", before.index('{"type"')) + 1 :]
+    (message,) = json.loads(before)
+    (part,) = message["parts"]
+    rebuilt = media_parts.native_part(base_data["media_parts"], part)
+    assert rebuilt is not None
+    assert media_parts.part_text(rebuilt) == after[start:end]
 
 
 def test_members_out_of_order_fail_lint(data):
@@ -1029,7 +1062,8 @@ PORTABLE_ESCAPES = set("tnfr") | set("\\/.-[]()+*?{}|^$")
 def test_data_url_pattern_is_portable(base_data):
     raw = base_data["media_parts"]["raw_payloads"]
     (rule,) = [r for r in raw["detection"] if r["id"] == "b"]
-    for pattern in (rule["pattern"], raw["replacement"]["mime_pattern"]):
+    (keyed,) = [r for r in raw["detection"] if r["id"] == "e"]
+    for pattern in (rule["pattern"], raw["replacement"]["mime_pattern"], keyed["url_scheme"]):
         assert "(?" not in pattern, "no lookaround, named group or inline flag"
         for match in re.finditer(r"\\(.)", pattern):
             assert match.group(1) in PORTABLE_ESCAPES, f"\\{match.group(1)} is not portable"
@@ -1067,3 +1101,632 @@ def test_portability_check_bites():
 def test_complete_replacement(base_data, value, complete):
     raw = base_data["media_parts"]["raw_payloads"]
     assert media_parts.is_replacement(raw, value) is complete
+
+
+# --- URLs under a typed key that keeps them ------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("value", "url"),
+    [
+        ("https://example.com/a.png", True),
+        ("gs://bucket/a.png", True),
+        ("data:image/png;base64,QUFB", True),
+        ("svn+ssh://host/x", True),
+        ("iVBORw0KGgo=", False),
+        ("1http://x", False),
+        (" https://example.com", False),
+        ("[stripped unknown 3 bytes]", False),
+        ("", False),
+    ],
+)
+def test_a_url_starts_with_a_scheme(base_data, value, url):
+    raw = base_data["media_parts"]["raw_payloads"]
+    assert media_parts.is_url(raw, value) is url
+
+
+def test_a_url_in_an_array_under_image_is_left_to_rule_b(base_data):
+    raw = base_data["media_parts"]["raw_payloads"]
+    text = '{"type":"image","image":["https://example.com/a.png","QUFB"]}'
+    assert media_parts.strip_raw_payload(raw, text) == (
+        '{"type":"image","image":["https://example.com/a.png","[stripped unknown 3 bytes]"]}'
+    )
+
+
+def test_keeps_urls_wins_over_a_sibling(base_data):
+    """Tagged data beside its own mediaType qualifies through the sibling too,
+    but its key keeps URLs, so the link stays."""
+    raw = base_data["media_parts"]["raw_payloads"]
+    text = (
+        '{"type":"file","data":{"type":"data","data":"https://example.com/a.pdf",'
+        '"mediaType":"application/pdf"}}'
+    )
+    assert media_parts.strip_raw_payload(raw, text) == text
+
+
+def test_a_tagged_data_reads_its_own_mime_first(base_data):
+    raw = base_data["media_parts"]["raw_payloads"]
+    text = (
+        '{"type":"file","mediaType":"image/png",'
+        '"data":{"type":"data","data":"QUFB","mediaType":"image/gif"}}'
+    )
+    tokens = [t.as_dict() for t in media_parts.strip(raw, text).tokens]
+    assert tokens == [{"rule": "e", "mime": "image/gif", "byte_size": 3}]
+
+
+def test_a_base64_marker_needs_its_exact_value(base_data):
+    raw = base_data["media_parts"]["raw_payloads"]
+    for marker in ('"Base64"', '"base64 "', "true", '["base64"]'):
+        text = '{"source_type":' + marker + ',"data":"QUFB"}'
+        assert media_parts.strip_raw_payload(raw, text) == text, marker
+
+
+def test_a_rule_e_without_its_new_fields_fails_lint(data):
+    (rule,) = [r for r in data["media_parts"]["raw_payloads"]["detection"] if r["id"] == "e"]
+    del rule["url_scheme"]
+    del rule["base64_markers"]
+    errors = media_parts.lint(data["media_parts"])
+    assert_flags(errors, "detection rule e needs url_scheme")
+    assert_flags(errors, "detection rule e needs base64_markers")
+
+
+# --- byte objects -------------------------------------------------------------
+
+BYTE_OBJECTS = Registry.load().media_parts["raw_payloads"]["byte_objects"]
+PYTHON_BYTE_OBJECTS = [e for e in BYTE_OBJECTS["examples"] if e["language"] == "python"]
+
+
+@pytest.mark.parametrize(
+    "example", PYTHON_BYTE_OBJECTS, ids=[e["name"] for e in PYTHON_BYTE_OBJECTS]
+)
+def test_python_byte_objects_serialize_to_their_output(base_data, example):
+    """The reference serializer writes each Python example's value as its
+    attribute value. The TypeScript examples are checked by the TypeScript
+    SDK; here they are checked to be final (lint)."""
+    raw = base_data["media_parts"]["raw_payloads"]
+    value = eval(
+        example["value"],
+        {"__builtins__": {}, "bytearray": bytearray, "bytes": bytes, "memoryview": memoryview},
+    )  # noqa: S307
+    assert media_parts.serialize_value(raw, value) == example["output"]
+
+
+def test_byte_objects_cover_both_languages():
+    assert {e["language"] for e in BYTE_OBJECTS["examples"]} == set(
+        media_parts.BYTE_OBJECT_LANGUAGES
+    )
+
+
+def test_a_released_memoryview_has_no_size(base_data):
+    raw = base_data["media_parts"]["raw_payloads"]
+    view = memoryview(b"abc")
+    view.release()
+    assert media_parts.serialize_value(raw, [view]) == '["[stripped unknown unknown bytes]"]'
+
+
+def test_a_byte_object_example_without_a_marker_fails_lint(data):
+    example = data["media_parts"]["raw_payloads"]["byte_objects"]["examples"][0]
+    example["output"] = '{"image":"<bytes 4 bytes>"}'
+    assert_flags(media_parts.lint(data["media_parts"]), "output holds no marker")
+
+
+def test_a_byte_object_example_with_a_known_mime_fails_lint(data):
+    example = data["media_parts"]["raw_payloads"]["byte_objects"]["examples"][0]
+    example["output"] = '{"image":"[stripped image/png 4 bytes]"}'
+    assert_flags(media_parts.lint(data["media_parts"]), "output holds no marker")
+
+
+def test_a_byte_object_example_that_a_strip_changes_fails_lint(data):
+    example = data["media_parts"]["raw_payloads"]["byte_objects"]["examples"][0]
+    example["output"] = '{"image":"[stripped unknown 4 bytes]","x":"data:image/png;base64,QUFB"}'
+    assert_flags(media_parts.lint(data["media_parts"]), "output is not final")
+
+
+def test_a_byte_object_example_needs_a_language(data):
+    data["media_parts"]["raw_payloads"]["byte_objects"]["examples"][0]["language"] = "go"
+    assert_flags(media_parts.lint(data["media_parts"]), "language must be one of")
+
+
+def test_byte_objects_are_required(data):
+    del data["media_parts"]["raw_payloads"]["byte_objects"]
+    assert_flags(media_parts.lint(data["media_parts"]), "raw_payloads needs byte_objects")
+
+
+def test_byte_objects_rendered(base_data):
+    table = media_parts.render_table(base_data["media_parts"])
+    assert "### Byte objects" in table
+    for example in BYTE_OBJECTS["examples"]:
+        assert f"`{example['name']}`" in table
+
+
+# --- LangChain v1 reference blocks and message example attributes ---------------
+
+
+def test_langchain_v1_reference_rows_name_the_prompt_paths(base_data):
+    rows = [
+        r
+        for r in base_data["media_parts"]["rows"]
+        if r["source"] == "langchain.messages" and r["shape"].startswith("v1 ")
+    ]
+    assert len(rows) == 3
+    for row in rows:
+        assert {"openllmetry", "laminar"} <= set(row["paths"]), row["shape"]
+    assert not any("not mapped yet" in str(r.get("note")) for r in rows)
+
+
+def test_message_examples_cover_the_prompt_paths(base_data):
+    examples = base_data["media_parts"]["part_shapes"]["message_examples"]
+    sources = {e["source"] for e in examples}
+    assert "gen_ai.prompt.0.content" in sources
+    assert any((e.get("attributes") or {}).get("lmnr.span.type") == "LLM" for e in examples)
+
+
+def test_message_example_attributes_must_be_strings(data):
+    example = data["media_parts"]["part_shapes"]["message_examples"][0]
+    example["attributes"] = {"gen_ai.prompt.0.role": 5}
+    assert_flags(media_parts.lint(data["media_parts"]), "attributes must map keys to strings")
+
+
+def test_a_generic_row_needs_no_modality(data):
+    rows = data["media_parts"]["rows"]
+    (row,) = [r for r in rows if r["normalized"] == "generic"]
+    assert "modality" not in row
+    assert media_parts.lint(data["media_parts"]) == []
+
+
+def test_a_base64_marker_without_its_keys_fails_lint(data):
+    (rule,) = [r for r in data["media_parts"]["raw_payloads"]["detection"] if r["id"] == "e"]
+    del rule["base64_markers"][0]["keys"]
+    assert_flags(
+        media_parts.lint(data["media_parts"]),
+        "detection rule e base64_markers need a key, a value and keys",
+    )
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "data:image/png;base64,iVBO\\nRw0KGgo=",
+        "data:image/png;base64,iVBO\\r\\nRw0KGgo=",
+        "data:image/png;base64,iVBO Rw0KGgo=",
+        "data:image/png;base64,iVBORw0KGgo=\\n",
+        "data:image/png,%89PNG%0D%0A",
+        "Data:image/png;charset=x,iVBORw0KGgo=",
+        "data:image/png;base64,@@@iVBORw0KGgo=",
+    ],
+)
+@pytest.mark.parametrize(
+    "template",
+    [
+        '[{"type":"image","image":"%s"}]',
+        '[{"type":"image","image":{"type":"data","data":"%s"}}]',
+        '[{"type":"file","data":"%s","mediaType":"image/png"}]',
+        '[{"type":"file","data":{"type":"data","data":"%s"},"mediaType":"image/png"}]',
+    ],
+)
+def test_no_payload_survives_a_url_key(base_data, template, value):
+    """A data: string under a key that keeps URLs loses every byte of its
+    payload, tagged or not, whatever breaks rule (b)'s run."""
+    raw = base_data["media_parts"]["raw_payloads"]
+    out = media_parts.strip_raw_payload(raw, template % value)
+    for fragment in ("Rw0KGgo", "iVBO", "%89PNG"):
+        assert fragment not in out, out
+
+
+# --- the v1 part examples and message examples, through the reference ----------
+
+PART_EXAMPLES = Registry.load().media_parts["part_shapes"]["examples"]
+V1_PART_EXAMPLES = [e for e in PART_EXAMPLES if e["name"].startswith("langchain_v1_")]
+REQUIRED_PART_EXAMPLES = {
+    "langchain_v1_image_by_url",
+    "langchain_v1_image_by_url_kind_before_extension",
+    "langchain_v1_file_by_url_with_only_an_extension",
+    "langchain_v1_file_by_url_with_no_extension",
+    "langchain_v1_audio_by_data_url",
+    "langchain_v1_image_by_redacted_url",
+    "langchain_v1_file_by_empty_url",
+    "langchain_v1_image_by_file_id",
+    "langchain_v1_video_by_empty_file_id",
+    "langchain_v1_image_by_redacted_url_and_a_file_id",
+    "langchain_v1_file_by_file_id",
+    "langchain_v1_file_by_empty_file_id_is_a_native_file_part",
+    "langchain_v1_file_by_empty_file_id_and_a_url",
+    "langchain_v1_file_by_file_id_keeps_its_modality",
+    "langchain_v1_file_by_redacted_file_id_and_base64",
+    "langchain_v1_file_by_redacted_file_id_and_an_empty_url",
+    "langchain_v1_file_with_a_file_id_that_is_not_a_string_and_a_url",
+    "langchain_v1_text_plain_by_base64",
+    "langchain_v1_image_by_a_url_led_by_whitespace",
+    "langchain_v1_image_by_a_url_led_by_a_tab",
+    "langchain_v1_file_by_an_https_url_led_by_a_space",
+    "langchain_v1_image_by_a_data_url_with_a_trailing_space",
+    "langchain_v1_image_by_a_wrapped_data_url",
+    "langchain_v1_file_by_a_url_led_by_whitespace_and_an_empty_file_id",
+    "langchain_v1_file_by_empty_file_id_and_empty_base64",
+    "langchain_v1_file_by_empty_file_id_and_redacted_base64",
+    "langchain_v1_image_by_redacted_base64",
+    "langchain_v1_audio_by_empty_base64",
+    "langchain_v1_file_by_a_relative_url",
+    "langchain_v1_image_by_a_rooted_relative_url",
+    "langchain_v1_image_by_a_link_followed_by_a_data_url",
+    "uri_led_by_whitespace_holding_a_data_url",
+}
+
+
+def test_part_examples_cover_the_required_cases():
+    assert {e["name"] for e in PART_EXAMPLES} >= REQUIRED_PART_EXAMPLES
+
+
+@pytest.mark.parametrize("example", V1_PART_EXAMPLES, ids=[e["name"] for e in V1_PART_EXAMPLES])
+def test_v1_part_examples_are_what_the_reference_makes(base_data, example):
+    """Each v1 example names its block, and the reference makes exactly its
+    part, byte for byte."""
+    assert "block" in example, f"{example['name']} needs a block"
+    part = media_parts.langchain_v1_part(base_data["media_parts"], json.loads(example["block"]))
+    assert part is not None
+    assert media_parts.part_text(part) == example["part"]
+
+
+@pytest.mark.parametrize(
+    "block",
+    [
+        '{"type":"file","file_id":5}',
+        '{"type":"image","id":"x","source_type":"id"}',
+        '{"type":"image","source_type":"base64","data":"QUFB"}',
+        '{"type":"text-plain","url":"https://example.com/a.txt"}',
+        '{"type":"text-plain","file_id":"file-abc","url":""}',
+        '{"type":"text","text":"hi"}',
+    ],
+)
+def test_v1_blocks_with_no_reference_make_no_part(base_data, block):
+    assert media_parts.langchain_v1_part(base_data["media_parts"], json.loads(block)) is None
+
+
+def test_a_v1_example_block_must_be_an_object(data):
+    (example,) = [
+        e
+        for e in data["media_parts"]["part_shapes"]["examples"]
+        if e["name"] == "langchain_v1_image_by_url"
+    ]
+    example["block"] = "[1]"
+    assert_flags(media_parts.lint(data["media_parts"]), "block must be a JSON object")
+
+
+NATIVE_PART_EXAMPLES = [e for e in PART_EXAMPLES if "native" in e]
+
+
+def test_native_part_examples_cover_the_native_uri_holding_a_data_url():
+    assert "uri_led_by_whitespace_holding_a_data_url" in {e["name"] for e in NATIVE_PART_EXAMPLES}
+
+
+@pytest.mark.parametrize(
+    "example", NATIVE_PART_EXAMPLES, ids=[e["name"] for e in NATIVE_PART_EXAMPLES]
+)
+def test_native_part_examples_are_what_the_reference_makes(base_data, example):
+    part = media_parts.native_part(base_data["media_parts"], json.loads(example["native"]))
+    assert part is not None
+    assert media_parts.part_text(part) == example["part"]
+
+
+@pytest.mark.parametrize(
+    "part",
+    [
+        '{"type":"uri","uri":5}',
+        '{"type":"file","file_id":null}',
+        '{"type":"file","file_id":5}',
+        '{"type":"text","content":"hi"}',
+    ],
+)
+def test_native_parts_left_as_they_came(base_data, part):
+    assert media_parts.native_part(base_data["media_parts"], json.loads(part)) is None
+
+
+@pytest.mark.parametrize(
+    ("part", "rebuilt"),
+    [
+        (
+            '{"type":"file","file_id":"","url":"https://example.com/a.pdf"}',
+            '{"type":"uri","modality":"document","uri":"https://example.com/a.pdf"}',
+        ),
+        (
+            '{"type":"file","file_id":"x","url":"https://example.com/a.pdf"}',
+            '{"type":"file","modality":"document","file_id":"x"}',
+        ),
+        (
+            '{"type":"file","file_id":"","modality":"audio"}',
+            '{"type":"file","modality":"audio","file_id":""}',
+        ),
+        (
+            '{"type":"uri","modality":"picture","mime_type":"video/mp4","uri":"https://e/a.png"}',
+            '{"type":"uri","modality":"video","mime_type":"video/mp4","uri":"https://e/a.png"}',
+        ),
+        (
+            '{"type":"uri","modality":"audio","mime_type":"image/png","uri":"x data:y"}',
+            '{"type":"blob","modality":"image","mime_type":"image/png","stripped_reason":"not_captured"}',
+        ),
+        (
+            '{"type":"blob","stripped_reason":"lost","content":null,"byte_size":-1}',
+            '{"type":"blob","modality":"document","stripped_reason":"redacted_upstream"}',
+        ),
+        (
+            '{"type":"blob","stripped_reason":"not_captured","byte_size":8e0}',
+            '{"type":"blob","modality":"document","byte_size":8,"stripped_reason":"not_captured"}',
+        ),
+    ],
+)
+def test_native_part_rebuilds(base_data, part, rebuilt):
+    native = media_parts.native_part(base_data["media_parts"], json.loads(part))
+    assert media_parts.part_text(native) == rebuilt
+
+
+def test_a_native_example_must_be_an_object(data):
+    (example,) = [
+        e
+        for e in data["media_parts"]["part_shapes"]["examples"]
+        if e["name"] == "uri_led_by_whitespace_holding_a_data_url"
+    ]
+    example["native"] = "[1]"
+    assert_flags(media_parts.lint(data["media_parts"]), "native must be a JSON object")
+
+
+def test_an_empty_otlp_any_value_is_null():
+    assert media_parts.otlp_value({}) is None
+
+
+def test_a_duplicate_kvlist_key_keeps_every_member_in_wire_order(base_data):
+    raw = base_data["media_parts"]["raw_payloads"]
+    any_value = {
+        "kvlistValue": {
+            "values": [
+                {"key": "k", "value": {"bytesValue": "YQ=="}},
+                {"key": "k", "value": {"stringValue": "x"}},
+            ]
+        }
+    }
+    value = media_parts.otlp_attribute_value(raw, any_value)
+    assert list(value.items()) == [("k", "[stripped unknown 1 bytes]"), ("k", "x")]
+
+
+def _vercel_makes_no_part(part: dict) -> bool:
+    """A Vercel file or image part whose payload is neither a string nor v7
+    tagged data holding one, or a v7 text tag whose text is not a string."""
+    payload = part.get("data" if part.get("type") == "file" else "image")
+    if isinstance(payload, str):
+        return False
+    if isinstance(payload, dict) and payload.get("type") in ("data", "url"):
+        return not isinstance(payload.get(payload["type"]), str)
+    if isinstance(payload, dict) and payload.get("type") == "text":
+        return not isinstance(payload.get("text"), str)
+    return True
+
+
+def _message_parts(media: dict, example: dict) -> list:
+    """gen_ai.input.messages for a message example: a text block is a text
+    part, a LangChain v1 block the reference's part, and a Vercel part that
+    makes no part is dropped. Any other block is outside what the examples
+    hold, and fails."""
+
+    def parts(blocks: list) -> list:
+        out = []
+        for block in blocks:
+            if block.get("type") == "text":
+                out.append({"type": "text", "content": block["text"]})
+            elif example["source"] == "ai.prompt.messages":
+                assert block.get("type") in ("file", "image") and _vercel_makes_no_part(block)
+            else:
+                part = media_parts.langchain_v1_part(media, block)
+                assert part is not None, block
+                out.append(part)
+        return out
+
+    value = json.loads(example["input"])
+    if example["source"] == "ai.prompt.messages":
+        return [{"role": m["role"], "parts": parts(m["content"])} for m in value]
+    (index,) = re.fullmatch(r"gen_ai\.prompt\.([0-9]+)\.content", example["source"]).groups()
+    role = example["attributes"][f"gen_ai.prompt.{index}.role"]
+    return [{"role": role, "parts": parts(value)}]
+
+
+MESSAGE_EXAMPLES = Registry.load().media_parts["part_shapes"]["message_examples"]
+
+
+@pytest.mark.parametrize("example", MESSAGE_EXAMPLES, ids=[e["name"] for e in MESSAGE_EXAMPLES])
+def test_message_examples_are_what_the_reference_makes(base_data, example):
+    messages = _message_parts(base_data["media_parts"], example)
+    text = json.dumps(messages, separators=(",", ":"), ensure_ascii=False)
+    assert text == example["output"]
+
+
+# --- the TypeScript byte objects, through Node ----------------------------------
+
+TYPESCRIPT_BYTE_OBJECTS = [e for e in BYTE_OBJECTS["examples"] if e["language"] == "typescript"]
+
+# The TypeScript SDK's rule as a JSON.stringify replacer: it reads the
+# holder's original property (so a Buffer's toJSON never runs) and tells a
+# byte object by its tag, which holds across realms, or ArrayBuffer.isView.
+BYTE_OBJECT_SCRIPT = r"""
+const tag = (v) => Object.prototype.toString.call(v);
+const isBytes = (v) =>
+  tag(v) === "[object ArrayBuffer]" ||
+  tag(v) === "[object SharedArrayBuffer]" ||
+  ArrayBuffer.isView(v);
+const replacer = function (key, value) {
+  const original = this[key];
+  return isBytes(original) ? `[stripped unknown ${original.byteLength} bytes]` : value;
+};
+const examples = JSON.parse(process.argv[1]);
+const write = (e) => JSON.stringify((0, eval)("(" + e + ")"), replacer);
+console.log(JSON.stringify(examples.map(write)));
+"""
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is not installed")
+def test_typescript_byte_objects_serialize_to_their_output():
+    """N is the byte length (byteLength), never the item count."""
+    values = [e["value"] for e in TYPESCRIPT_BYTE_OBJECTS]
+    out = subprocess.run(
+        [shutil.which("node"), "-e", BYTE_OBJECT_SCRIPT, json.dumps(values)],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    assert json.loads(out) == [e["output"] for e in TYPESCRIPT_BYTE_OBJECTS]
+
+
+def test_a_lone_surrogate_is_written_escaped(base_data):
+    """As the Python SDK writes it, and JSON.stringify: raw UTF-8 cannot carry
+    a lone surrogate, so it is its lower-case \\uXXXX escape."""
+    raw = base_data["media_parts"]["raw_payloads"]
+    value = {"a": "x\ud800y", "\udfff": b"ab", "b": "é"}
+    assert media_parts.serialize_value(raw, value) == (
+        '{"a":"x\\ud800y","\\udfff":"[stripped unknown 2 bytes]","b":"é"}'
+    )
+
+
+# --- byte objects as attribute values -------------------------------------------
+
+ATTRIBUTE_VALUES = BYTE_OBJECTS["attribute_values"]["examples"]
+
+
+REFERENCE_ATTRIBUTE_VALUES = [e for e in ATTRIBUTE_VALUES if e["language"] != "typescript"]
+TYPESCRIPT_ATTRIBUTE_VALUES = [e for e in ATTRIBUTE_VALUES if e["language"] == "typescript"]
+
+
+@pytest.mark.parametrize(
+    "example", REFERENCE_ATTRIBUTE_VALUES, ids=[e["name"] for e in REFERENCE_ATTRIBUTE_VALUES]
+)
+def test_attribute_value_examples_are_what_the_reference_makes(base_data, example):
+    """A byte object set as an attribute value is the bare marker, no quotes."""
+    raw = base_data["media_parts"]["raw_payloads"]
+    if example["language"] == "python":
+        value = eval(
+            example["value"],
+            {"__builtins__": {}, "bytearray": bytearray, "bytes": bytes, "memoryview": memoryview},
+        )  # noqa: S307
+        assert media_parts.attribute_value(raw, value) == example["output"]
+    else:
+        any_value = json.loads(example["value"])
+        assert media_parts.otlp_attribute_value(raw, any_value) == example["output"]
+
+
+# The TypeScript SDK's attribute value rule: a byte object at any depth is the
+# bare marker, and an array that cannot stay homogeneous is its JSON, written
+# with the byte object replacer. OpenTelemetry JS holds no mapping and no
+# nested array, nor an array that is not homogeneous, so a walked value that
+# is one is the JSON of the value.
+ATTRIBUTE_VALUE_SCRIPT = (
+    BYTE_OBJECT_SCRIPT.split("const examples")[0]
+    + r"""
+const marker = (v) => `[stripped unknown ${v.byteLength} bytes]`;
+const attributeValue = (v) => {
+  if (isBytes(v)) return marker(v);
+  if (Array.isArray(v)) {
+    const out = v.map(attributeValue);
+    const mixed = v.some(isBytes) && !out.every((e) => typeof e === "string");
+    return mixed ? JSON.stringify(v, replacer) : out;
+  }
+  if (v !== null && typeof v === "object") {
+    return Object.fromEntries(Object.entries(v).map(([k, e]) => [k, attributeValue(e)]));
+  }
+  return v;
+};
+const holdsBytes = (v) =>
+  isBytes(v) || (v !== null && typeof v === "object" && Object.values(v).some(holdsBytes));
+const primitive = (v) => v === null || typeof v !== "object";
+// As @opentelemetry/core's isHomogeneousAttributeValueArray: null aside, all
+// strings, all numbers or all booleans.
+const homogeneous = (a) => {
+  const types = new Set(a.filter((e) => e != null).map((e) => typeof e));
+  return types.size <= 1 && [...types].every((t) => ["string", "number", "boolean"].includes(t));
+};
+const setValue = (v) => {
+  const out = attributeValue(v);
+  const held = Array.isArray(out) ? homogeneous(out) : primitive(out);
+  return held || !holdsBytes(v) ? out : JSON.stringify(v, replacer);
+};
+const examples = JSON.parse(process.argv[1]);
+console.log(JSON.stringify(examples.map((e) => setValue((0, eval)("(" + e + ")")))));
+"""
+)
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is not installed")
+def test_typescript_attribute_values_are_their_output():
+    values = [e["value"] for e in TYPESCRIPT_ATTRIBUTE_VALUES]
+    out = subprocess.run(
+        [shutil.which("node"), "-e", ATTRIBUTE_VALUE_SCRIPT, json.dumps(values)],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    assert json.loads(out) == [e["output"] for e in TYPESCRIPT_ATTRIBUTE_VALUES]
+
+
+def test_attribute_values_cover_every_language():
+    assert {e["language"] for e in ATTRIBUTE_VALUES} == set(media_parts.ATTRIBUTE_VALUE_LANGUAGES)
+
+
+@pytest.mark.parametrize(
+    ("value", "output"),
+    [
+        ([True, b"ab"], '[true,"[stripped unknown 2 bytes]"]'),
+        ([None, b"ab"], '[null,"[stripped unknown 2 bytes]"]'),
+        ([b"ab", [b"c"]], '["[stripped unknown 2 bytes]",["[stripped unknown 1 bytes]"]]'),
+        ([b"ab", {"k": "v"}], '["[stripped unknown 2 bytes]",{"k":"v"}]'),
+        ([1, [b"c"]], [1, ["[stripped unknown 1 bytes]"]]),
+        ((b"ab", "x"), ["[stripped unknown 2 bytes]", "x"]),
+        ([[1, b"c"]], ['[1,"[stripped unknown 1 bytes]"]']),
+        ([1, [1, b"c"]], [1, '[1,"[stripped unknown 1 bytes]"]']),
+        ({"k": [1, b"c"]}, {"k": '[1,"[stripped unknown 1 bytes]"]'}),
+        ([1, "x"], [1, "x"]),
+    ],
+)
+def test_only_an_array_holding_a_byte_object_and_a_non_string_is_json(base_data, value, output):
+    raw = base_data["media_parts"]["raw_payloads"]
+    assert media_parts.attribute_value(raw, value) == output
+
+
+@pytest.mark.parametrize(
+    ("text", "size"),
+    [("QUJD", 3), ("QUI=", 2), ("QUI", 2), ("_-__", 3), ("/+//", 3), ("iVBORw0KGgo", 8), ("", 0)],
+)
+def test_an_otlp_bytes_value_decodes_either_alphabet_padded_or_not(text, size):
+    assert len(media_parts.otlp_bytes(text)) == size
+
+
+@pytest.mark.parametrize("text", ["Q", "+-AA", "QU!D"])
+def test_an_otlp_bytes_value_that_is_not_base64_raises(text):
+    with pytest.raises(ValueError):
+        media_parts.otlp_bytes(text)
+
+
+def test_an_attribute_value_with_no_marker_fails_lint(data):
+    section = data["media_parts"]["raw_payloads"]["byte_objects"]["attribute_values"]
+    section["examples"][0]["output"] = {"k": "plain", "n": [1]}
+    assert_flags(media_parts.lint(data["media_parts"]), "must be a bare marker")
+
+
+def test_a_quoted_attribute_value_marker_fails_lint(data):
+    section = data["media_parts"]["raw_payloads"]["byte_objects"]["attribute_values"]
+    section["examples"][0]["output"] = '"[stripped unknown 4 bytes]"'
+    assert_flags(media_parts.lint(data["media_parts"]), "must be a bare marker")
+
+
+def test_attribute_values_are_required(data):
+    del data["media_parts"]["raw_payloads"]["byte_objects"]["attribute_values"]
+    assert_flags(media_parts.lint(data["media_parts"]), "needs attribute_values with a rule")
+
+
+@pytest.mark.parametrize(
+    ("block", "modality"),
+    [
+        ('{"type":"file","file_id":"x","modality":"image"}', "image"),
+        ('{"type":"file","file_id":"","modality":"audio"}', "audio"),
+        ('{"type":"file","file_id":"x","modality":"picture","mime_type":"video/mp4"}', "video"),
+        ('{"type":"image","file_id":"x","modality":"audio"}', "image"),
+        ('{"type":"file","url":"https://example.com/a.wav","modality":"image"}', "audio"),
+    ],
+)
+def test_only_a_native_file_part_reads_its_modality_member(base_data, block, modality):
+    part = media_parts.langchain_v1_part(base_data["media_parts"], json.loads(block))
+    assert part["modality"] == modality

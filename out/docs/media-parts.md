@@ -27,18 +27,19 @@ A normalized part in a message key is written with exactly these members, in ord
 - A member whose value is unknown is omitted, never written as null. This applies to mime_type and byte_size.
 - mime_type is written only when it is a valid token/token MIME type, matching the replacement's mime_pattern in full. Anything else is omitted.
 - The modality is taken from the prefix of the MIME type, matched case-insensitively. image/\* is image, audio/\* audio, video/\* video, anything else document.
-- Every native media part in a message key (blob, uri or file) is always rebuilt into its canonical shape: members in the pinned order, extra members dropped, and every member that is unknown omitted. The only exception is a uri part whose uri is not a string, or a file part whose file_id is not a string: it is left as it came. Any string is a usable uri or file_id, the empty string included. Every other normalized media part carries a modality.
+- Every native media part in a message key (blob, uri or file) is always rebuilt into its canonical shape: members in the pinned order, extra members dropped, and every member that is unknown omitted. The only exception is a uri part whose uri is not a string, or a file part whose file_id is not a string: it is left as it came. Any string is a usable uri or file_id, the empty string included. An object of type file that holds a base64 or a url that is a string is no native file part but a LangChain v1 file block, read by the v1 rule below: so {"type":"file","file_id":5,"url":"https://example.com/a.wav"} is a uri, while {"type":"file","file_id":5} is a native file part left as it came. Every other normalized media part carries a modality. generators/media_parts.py native_part(data, part) is the reference: each example's native part, and the part in each in_place example, is its test.
 - Parts are rebuilt only in a message-key value that parses as JSON and nests at most 1000 levels deep. Arrays and objects count together from the value's root, which is level 1: the message array, a message, its parts array and a tool call part are 4 levels. A value nested deeper (a tool call whose arguments add 997 more arrays makes 1001 levels) is left as it came, every part in it included; at 1000 levels its parts are rebuilt. The implementation counts the depth itself and never relies on its parser's or its language's recursion limit. The strip still runs on a value left this way.
-- The modality that the part already has is kept, when it is one of modalities (any other value is ignored), except for a blob whose content is a string and a uri holding a data URL (below). Otherwise it is taken from the MIME type. Failing that, a provider item whose kind names a modality takes it from the kind: an image, image_url, input_image or image_generation_call item is image, an input_audio item audio, a document item document. A LangChain v1 block of type image, audio or video is that modality, and of type file or text-plain document; a Bedrock Converse image, video, audio or document block is that modality. An OpenAI file or input_file item names none; its modality comes from the extension of its filename member alone (never from a file_url), and with no filename, or an empty one, it is document. A Gemini file_data, a native uri and a Vercel file part by URL take it from the extension of their URI's path (see extensions), the Vercel part whether its URL is a plain string or v7's {"type":"url"} data; a Vercel image part is an image. Otherwise it is document. So an Anthropic document by URL ending in .png is a document, an OpenAI input_file named a.png is an image, and an input_file by a file_url ending in .png with no filename is a document. A native file part with no valid modality and no MIME type gets document; no member of it is read for an extension. Any other part with no MIME type and no other hint also gets document.
+- The modality that the part already has is kept, when it is one of modalities (any other value is ignored), except for a blob whose content is a string and a uri holding a data URL (below). Otherwise it is taken from the MIME type. Failing that, a provider item whose kind names a modality takes it from the kind: an image, image_url, input_image or image_generation_call item is image, an input_audio item audio, a document item document. A LangChain v1 block of type image, audio or video is that modality; a block of type file names none, so by a url that is not a data URL it takes the modality from the extension of the URL's path (see extensions), and otherwise it is document. A text-plain block by base64 names none either and is document (one by url or file_id makes no part). A Bedrock Converse image, video, audio or document block is that modality. An OpenAI file or input_file item names none; its modality comes from the extension of its filename member alone (never from a file_url), and with no filename, or an empty one, it is document. A Gemini file_data, a native uri and a Vercel file part by URL take it from the extension of their URI's path (see extensions), the Vercel part whether its URL is a plain string or v7's {"type":"url"} data; a Vercel image part is an image. Otherwise it is document. So an Anthropic document by URL ending in .png is a document, an OpenAI input_file named a.png is an image, and an input_file by a file_url ending in .png with no filename is a document; a LangChain v1 image block by a URL ending in .bin is an image, and a v1 file block by a URL ending in .wav is audio. A native file part with no valid modality and no MIME type gets document; no member of it is read for an extension. Any other part with no MIME type and no other hint also gets document.
 - A blob whose `content` is a string is rebuilt with stripped_reason not_captured and a byte_size taken from the content under the size rule of the strip (omitted when the size is unknown). Its modality comes from its MIME type first, then from the modality it has, then document: a PDF blob labelled image is a document. A content string that is itself a data URL follows the data URL rules below, with the part's mime_type as the hint and the same modality order. A blob in a message key never carries content.
 - A blob with no string `content` keeps a stripped_reason that is one of stripped_reasons. Otherwise its stripped_reason is redacted_upstream when it has no content member or a null one, and not_captured when its content is any other value. It keeps a byte_size that is a whole, non-negative number no larger than 2^53 - 1 (8, 8.0 and 8e0 alike, written 8); any other byte_size is omitted.
-- A uri part, or a provider uri such as a Gemini file_data, whose URI is a data URL is never a uri: it becomes a blob under the data URL rules below. A native uri part takes that blob's modality as a blob whose content is a string does: from the MIME type first, then the modality it has, then document.
-- A URL of any scheme other than data: is a uri, its link kept as written: http, https, gs, s3, file and any other scheme alike. Only a data: URL, or inline data, becomes a blob. Where one value may hold either a URL or bare base64 (a Vercel file part's data or image part's image, as a plain string or as v7's {"type":"data"} data), it is a URL when it starts with a scheme: an ASCII letter, then any ASCII letters, digits, `+`, `-` or `.`, then a colon. Base64 holds no colon, so the two never meet; anything else is base64. A value v7 tags {"type":"url"} is a URL whatever it holds.
-- In a provider media item, a URL or a file id that is empty, or that is the \_\_REDACTED\_\_ marker an instrumentor writes in its place, was dropped upstream. When the item has no other usable reference (one that is neither empty nor \_\_REDACTED\_\_), it becomes a blob with the stripped_reason redacted_upstream and no byte_size. It keeps the MIME type the item gives (an Anthropic source's media_type, a Gemini file_data's mime_type, a Vercel part's mediaType) and takes its modality by the rule above, so an image_url or input_image is image. This covers an image_url's url, an input_image's image_url and file_id, an Anthropic url or file source, a Gemini file_data's file_uri, a Vercel part's v7 {"type":"url"} data, and an OpenAI file or input_file's file_id, file_data and file_url (an empty file_data counts as dropped too, since its item has nothing else to point to). An OpenAI file or input_file with no usable reference becomes this blob too when it has no reference member at all, or only ones that are not strings (a file_id of 5 or null): its type file would otherwise collide with a native file part. A usable reference wins: an input_image whose image_url is \_\_REDACTED\_\_ and whose file_id is usable is a file, and an OpenAI file with an empty file_id and non-empty file_data is a blob of that data. It matches OpenInference's \_\_REDACTED\_\_ on the flattened path. So no provider item this rule covers is left as a part of type file without a file_id. A native uri or file part is no provider item: its empty uri or file_id is kept. Nor is a reference not yet mapped to a part (a LangChain v1 image, audio or video block by url or file_id, a Bedrock Converse source by s3Location): it stays as it came, empty or not. A LangChain v1 file block by file_id has a native file part's shape and is read as one. A LangChain v1 file block by url is not mapped yet either and stays as it came.
+- A uri part, or a provider uri such as a Gemini file_data, whose URI is a data URL is never a uri: it becomes a blob under the data URL rules below. Nor is a native uri part whose uri holds data: anywhere else, in any ASCII case (a uri led by whitespace, or a link with a data URL after it): it becomes a blob with the stripped_reason not_captured and no byte_size, its mime_type kept when valid, so no byte of the data URL survives. A native uri part takes that blob's modality as a blob whose content is a string does: from the MIME type first, then the modality it has, then document.
+- A URL of any scheme other than data: is a uri, its link kept as written: http, https, gs, s3, file and any other scheme alike. Only a data: URL, or inline data, becomes a blob, and a native uri or a LangChain v1 url that holds data: anywhere else (above and below). Where one value may hold either a URL or bare base64 (a Vercel file part's data or image part's image, as a plain string or as v7's {"type":"data"} data), it is a URL when it starts with a scheme: an ASCII letter, then any ASCII letters, digits, `+`, `-` or `.`, then a colon. Base64 holds no colon, so the two never meet; anything else is base64. A value v7 tags {"type":"url"} is a URL whatever it holds. The strip reads these values the same way: rule (e) leaves a value that starts with a scheme to rule (b) (raw_payloads, rule (e)'s url_scheme and keeps_urls), except a data: value that rule (b)'s pattern does not match in full, which rule (e) replaces whole, as the part rules make it a blob.
+- In a provider media item, a URL or a file id that is empty, or that is the \_\_REDACTED\_\_ marker an instrumentor writes in its place, was dropped upstream. When the item has no other usable reference (one that is neither empty nor \_\_REDACTED\_\_), it becomes a blob with the stripped_reason redacted_upstream and no byte_size. It keeps the MIME type the item gives (an Anthropic source's media_type, a Gemini file_data's mime_type, a Vercel part's mediaType) and takes its modality by the rule above, so an image_url or input_image is image. This covers an image_url's url, an input_image's image_url and file_id, an Anthropic url or file source, a Gemini file_data's file_uri, a Vercel part's v7 {"type":"url"} data, an OpenAI file or input_file's file_id, file_data and file_url (an empty file_data counts as dropped too, since its item has nothing else to point to), and a LangChain v1 image, audio, video or file block's url and an image, audio or video block's file_id. An OpenAI file or input_file with no usable reference becomes this blob too when it has no reference member at all, or only ones that are not strings (a file_id of 5 or null): its type file would otherwise collide with a native file part. A usable reference wins: an input_image whose image_url is \_\_REDACTED\_\_ and whose file_id is usable is a file, and an OpenAI file with an empty file_id and non-empty file_data is a blob of that data. It matches OpenInference's \_\_REDACTED\_\_ on the flattened path. So no provider item this rule covers is left as a part of type file without a file_id. A native uri or file part is no provider item: its empty uri or file_id is kept, and so is that of a LangChain v1 file block with no other usable reference (no base64 but an empty or \_\_REDACTED\_\_ one, and no usable url), since such a block has a native file part's shape and is read as one (below); a v1 file block that has one is read by it, as the usable reference wins. Nor is a reference not yet mapped to a part (a Bedrock Converse source by s3Location): it stays as it came, empty or not.
 - A Vercel file part whose data, or image part whose image, is neither a string nor v7 tagged data holding one makes no part: it is dropped from its message's parts, never written as a bare {"type":"file"} or {"type":"image"}, and any raw payload holding its bytes is stripped per raw_payloads. So is a v7 {"type":"text"} whose text is not a string. A v7 tag no rule here names becomes a blob with the stripped_reason not_captured and no byte_size, keeping the part's mediaType: its size was never measured.
+- A LangChain v1 standard content block of type image, audio, video or file, or of type text-plain, makes one part, by the first of these that applies. A usable url or file_id is a string that is neither empty nor \_\_REDACTED\_\_. (1) A block of type file whose file_id is usable, a string that is neither empty nor \_\_REDACTED\_\_, is a native file part, whatever else it holds (a url, a base64, even an OpenAI-style file member): it is rebuilt as one (above), its mime_type kept when valid, and its modality by the native order: its own modality member when that is one of modalities, else from the MIME type, else document. (2) A base64 that is a string is a blob (the bare base64 rule below): an empty one is 0 bytes, and \_\_REDACTED\_\_, which is valid base64, is 9, as for any bare base64 payload. The one exception is a block of type file whose file_id is a string: there an empty or \_\_REDACTED\_\_ base64 is no usable reference, and the block reads on, so it never beats an empty file_id. (3) A usable file_id is a file part. (4) A usable url that is a data URL is a blob under the data URL rules, the block's mime_type the hint: a data URL that rule (b)'s pattern does not match in full (a run wrapped at a newline, a trailing space, a percent-encoded payload) is a blob with no byte_size. A usable url that holds data: anywhere else, in any ASCII case (one led by whitespace, or a link with a data URL after it), is a blob with the stripped_reason not_captured and no byte_size, so no byte of it is kept. Any other usable url is a uri, its value kept as it came, whatever its scheme and relative or not: {"type":"image","url":"/img/a.png"} is a uri. (5) A block of type file whose file_id is a string, and that reached here with no other usable reference, has a native file part's shape and is one, rebuilt as in (1): its file_id is kept as written, empty or \_\_REDACTED\_\_ included. (6) When url or file_id is a string but none is usable, the block becomes a blob with the stripped_reason redacted_upstream and no byte_size (above). So a usable reference wins over an empty or \_\_REDACTED\_\_ file_id for every block type: {"type":"file","file_id":"","url":"https://example.com/a.pdf"} is a uri, and {"type":"file","file_id":""} alone is a file part. Nor does an empty or \_\_REDACTED\_\_ base64 beside one: {"type":"file","file_id":"","base64":""} is a file part by (5), while {"type":"image","base64":""} is a 0-byte blob by (2). A text-plain block is read by its base64 alone, in (2), and is document unless its mime_type names another modality; by url or file_id it makes no part and stays as it came. Every one keeps the block's mime_type when it is valid and takes its modality by the rule above. A block with no base64, url or file_id that is a string makes no part this way and stays as it came. In every case but a native file part ((1) and (5)), only type, base64, url, file_id and mime_type are read, a modality member included in none; a native file part is read as one, so its valid modality member comes first. So a LangChain v0 block by url ({"type":"image","source_type":"url","url":...}) is read the same way, and a v0 block by base64 or by id holds none of them and stays as it came, its data stripped per raw_payloads. generators/media_parts.py langchain_v1_part(data, block) is the reference, and each v1 example's block is its test. A block is read the same way on every path that delivers it: passthrough, and the provider blocks OpenLLMetry and Laminar write as gen_ai.prompt.N.content.
 - When a part has duplicate `type` members, the last one wins, as in a standard JSON decoder. The strip is different: there, a condition on `type` holds when any member qualifies.
 - A base64 data URL (rule (b)'s pattern matching the whole string) becomes a blob with the stripped_reason not_captured. Its mime type is the URL's when that is a valid token/token MIME type, else the hint (a native part's mime_type). Its byte_size is that of the base64 run under the size rule of the strip: an empty run is 0 bytes, and an invalid run has no byte_size.
-- A provider item's bare base64 payload (an input_audio data, a Mistral input_audio or inputAudio string, an Anthropic base64 source's data, a LangChain v1 block's base64, a Bedrock Converse source's bytes, an image_generation_call result, a Gemini inline_data data, a Vercel file part's data or image part's image, a non-empty OpenAI file_data) becomes a blob with the stripped_reason not_captured, its byte_size under the size rule of the strip: an empty string is 0 bytes, never redacted_upstream. A payload that is itself a data URL follows the data URL rules. An OpenAI file or input_file with no usable file_id, file_data or file_url was dropped upstream (above).
+- A provider item's bare base64 payload (an input_audio data, a Mistral input_audio or inputAudio string, an Anthropic base64 source's data, a LangChain v1 block's base64 (but an empty or \_\_REDACTED\_\_ one beside a file block's string file_id, below), a Bedrock Converse source's bytes, an image_generation_call result, a Gemini inline_data data, a Vercel file part's data or image part's image, a non-empty OpenAI file_data) becomes a blob with the stripped_reason not_captured, its byte_size under the size rule of the strip: an empty string is 0 bytes, never redacted_upstream. A payload that is itself a data URL follows the data URL rules. An OpenAI file or input_file with no usable file_id, file_data or file_url was dropped upstream (above).
 - A data URL that is not base64 (`data:<mime>,<payload>`) becomes a blob with the stripped_reason not_captured and no byte_size. Its mime type is the text after `data:` up to the first `;` or `,`, when that is a valid token/token MIME type, else the hint; its payload is everything after the first comma. This rule also covers a URL that names base64 but whose run does not match rule (b), such as `data:image/png;base64,@@`. When its payload is empty or `None`, it becomes a blob with the stripped_reason redacted_upstream.
 - When a normalizer rebuilds a native part inside an existing message-key value, it edits in place: only that part object token is replaced by its canonical compact serialization (no spaces, the minimal escaping of the strip), and every other byte of the value stays as it came. A value with nothing to rebuild stays byte for byte. Messages a normalizer builds itself are serialized compactly.
 
@@ -299,6 +300,262 @@ An OpenAI input_file item with no member but its type.
 {"type":"blob","modality":"document","stripped_reason":"redacted_upstream"}
 ```
 
+#### `langchain_v1_image_by_url`
+
+A LangChain v1 block {"type":"image","url":"https://example.com/a.png","mime_type":"image/png"}.
+
+```json
+{"type":"uri","modality":"image","mime_type":"image/png","uri":"https://example.com/a.png"}
+```
+
+#### `langchain_v1_image_by_url_kind_before_extension`
+
+A LangChain v1 block {"type":"image","url":"https://example.com/download.bin"}, with no mime_type: the block type names the modality before the URL's extension is read.
+
+```json
+{"type":"uri","modality":"image","uri":"https://example.com/download.bin"}
+```
+
+#### `langchain_v1_file_by_url_with_only_an_extension`
+
+A LangChain v1 block {"type":"file","url":"https://example.com/a.wav"}, with no mime_type: the type file names no modality, so the URL path's extension does.
+
+```json
+{"type":"uri","modality":"audio","uri":"https://example.com/a.wav"}
+```
+
+#### `langchain_v1_file_by_url_with_no_extension`
+
+A LangChain v1 block {"type":"file","url":"s3://bucket/report"}, with no mime_type.
+
+```json
+{"type":"uri","modality":"document","uri":"s3://bucket/report"}
+```
+
+#### `langchain_v1_audio_by_data_url`
+
+A LangChain v1 block {"type":"audio","url":"data:;base64,UklGRg==","mime_type":"audio/wav"}: the data URL names no mime type, so the block's mime_type is the hint.
+
+```json
+{"type":"blob","modality":"audio","mime_type":"audio/wav","byte_size":4,"stripped_reason":"not_captured"}
+```
+
+#### `langchain_v1_image_by_redacted_url`
+
+A LangChain v1 block {"type":"image","url":"\_\_REDACTED\_\_","mime_type":"image/png"}.
+
+```json
+{"type":"blob","modality":"image","mime_type":"image/png","stripped_reason":"redacted_upstream"}
+```
+
+#### `langchain_v1_file_by_empty_url`
+
+A LangChain v1 block {"type":"file","url":""}: no URL is left to give an extension, so it is a document.
+
+```json
+{"type":"blob","modality":"document","stripped_reason":"redacted_upstream"}
+```
+
+#### `langchain_v1_image_by_file_id`
+
+A LangChain v1 block {"type":"image","file_id":"file-abc123"}.
+
+```json
+{"type":"file","modality":"image","file_id":"file-abc123"}
+```
+
+#### `langchain_v1_video_by_empty_file_id`
+
+A LangChain v1 block {"type":"video","file_id":"","mime_type":"video/mp4"}.
+
+```json
+{"type":"blob","modality":"video","mime_type":"video/mp4","stripped_reason":"redacted_upstream"}
+```
+
+#### `langchain_v1_image_by_redacted_url_and_a_file_id`
+
+A LangChain v1 block {"type":"image","url":"\_\_REDACTED\_\_","file_id":"file-abc123"}: the usable reference wins.
+
+```json
+{"type":"file","modality":"image","file_id":"file-abc123"}
+```
+
+#### `langchain_v1_file_by_file_id`
+
+A LangChain v1 block {"type":"file","file_id":"file-abc123","mime_type":"application/pdf"}, read as the native file part it has the shape of.
+
+```json
+{"type":"file","modality":"document","mime_type":"application/pdf","file_id":"file-abc123"}
+```
+
+#### `langchain_v1_file_by_empty_file_id_is_a_native_file_part`
+
+A LangChain v1 block {"type":"file","file_id":""}: it has a native file part's shape, and a native file part keeps its empty file_id.
+
+```json
+{"type":"file","modality":"document","file_id":""}
+```
+
+#### `langchain_v1_file_by_file_id_keeps_its_modality`
+
+A LangChain v1 block {"type":"file","file_id":"x","modality":"image"}: read as a native file part, so its valid modality member is kept before anything else is tried.
+
+```json
+{"type":"file","modality":"image","file_id":"x"}
+```
+
+#### `langchain_v1_file_by_empty_file_id_and_a_url`
+
+A LangChain v1 block {"type":"file","file_id":"","url":"https://example.com/a.pdf"}: the usable url wins over the empty file_id, as a usable reference does everywhere.
+
+```json
+{"type":"uri","modality":"document","uri":"https://example.com/a.pdf"}
+```
+
+#### `langchain_v1_file_by_redacted_file_id_and_base64`
+
+A LangChain v1 block {"type":"file","file_id":"\_\_REDACTED\_\_","base64":"JVBERi0=","mime_type":"application/pdf"}: the base64 wins over the redacted file_id.
+
+```json
+{"type":"blob","modality":"document","mime_type":"application/pdf","byte_size":5,"stripped_reason":"not_captured"}
+```
+
+#### `langchain_v1_file_by_redacted_file_id_and_an_empty_url`
+
+A LangChain v1 block {"type":"file","file_id":"\_\_REDACTED\_\_","url":""}: no reference in it is usable, so its file_id makes it the native file part it has the shape of, the file_id kept as written.
+
+```json
+{"type":"file","modality":"document","file_id":"__REDACTED__"}
+```
+
+#### `langchain_v1_file_with_a_file_id_that_is_not_a_string_and_a_url`
+
+A LangChain v1 block {"type":"file","file_id":5,"url":"https://example.com/a.wav"}: it holds a string url, so it is a v1 block, not a native file part left as it came, and its url makes a uri.
+
+```json
+{"type":"uri","modality":"audio","uri":"https://example.com/a.wav"}
+```
+
+#### `langchain_v1_text_plain_by_base64`
+
+A LangChain v1 block {"type":"text-plain","base64":"aGk=","mime_type":"text/plain"}: a text-plain block by base64 is a document blob.
+
+```json
+{"type":"blob","modality":"document","mime_type":"text/plain","byte_size":2,"stripped_reason":"not_captured"}
+```
+
+#### `langchain_v1_image_by_a_url_led_by_whitespace`
+
+A LangChain v1 block {"type":"image","url":" data:image/png;base64,iVBO\nRw0KGgo="}: the url holds data: but is no data URL, so it is a blob with no byte_size, and no byte of the data URL is kept.
+
+```json
+{"type":"blob","modality":"image","stripped_reason":"not_captured"}
+```
+
+#### `langchain_v1_image_by_a_url_led_by_a_tab`
+
+A LangChain v1 block {"type":"image","url":"\tdata:image/png,%89PNG"}: led by a tab, the percent-encoded data URL is a blob too.
+
+```json
+{"type":"blob","modality":"image","stripped_reason":"not_captured"}
+```
+
+#### `langchain_v1_file_by_an_https_url_led_by_a_space`
+
+A LangChain v1 block {"type":"file","url":" https://example.com/a.pdf"}: a url that holds no data: is a uri, its value kept as it came, the space included.
+
+```json
+{"type":"uri","modality":"document","uri":" https://example.com/a.pdf"}
+```
+
+#### `langchain_v1_image_by_a_data_url_with_a_trailing_space`
+
+A LangChain v1 block {"type":"image","url":"data:image/png;base64,iVBORw0KGgo= "}: it starts with the data scheme, but rule (b)'s pattern does not match all of it, so it is a data URL that is not base64: a blob with no byte_size.
+
+```json
+{"type":"blob","modality":"image","mime_type":"image/png","stripped_reason":"not_captured"}
+```
+
+#### `langchain_v1_image_by_a_wrapped_data_url`
+
+A LangChain v1 block {"type":"image","url":"data:image/png;base64,iVBO\nRw0KGgo="}: a base64 run wrapped at a newline is no whole rule (b) match, so it is a blob with no byte_size.
+
+```json
+{"type":"blob","modality":"image","mime_type":"image/png","stripped_reason":"not_captured"}
+```
+
+#### `langchain_v1_file_by_a_url_led_by_whitespace_and_an_empty_file_id`
+
+A LangChain v1 block {"type":"file","file_id":"","url":" data:image/png;base64,iVBORw0KGgo="}: the url is usable and wins over the empty file_id, and since it holds data: it is a blob.
+
+```json
+{"type":"blob","modality":"document","stripped_reason":"not_captured"}
+```
+
+#### `langchain_v1_file_by_empty_file_id_and_empty_base64`
+
+A LangChain v1 block {"type":"file","file_id":"","base64":""}: an empty base64 is no usable reference, so it does not beat the empty file_id, and the block is a native file part.
+
+```json
+{"type":"file","modality":"document","file_id":""}
+```
+
+#### `langchain_v1_file_by_empty_file_id_and_redacted_base64`
+
+A LangChain v1 block {"type":"file","file_id":"","base64":"\_\_REDACTED\_\_"}: a \_\_REDACTED\_\_ base64 is no usable reference either.
+
+```json
+{"type":"file","modality":"document","file_id":""}
+```
+
+#### `langchain_v1_image_by_redacted_base64`
+
+A LangChain v1 block {"type":"image","base64":"\_\_REDACTED\_\_"}: \_\_REDACTED\_\_ is valid base64, and with no file block's file_id beside it, it is a 9-byte blob as any bare base64 payload is.
+
+```json
+{"type":"blob","modality":"image","byte_size":9,"stripped_reason":"not_captured"}
+```
+
+#### `langchain_v1_audio_by_empty_base64`
+
+A LangChain v1 block {"type":"audio","base64":""}: an empty bare base64 payload is 0 bytes, never redacted_upstream.
+
+```json
+{"type":"blob","modality":"audio","byte_size":0,"stripped_reason":"not_captured"}
+```
+
+#### `langchain_v1_file_by_a_relative_url`
+
+A LangChain v1 block {"type":"file","url":"a.png"}: a url with no scheme is a uri as it came, its modality from the extension.
+
+```json
+{"type":"uri","modality":"image","uri":"a.png"}
+```
+
+#### `langchain_v1_image_by_a_rooted_relative_url`
+
+A LangChain v1 block {"type":"image","url":"/img/a.png"}: a relative url is a uri as it came.
+
+```json
+{"type":"uri","modality":"image","uri":"/img/a.png"}
+```
+
+#### `langchain_v1_image_by_a_link_followed_by_a_data_url`
+
+A LangChain v1 block {"type":"image","url":"https://example.com/a.png\ndata:image/png;base64,iVBO\nRw0KGgo="}: an https url that holds data: is a blob, so the run past the newline is not kept.
+
+```json
+{"type":"blob","modality":"image","stripped_reason":"not_captured"}
+```
+
+#### `uri_led_by_whitespace_holding_a_data_url`
+
+A native uri part {"type":"uri","modality":"image","uri":" data:image/png;base64,iVBO\nRw0KGgo="}: its uri holds data: but is no data URL, so it is a blob with no byte_size, its modality kept.
+
+```json
+{"type":"blob","modality":"image","stripped_reason":"not_captured"}
+```
+
 #### `only_the_part_is_replaced`
 
 A spaced message value holding a native blob with content and a MIME type, and no modality.
@@ -313,6 +570,70 @@ Output:
 
 ```json
 [ {"role": "user", "parts": [ {"type":"blob","modality":"image","mime_type":"image/png","byte_size":3,"stripped_reason":"not_captured"} ] } ]
+```
+
+#### `file_part_by_a_url_led_by_whitespace_holding_a_data_url`
+
+An object of type file with a string url is a LangChain v1 file block, not a native file part, on this path too. Its url holds data: but is no data URL, so it is a blob with no byte_size.
+
+Input:
+
+```json
+[ {"role": "user", "parts": [ {"type": "file", "url": " data:image/png;base64,iVBO\nRw0KGgo="} ] } ]
+```
+
+Output:
+
+```json
+[ {"role": "user", "parts": [ {"type":"blob","modality":"document","stripped_reason":"not_captured"} ] } ]
+```
+
+#### `file_part_with_an_empty_file_id_and_a_url`
+
+The usable url wins over the empty file_id, so the object is a uri, not a native file part with an empty file_id.
+
+Input:
+
+```json
+[ {"role": "user", "parts": [ {"type": "file", "file_id": "", "url": "https://example.com/a.pdf"} ] } ]
+```
+
+Output:
+
+```json
+[ {"role": "user", "parts": [ {"type":"uri","modality":"document","uri":"https://example.com/a.pdf"} ] } ]
+```
+
+#### `file_part_with_a_file_id_that_is_not_a_string_and_a_url`
+
+A file_id that is not a string would leave a native file part as it came, but the string url makes the object a v1 file block, so it is a uri, its modality from the extension.
+
+Input:
+
+```json
+[ {"role": "user", "parts": [ {"type": "file", "file_id": 5, "url": "https://example.com/a.wav"} ] } ]
+```
+
+Output:
+
+```json
+[ {"role": "user", "parts": [ {"type":"uri","modality":"audio","uri":"https://example.com/a.wav"} ] } ]
+```
+
+#### `file_part_with_a_redacted_file_id_and_base64`
+
+The string base64 makes the object a v1 file block, and as a usable reference it wins over the \_\_REDACTED\_\_ file_id, so it is a blob of 3 bytes.
+
+Input:
+
+```json
+[ {"role": "user", "parts": [ {"type": "file", "file_id": "__REDACTED__", "base64": "QUJD"} ] } ]
+```
+
+Output:
+
+```json
+[ {"role": "user", "parts": [ {"type":"blob","modality":"document","byte_size":3,"stripped_reason":"not_captured"} ] } ]
 ```
 
 #### `vercel_file_part_with_unreadable_data_makes_no_part`
@@ -331,6 +652,38 @@ Output (gen_ai.input.messages):
 [{"role":"user","parts":[{"type":"text","content":"Look:"}]}]
 ```
 
+#### `openllmetry_langchain_v1_reference_blocks`
+
+OpenLLMetry writes a message's content blocks as JSON in gen_ai.prompt.N.content. LangChain v1 blocks by file_id and by url there are file and uri parts, never text parts.
+
+Input (gen_ai.prompt.0.content, with `gen_ai.prompt.0.role` = `user`):
+
+```json
+[{"type":"text","text":"Compare these."},{"type":"file","file_id":"file-abc123"},{"type":"image","url":"https://example.com/a.png"},{"type":"audio","file_id":"__REDACTED__"}]
+```
+
+Output (gen_ai.input.messages):
+
+```json
+[{"role":"user","parts":[{"type":"text","content":"Compare these."},{"type":"file","modality":"document","file_id":"file-abc123"},{"type":"uri","modality":"image","uri":"https://example.com/a.png"},{"type":"blob","modality":"audio","stripped_reason":"redacted_upstream"}]}]
+```
+
+#### `laminar_langchain_v1_reference_blocks`
+
+Laminar writes the same keys on an LLM span (lmnr.span.type LLM), and its blocks are read the same way.
+
+Input (gen_ai.prompt.0.content, with `gen_ai.prompt.0.role` = `user`, with `lmnr.span.type` = `LLM`):
+
+```json
+[{"type":"text","text":"Read this."},{"type":"file","file_id":"file-abc123","mime_type":"application/pdf"},{"type":"file","url":"https://example.com/a.wav"}]
+```
+
+Output (gen_ai.input.messages):
+
+```json
+[{"role":"user","parts":[{"type":"text","content":"Read this."},{"type":"file","modality":"document","mime_type":"application/pdf","file_id":"file-abc123"},{"type":"uri","modality":"audio","uri":"https://example.com/a.wav"}]}]
+```
+
 ## Raw payloads
 
 **Source rule.** Normalized message parts come only from message keys: gen_ai.input.messages, gen_ai.output.messages and gen_ai.system_instructions, or the flattened instrumentor message keys each normalizer already maps (OpenInference llm.input_messages.\* and llm.output_messages.\*, OpenLLMetry gen_ai.prompt.\* and gen_ai.completion.\*, Vercel ai.prompt.messages). Raw request and response payloads are never mined to rebuild parts.
@@ -347,7 +700,7 @@ Raw payloads, never mined for parts: `input.value`, `output.value`, `lmnr.span.i
 
 **JSON candidates.** A string value is a JSON candidate when, after trimming leading space, tab, newline and carriage return (ASCII only: U+00A0 and other Unicode spaces are not trimmed), it starts with `{` or `[`. A candidate parses when the whole string is one RFC 8259 JSON value, with only those four whitespace characters around it (no NaN, Infinity, comments or trailing commas; duplicate keys are allowed, and every one is read, see members), nested at most 64 levels deep. Arrays and objects count together, from the candidate's root: the root array or object is level 1, and a candidate nested deeper than 64 levels does not parse. A JSON document in a string inside JSON continues the same count: its root is one level below the deepest array or object holding that string, so a nested document that goes past 64 does not parse (rule (b) only, for it), while the document around it still does. The limit is explicit: an implementation counts the depth itself and never relies on its parser's or its language's recursion limit, so no input makes the strip fail. When it parses, rules (d), (e) and (b) apply to the values inside it; a string value inside it that is itself a JSON candidate is processed by the same rules, recursively, at its escaped location, its own document starting with no parent key and no enclosing object: nothing outside it is context for rule (e), and rule (d) inside it takes no mime type from outside. When it does not parse (a truncated payload, say), only rule (b) applies, to the string as it is (for a string inside JSON, to its unescaped value). A string that is not a candidate gets rule (b) only. Object keys are never matched.
 
-**Precedence.** Values are visited in document order. At each value rule (d) is tried, then (e), then (b), and the first that matches wins. A value inside a replaced token is never visited: once (e) replaces a string, (b) does not look inside it, and nothing inside a replaced Buffer object is looked at. An array element inherits the parent key of its array, so `{"audio":[{"data":"..."}]}` matches (e) through the parent key audio; in the same way, the enclosing object rule (d) takes its mime type from is the nearest object holding the Buffer, directly or through arrays.
+**Precedence.** Values are visited in document order. At each value rule (d) is tried, then (e), then (b), and the first that matches wins. A value inside a replaced token is never visited: once (e) replaces a string, (b) does not look inside it, and nothing inside a replaced Buffer object is looked at. An array element inherits the parent key of its array, so `{"audio":[{"data":"..."}]}` matches (e) through the parent key audio; in the same way, the enclosing object rule (d) takes its mime type from is the nearest object holding the Buffer, directly or through arrays, and so is the holder whose mime type a typed key with holder_mime reads. A typed key with keeps_urls leaves a string that starts with a URL scheme to (b) only when its scheme is not data, or when (b)'s pattern matches the whole unescaped string: such a string is no (e) token, so (b) is tried on it, and a base64 data URL that is the whole value is replaced with its own mime type and size, while any other URL stays. Any other string that starts with data: under that key (a run wrapped at a newline, a percent-encoded payload, a run (b) stops short in) is an (e) token, replaced whole with the key's usual mime type (see rule (e)).
 
 **Idempotence.** Every implementation follows this rule: a string that is already a complete replacement, `[stripped <mime> <byte_size> bytes]` whose mime is unknown or matches mime_pattern in full (exactly the mimes a replacement can hold) and whose byte_size is ASCII digits or unknown, is never stripped again, by rule (e) or rule (b). Nor is a complete replacement ever context for rule (e): as the value of a sibling (a mime key, format or output_format) it counts neither for whether rule (e) fires nor for the mime type it chooses. So a Buffer that rule (d) turned into a replacement in one pass (`{"mediaType": {"type":"Buffer","data":[1]},"data":"QUFB"}`) makes no token of its siblings in the next. With both, strip(strip(x)) is strip(x) for every x except one class: a JSON candidate that does not parse before pass 1 and does parse after it. Elsewhere the sink re-strips what an SDK already stripped and gets the same bytes. In that class a second pass may strip more. It needs malformed JSON whose only defect sits inside a rule (b) data URL (an invalid escape such as `\d` in a mime type): pass 1 can only apply rule (b), which removes the defect, and pass 2 then parses the candidate and rules (d) and (e) fire on what pass 1 left, a partial replacement for instance. No media survives in either pass, and only the replacement text differs. See `a_second_pass_after_the_candidate_starts_to_parse`. A string that only looks like one is still a token: `[stripped image/png lots bytes]`, or `[stripped a b 3 bytes]` (rule e), or `[stripped data:image/png;base64,... 1 bytes]`, whose data URL rule (b) replaces.
 
@@ -357,7 +710,7 @@ Raw payloads, never mined for parts: `input.value`, `output.value`, `lmnr.span.i
 
 **Members.** Every member of an object is visited, in document order, duplicate keys included. A condition on a key holds when any member with that key meets it (a type equal to Buffer, blob or base64 or to one of a typed key's types, a non-empty data array, a sibling), and a value read from a key (a mime type, a format, a Buffer's data array) is that of the first member with that key, in document order, that qualifies. Rule (e) applies to each member under one of its keys that qualifies, duplicates included, all with the context and mime type computed from all the siblings: `{"mediaType":"image/png","data":"QUFB","data":"QkJC"}` strips both data values. A sibling counts as context only when its value is a non-empty string that is not a complete replacement (see idempotence), the same rule as mime selection. Context and mime type are read from the member values as they were before the pass, so document order does not matter: in `{"mediaType":"data:image/png;base64,QUFB","data":"QkJC"}` mediaType is context, though rule (b) rewrites it in the same pass, and data is a token whichever comes first; its mime type is unknown, since the original mediaType is not a valid mime. `format` is not a sibling key: it counts only under the parent key input_audio or audio (which is context already), where it names audio/&lt;format&gt;, and elsewhere a format sibling is ignored; output_format counts anywhere. The mime type is chosen by the order of the mime key list, not by document order: the first mime key in list order whose value is a non-empty valid mime (see replacement) wins; else the first mime format, in order, whose sibling is a non-empty string, not a complete replacement, and whose mime is valid; else unknown. When a rule (e) key holds an array directly, each string element is its own token (when it is non-empty and not already a complete replacement), with the same context and mime type; any other element is visited as usual, with that key as its parent key.
 
-**Regex dialect.** The pattern of rule (b) and the replacement's mime_pattern use only constructs Python re, JavaScript RegExp and Go RE2 read the same way: literal characters, character classes with explicit ASCII members and ranges, the escapes `\t` `\n` `\f` `\r`, capturing groups, and the quantifiers `*`, `+` and `{m,n}`. No `\s`, `\d`, `\w`, `\b`, lookaround, backreference, non-capturing group or inline flag: the case-insensitive scheme is written `[dD][aA][tT][aA]:`, and the repeated RFC 2397 parameter is a capturing group. Neither the mime class nor the parameter class holds `;` or `:`. RFC 2045 lists `:` as a tspecial, so it cannot appear in an unquoted mime type or parameter token, and excluding it keeps the search linear: an attempt starts only at a `data:` and never reads past the next `:` (the one in the next `data:`), so no stretch of text is read by more than two attempts, and inside an attempt the text splits into mime and parameters in exactly one way, so backtracking gives back each character at most once. Rule (b) finds matches left to right without overlap (Python finditer, JavaScript matchAll, Go FindAllStringSubmatchIndex). mime_pattern must match the whole value: Python re.fullmatch, or `^` and `$` around it in JavaScript and Go (where, without the m flag, `$` is the end of the text; in Python `$` also matches before a final newline, so use fullmatch).
+**Regex dialect.** The pattern of rule (b), rule (e)'s url_scheme and the replacement's mime_pattern use only constructs Python re, JavaScript RegExp and Go RE2 read the same way: literal characters, character classes with explicit ASCII members and ranges, the escapes `\t` `\n` `\f` `\r`, capturing groups, and the quantifiers `*`, `+` and `{m,n}`. No `\s`, `\d`, `\w`, `\b`, lookaround, backreference, non-capturing group or inline flag: the case-insensitive scheme is written `[dD][aA][tT][aA]:`, and the repeated RFC 2397 parameter is a capturing group. Neither the mime class nor the parameter class holds `;` or `:`. RFC 2045 lists `:` as a tspecial, so it cannot appear in an unquoted mime type or parameter token, and excluding it keeps the search linear: an attempt starts only at a `data:` and never reads past the next `:` (the one in the next `data:`), so no stretch of text is read by more than two attempts, and inside an attempt the text splits into mime and parameters in exactly one way, so backtracking gives back each character at most once. Rule (b) finds matches left to right without overlap (Python finditer, JavaScript matchAll, Go FindAllStringSubmatchIndex). mime_pattern must match the whole value: Python re.fullmatch, or `^` and `$` around it in JavaScript and Go (where, without the m flag, `$` is the end of the text; in Python `$` also matches before a final newline, so use fullmatch). url_scheme must match at the start of the unescaped value and need not reach its end: Python re.match, or `^` before it in JavaScript and Go. The scheme a keeps_urls key compares with data is the text before the first colon, which url_scheme makes ASCII. For that key, rule (b)'s pattern must match the whole unescaped value: Python re.fullmatch, or `^` and `$` around it in JavaScript and Go, as for mime_pattern.
 
 **Implementers.** Do not write the replacement, or any escape, with a standard library JSON encoder: Go's json.Marshal, for example, writes `<`, `>`, `&` and U+2028 as `\u003c`, `\u003e`, `\u0026` and `\u2028`, which no other implementation writes. Do not compute byte_size with a strict standard library base64 decoder either: decoders differ on whitespace, URL-safe input and padding. The escaping rules (spans), the size rules (byte_size) and the mime rule (replacement) here are exhaustive: write exactly what they say, and keep every other byte as it was. Read JSON with a parser that keeps the span of every value on the text and every duplicate member (members), and that counts the depth itself (json_candidate).
 
@@ -370,7 +723,7 @@ A data URL inside other text: only the token is replaced, so `see data:image/png
 | Token | Replaced | Mime | Byte size |
 | -- | -- | -- | -- |
 | A data URL (rule b), anywhere in a string | The URL characters alone, from data: (in any case) to the end of the base64 run, parameters included, with no quotes added. The text around it stays byte-identical; a string that is only the data URL becomes the replacement text. | The URL's media type when it is token/token; unknown when it names none, or anything else. | The base64 run's size, per byte_size; unknown when the run is not valid base64. |
-| A base64 string value (rule e) | The string literal, quotes included, by the replacement as a JSON string literal; for an array under the key, each string element the same way. | The first of media_type, mediaType, mime_type, mimeType, in that order, that holds a token/token mime; else image/&lt;output_format&gt;; else audio/&lt;format&gt; under input_audio or audio; else unknown. | The unescaped value's size, per byte_size; unknown when it is not valid base64. |
+| A base64 string value (rule e) | The string literal, quotes included, by the replacement as a JSON string literal; for an array under the key, each string element the same way. | The first of media_type, mediaType, mime_type, mimeType, in that order, that holds a token/token mime; else image/&lt;output_format&gt;; else audio/&lt;format&gt; under input_audio or audio; else, under a typed key with holder_mime (a Vercel v7 tagged data), the enclosing object's first such mime key; else unknown. | The unescaped value's size, per byte_size; unknown when it is not valid base64. |
 | A Buffer object (rule d) | The whole object token, from { to its matching }, by the replacement as a JSON string literal. | The first of the enclosing object's media_type, mediaType, mime_type, mimeType, in that order, that holds a token/token mime; else unknown. | The length of the data array. |
 
 **Detection rules.** The normalizers strip, and tools/check_fixtures.py refuses
@@ -380,7 +733,7 @@ in an expected result, every token these find (in a string holding JSON too):
 | -- | -- | -- | -- |
 | (b) | data URL | A data:&lt;mime&gt;[;&lt;parameter&gt;]\*;base64,&lt;base64&gt; token anywhere in a string, the scheme in any case (DATA:, Data:) and RFC 2397 parameters allowed before ;base64, (data:image/png;name=a.png;base64,...). The pattern finds each one: group 1 the mime type (empty when none), group 2 the last parameter (unused), group 3 the base64 run (standard or URL-safe). A whole-string data URL is the special case. | pattern: `[dD][aA][tT][aA]:([^;,:\t\n\f\r "]*)(;[^;,:\t\n\f\r "]*)*;base64,([A-Za-z0-9+/_-]*={0,2})` |
 | (d) | Buffer object | An object {"type": "Buffer", "data": [...]} whose data is a non-empty array. | type: `Buffer`; array_key: `data`; mime_keys: `media_type`, `mediaType`, `mime_type`, `mimeType` |
-| (e) | keyed base64 string | A non-empty string (or each string of an array) under one of the keys, when its object has one of the sibling keys with a non-empty string value that is not a complete replacement, or its object's parent key is one of the parent keys, or its object is the value of a source key and has type base64 (the Anthropic {"source":{"type":"base64","media_type":...,"data":...}}: the object holding data is the source itself, not the content block around it); a non-empty string under content when its object has type blob (the semconv blob part, as in a raw payload like pydantic_ai.all_messages: the raw-payload twin of the fixture check's rule that a normalized blob part carries no content); a non-empty string under a typed key when its object has one of that key's types (a LangChain v1 standard content block {"type":"image","base64":...,"mime_type":...}, or Mistral's audio chunk {"type":"input_audio","input_audio":...}, which its TypeScript SDK spells inputAudio); and a non-empty string under one of the source bytes keys when its object is the value of a source key, whatever its type (the Bedrock Converse {"image":{"format":"png","source":{"bytes":...}}}: as for Anthropic, the object holding bytes is the source). Never a string that is already a complete replacement (see idempotence). See members for duplicate keys, siblings and arrays. | keys: `data`, `b64_json`, `result`, `base64`; sibling_keys: `media_type`, `mediaType`, `mime_type`, `mimeType`, `output_format`; parent_keys: `input_audio`, `audio`, `inline_data`, `inlineData`; source_key: `source`; source_type: `base64`; blob_type: `blob`; blob_key: `content`; typed_keys: `base64` under type `image`, `audio`, `video`, `file`, `text-plain`, `input_audio` under type `input_audio`, `inputAudio` under type `input_audio`; source_bytes_keys: `bytes`; mime_keys: `media_type`, `mediaType`, `mime_type`, `mimeType`; mime_formats: `output_format` gives `image/<value>`, `format` gives `audio/<value>` under `input_audio`, `audio` |
+| (e) | keyed base64 string | A non-empty string (or each string of an array) under one of the keys, when its object has one of the sibling keys with a non-empty string value that is not a complete replacement, or its object's parent key is one of the parent keys, or its object is the value of a source key and has type base64 (the Anthropic {"source":{"type":"base64","media_type":...,"data":...}}: the object holding data is the source itself, not the content block around it); a non-empty string under content when its object has type blob (the semconv blob part, as in a raw payload like pydantic_ai.all_messages: the raw-payload twin of the fixture check's rule that a normalized blob part carries no content); a non-empty string under a typed key when its object has one of that key's types and, for a typed key that names parent keys, its object's parent key is one of them (a LangChain v1 standard content block {"type":"image","base64":...,"mime_type":...}, Mistral's audio chunk {"type":"input_audio","input_audio":...}, which its TypeScript SDK spells inputAudio, a Vercel image part {"type":"image","image":...}, or the v7 tagged data {"type":"data","data":...} a Vercel file part's data or image part's image holds); a non-empty string under one of the source bytes keys when its object is the value of a source key, whatever its type (the Bedrock Converse {"image":{"format":"png","source":{"bytes":...}}}: as for Anthropic, the object holding bytes is the source); and a non-empty string under one of a base64 marker's own keys when its object has the marker (a member with exactly the marker's key and string value, as in the LangChain v0 block {"type":"image","source_type":"base64","data":...}, whose marker reaches data and no other key). A typed key with holder_types counts only when the nearest object holding its object, through arrays, has one of those types: the v7 tagged data counts in a Vercel file or image part, never in a {"data":{"type":"data",...}} envelope of some other API. A typed key with keeps_urls leaves a string that starts with a URL scheme (url_scheme) to rule (b), whatever other way its key qualifies, when its scheme is not data (compared in ASCII case-insensitively) or rule (b)'s pattern matches the whole string: an http URL under a Vercel image stays, and a base64 data URL that is the whole value is replaced by rule (b) with its own mime type and size. Any other string that starts with data: (a base64 run wrapped at a newline, a percent-encoded data URL, a run rule (b) stops short in) is a rule (e) token like any other, replaced whole with the key's usual mime type, so no byte of its payload survives. A typed key with holder_mime takes its mime type, when its own object names none, from the mime keys of the nearest object holding it, as rule (d) does, so a tagged data reads its Vercel part's mediaType. Never a string that is already a complete replacement (see idempotence). See members for duplicate keys, siblings and arrays. | keys: `data`, `b64_json`, `result`, `base64`; sibling_keys: `media_type`, `mediaType`, `mime_type`, `mimeType`, `output_format`; parent_keys: `input_audio`, `audio`, `inline_data`, `inlineData`; source_key: `source`; source_type: `base64`; blob_type: `blob`; blob_key: `content`; base64_markers: `source_type` = `base64`, for `data`; typed_keys: `base64` under type `image`, `audio`, `video`, `file`, `text-plain`, `input_audio` under type `input_audio`, `inputAudio` under type `input_audio`, `image` under type `image` (keeps URLs), `data` under type `data` and parent key `data`, `image` in an object of type `file`, `image` (keeps URLs) (the holder's mime); url_scheme: `[A-Za-z][A-Za-z0-9+.-]*:`; source_bytes_keys: `bytes`; mime_keys: `media_type`, `mediaType`, `mime_type`, `mimeType`; mime_formats: `output_format` gives `image/<value>`, `format` gives `audio/<value>` under `input_audio`, `audio` |
 
 ### Golden examples
 
@@ -1407,6 +1760,843 @@ Output:
 
 Tokens: none.
 
+#### `vercel_image_part_base64_in_ai_prompt`
+
+Rule (e) through a typed key. A Vercel image part holds bare base64 under image, beside the type image; the mime type comes from mediaType.
+
+Input:
+
+```text
+{"messages":[{"role":"user","content":[{"type":"text","text":"Describe this."},{"type":"image","image":"iVBORw0KGgo=","mediaType":"image/png"}]}]}
+```
+
+Output:
+
+```text
+{"messages":[{"role":"user","content":[{"type":"text","text":"Describe this."},{"type":"image","image":"[stripped image/png 8 bytes]","mediaType":"image/png"}]}]}
+```
+
+Tokens: (e) image/png, 8 bytes.
+
+#### `vercel_image_part_base64_without_a_media_type`
+
+The type image is the context on its own; with no mediaType the mime type is unknown.
+
+Input:
+
+```text
+[{"type":"image","image":"iVBORw0KGgo="}]
+```
+
+Output:
+
+```text
+[{"type":"image","image":"[stripped unknown 8 bytes]"}]
+```
+
+Tokens: (e) unknown, 8 bytes.
+
+#### `vercel_image_string_that_is_not_base64`
+
+An image string with no URL scheme is base64 to the part rules, so it is a token here too, whatever it holds; it is not valid base64, so byte_size is unknown.
+
+Input:
+
+```text
+[{"type":"image","image":"a cat on a mat"}]
+```
+
+Output:
+
+```text
+[{"type":"image","image":"[stripped unknown unknown bytes]"}]
+```
+
+Tokens: (e) unknown, unknown bytes.
+
+#### `vercel_image_url_is_left_alone`
+
+image keeps URLs: a string that starts with a URL scheme is no rule (e) token, and rule (b) finds no data URL in it, so http, https and gs links stay as they came.
+
+Input:
+
+```text
+[{"type":"image","image":"https://example.com/a.png","mediaType":"image/png"},{"type":"image","image":"gs://bucket/a.png"}]
+```
+
+Output:
+
+```text
+[{"type":"image","image":"https://example.com/a.png","mediaType":"image/png"},{"type":"image","image":"gs://bucket/a.png"}]
+```
+
+Tokens: none.
+
+#### `vercel_image_data_url_keeps_its_own_mime`
+
+A base64 data URL that is the whole value under image is left to rule (b), so it is replaced with the URL's own mime type, not the part's mediaType, and with its size.
+
+Input:
+
+```text
+[{"type":"image","image":"data:image/jpeg;base64,/9j/4AAQSkZJRg==","mediaType":"image/png"}]
+```
+
+Output:
+
+```text
+[{"type":"image","image":"[stripped image/jpeg 10 bytes]","mediaType":"image/png"}]
+```
+
+Tokens: (b) image/jpeg, 10 bytes.
+
+#### `vercel_tagged_file_data_in_ai_prompt`
+
+Rule (e) through the typed key data under the type data and the parent key data. The tag object names no mime type, so it reads the file part's mediaType, as rule (d) does.
+
+Input:
+
+```text
+{"messages":[{"role":"user","content":[{"type":"file","data":{"type":"data","data":"JVBERi0="},"mediaType":"application/pdf"}]}]}
+```
+
+Output:
+
+```text
+{"messages":[{"role":"user","content":[{"type":"file","data":{"type":"data","data":"[stripped application/pdf 5 bytes]"},"mediaType":"application/pdf"}]}]}
+```
+
+Tokens: (e) application/pdf, 5 bytes.
+
+#### `vercel_tagged_image_data`
+
+An image part's image holds tagged data the same way, under the parent key image; with no mediaType on the part the mime type is unknown.
+
+Input:
+
+```text
+[{"type":"image","image":{"type":"data","data":"iVBORw0KGgo="}},{"type":"image","image":{"type":"data","data":"iVBORw0KGgo="},"mediaType":"image/png"}]
+```
+
+Output:
+
+```text
+[{"type":"image","image":{"type":"data","data":"[stripped unknown 8 bytes]"}},{"type":"image","image":{"type":"data","data":"[stripped image/png 8 bytes]"},"mediaType":"image/png"}]
+```
+
+Tokens: (e) unknown, 8 bytes, (e) image/png, 8 bytes.
+
+#### `vercel_tagged_data_url_and_link`
+
+Tagged data keeps URLs too: a base64 data URL that is the whole value gets rule (b) with its own mime type, and an https link stays.
+
+Input:
+
+```text
+[{"type":"file","data":{"type":"data","data":"data:application/pdf;base64,JVBERi0="},"mediaType":"application/pdf"},{"type":"file","data":{"type":"data","data":"https://example.com/a.pdf"},"mediaType":"application/pdf"}]
+```
+
+Output:
+
+```text
+[{"type":"file","data":{"type":"data","data":"[stripped application/pdf 5 bytes]"},"mediaType":"application/pdf"},{"type":"file","data":{"type":"data","data":"https://example.com/a.pdf"},"mediaType":"application/pdf"}]
+```
+
+Tokens: (b) application/pdf, 5 bytes.
+
+#### `a_wrapped_base64_data_url_under_a_url_key_is_replaced_whole`
+
+A key that keeps URLs leaves a data URL to rule (b) only when rule (b)'s pattern matches the whole value. A base64 run wrapped at a newline (base64.encodebytes, a MIME encoder) ends the match early, so the value stays a rule (e) token and is replaced whole: no base64 after the break survives. Under image and tagged data, and under a plain data beside mediaType, alike; the mime type is the key's usual one, never the data URL's.
+
+Input:
+
+```text
+[{"type":"image","image":"data:image/png;base64,iVBO\nRw0KGgo="},{"type":"image","image":{"type":"data","data":"data:image/png;base64,iVBO\nRw0KGgo="}},{"type":"file","data":"data:image/png;base64,iVBO\nRw0KGgo=","mediaType":"image/png"},{"type":"file","data":{"type":"data","data":"data:image/png;base64,iVBO\nRw0KGgo="},"mediaType":"image/png"}]
+```
+
+Output:
+
+```text
+[{"type":"image","image":"[stripped unknown unknown bytes]"},{"type":"image","image":{"type":"data","data":"[stripped unknown unknown bytes]"}},{"type":"file","data":"[stripped image/png unknown bytes]","mediaType":"image/png"},{"type":"file","data":{"type":"data","data":"[stripped image/png unknown bytes]"},"mediaType":"image/png"}]
+```
+
+Tokens: (e) unknown, unknown bytes, (e) unknown, unknown bytes, (e) image/png, unknown bytes, (e) image/png, unknown bytes.
+
+#### `a_percent_encoded_data_url_under_a_url_key_is_replaced_whole`
+
+A data URL that is not base64 holds no rule (b) token, so under a key that keeps URLs it is a rule (e) token, tagged or not, the scheme in any case: the same Vercel payload is stripped whichever way it is written.
+
+Input:
+
+```text
+[{"type":"file","data":{"type":"data","data":"data:image/png,%89PNG"},"mediaType":"image/png"},{"type":"file","data":"data:image/png,%89PNG","mediaType":"image/png"},{"type":"image","image":"DATA:image/png,%89PNG"},{"type":"image","image":{"type":"data","data":"DATA:image/png,%89PNG"}}]
+```
+
+Output:
+
+```text
+[{"type":"file","data":{"type":"data","data":"[stripped image/png unknown bytes]"},"mediaType":"image/png"},{"type":"file","data":"[stripped image/png unknown bytes]","mediaType":"image/png"},{"type":"image","image":"[stripped unknown unknown bytes]"},{"type":"image","image":{"type":"data","data":"[stripped unknown unknown bytes]"}}]
+```
+
+Tokens: (e) image/png, unknown bytes, (e) image/png, unknown bytes, (e) unknown, unknown bytes, (e) unknown, unknown bytes.
+
+#### `a_broken_base64_run_under_a_url_key_is_replaced_whole`
+
+Rule (b) matches data:image/png;base64, with an empty run and stops before @@@, so it does not reach the end of the value: the value is a rule (e) token, tagged or not.
+
+Input:
+
+```text
+[{"type":"image","image":"data:image/png;base64,@@@"},{"type":"image","image":{"type":"data","data":"data:image/png;base64,@@@"}},{"type":"file","data":"data:image/png;base64,@@@","mediaType":"image/png"},{"type":"file","data":{"type":"data","data":"data:image/png;base64,@@@"},"mediaType":"image/png"}]
+```
+
+Output:
+
+```text
+[{"type":"image","image":"[stripped unknown unknown bytes]"},{"type":"image","image":{"type":"data","data":"[stripped unknown unknown bytes]"}},{"type":"file","data":"[stripped image/png unknown bytes]","mediaType":"image/png"},{"type":"file","data":{"type":"data","data":"[stripped image/png unknown bytes]"},"mediaType":"image/png"}]
+```
+
+Tokens: (e) unknown, unknown bytes, (e) unknown, unknown bytes, (e) image/png, unknown bytes, (e) image/png, unknown bytes.
+
+#### `image_and_tagged_data_outside_their_parts_are_left_alone`
+
+image counts only beside the type image, and tagged data only under the parent key data or image: an image string with no type, beside the type text or image_url, and a type data object at the top or under another key are left alone.
+
+Input:
+
+```text
+[{"image":"iVBORw0KGgo="},{"type":"text","image":"iVBORw0KGgo="},{"type":"image_url","image":"iVBORw0KGgo="},{"type":"data","data":"iVBORw0KGgo="},{"x":{"type":"data","data":"iVBORw0KGgo="}}]
+```
+
+Output:
+
+```text
+[{"image":"iVBORw0KGgo="},{"type":"text","image":"iVBORw0KGgo="},{"type":"image_url","image":"iVBORw0KGgo="},{"type":"data","data":"iVBORw0KGgo="},{"x":{"type":"data","data":"iVBORw0KGgo="}}]
+```
+
+Tokens: none.
+
+#### `tagged_data_outside_a_vercel_part_is_left_alone`
+
+Tagged data counts only when the object holding it is a Vercel file or image part (holder_types): an envelope {"data":{"type":"data",...}} from another API, tagged data under image with no part around it, and tagged data in a text object are left alone; in a file part it is a token.
+
+Input:
+
+```text
+[{"data":{"type":"data","data":"hello world"}},{"image":{"type":"data","data":"iVBORw0KGgo="}},{"type":"text","data":{"type":"data","data":"iVBORw0KGgo="}},{"type":"file","data":{"type":"data","data":"iVBORw0KGgo="},"mediaType":"image/png"}]
+```
+
+Output:
+
+```text
+[{"data":{"type":"data","data":"hello world"}},{"image":{"type":"data","data":"iVBORw0KGgo="}},{"type":"text","data":{"type":"data","data":"iVBORw0KGgo="}},{"type":"file","data":{"type":"data","data":"[stripped image/png 8 bytes]"},"mediaType":"image/png"}]
+```
+
+Tokens: (e) image/png, 8 bytes.
+
+#### `langchain_v0_base64_block_without_a_mime_type`
+
+Rule (e) through a base64 marker. A LangChain v0 block {"type":"image","source_type":"base64","data":...} with no mime_type: source_type base64 is the context for data, and the mime type is unknown.
+
+Input:
+
+```text
+{"messages":[{"role":"user","content":[{"type":"text","text":"Describe this."},{"type":"image","source_type":"base64","data":"iVBORw0KGgo="}]}]}
+```
+
+Output:
+
+```text
+{"messages":[{"role":"user","content":[{"type":"text","text":"Describe this."},{"type":"image","source_type":"base64","data":"[stripped unknown 8 bytes]"}]}]}
+```
+
+Tokens: (e) unknown, 8 bytes.
+
+#### `langchain_v0_base64_blocks_with_a_mime_type`
+
+With a mime_type the mime type comes from it, for every block type.
+
+Input:
+
+```text
+[{"type":"image","source_type":"base64","data":"iVBORw0KGgo=","mime_type":"image/png"},{"type":"audio","source_type":"base64","data":"UklGRg==","mime_type":"audio/wav"},{"type":"file","source_type":"base64","data":"JVBERi0=","mime_type":"application/pdf"}]
+```
+
+Output:
+
+```text
+[{"type":"image","source_type":"base64","data":"[stripped image/png 8 bytes]","mime_type":"image/png"},{"type":"audio","source_type":"base64","data":"[stripped audio/wav 4 bytes]","mime_type":"audio/wav"},{"type":"file","source_type":"base64","data":"[stripped application/pdf 5 bytes]","mime_type":"application/pdf"}]
+```
+
+Tokens: (e) image/png, 8 bytes, (e) audio/wav, 4 bytes, (e) application/pdf, 5 bytes.
+
+#### `langchain_v0_blocks_with_no_base64_marker_are_left_alone`
+
+Only source_type base64 is a marker. A url block keeps its link, data beside source_type url is not a token, and neither is data beside the type image alone; a block by id holds nothing to strip.
+
+Input:
+
+```text
+[{"type":"image","source_type":"url","url":"https://example.com/a.png"},{"type":"image","source_type":"url","data":"iVBORw0KGgo="},{"type":"image","data":"iVBORw0KGgo="},{"type":"file","source_type":"id","id":"file-abc123"}]
+```
+
+Output:
+
+```text
+[{"type":"image","source_type":"url","url":"https://example.com/a.png"},{"type":"image","source_type":"url","data":"iVBORw0KGgo="},{"type":"image","data":"iVBORw0KGgo="},{"type":"file","source_type":"id","id":"file-abc123"}]
+```
+
+Tokens: none.
+
+#### `a_base64_marker_reaches_data_alone`
+
+source_type base64 is context for data in its own object and for no other key: result and b64_json beside it stay, with or without a data member.
+
+Input:
+
+```text
+[{"source_type":"base64","result":"ok","b64_json":"yes"},{"type":"text","source_type":"base64","data":"iVBORw0KGgo=","result":"iVBORw0KGgo="}]
+```
+
+Output:
+
+```text
+[{"source_type":"base64","result":"ok","b64_json":"yes"},{"type":"text","source_type":"base64","data":"[stripped unknown 8 bytes]","result":"iVBORw0KGgo="}]
+```
+
+Tokens: (e) unknown, 8 bytes.
+
+#### `the_vercel_and_langchain_v0_shapes_stripped_twice_change_nothing`
+
+Complete replacements under image, tagged data and a v0 block's data are not tokens, so a second pass over these shapes changes nothing.
+
+Input:
+
+```text
+[{"type":"image","image":"[stripped image/png 8 bytes]","mediaType":"image/png"},{"type":"file","data":{"type":"data","data":"[stripped application/pdf 5 bytes]"},"mediaType":"application/pdf"},{"type":"image","source_type":"base64","data":"[stripped unknown 8 bytes]"}]
+```
+
+Output:
+
+```text
+[{"type":"image","image":"[stripped image/png 8 bytes]","mediaType":"image/png"},{"type":"file","data":{"type":"data","data":"[stripped application/pdf 5 bytes]"},"mediaType":"application/pdf"},{"type":"image","source_type":"base64","data":"[stripped unknown 8 bytes]"}]
+```
+
+Tokens: none.
+
+### Byte objects
+
+When an SDK serializes a value that is not a string into an attribute (an input or output it records, a tool's arguments or result), every byte object in it is written as the replacement with the unknown mime, `[stripped unknown <N> bytes]`, where N is its size in bytes (see size), as a JSON string literal in the place the value had. The byte objects are the types listed below for each SDK, subclasses included, and in TypeScript those of another realm too (a vm context, an iframe). The mime is always unknown, never read from a sibling such as mediaType: a serializer writes each value on its own. A byte object at the root is serialized like any other value that is not a string, so the attribute holds the JSON string literal, quotes included. An object key is never a byte object. The strip then runs as on any value, and since the marker is a complete replacement it is never stripped again and is never context for rule (e) (see idempotence). Rule (d) and this rule meet at the Node Buffer. A Buffer is a Uint8Array, so the TypeScript SDK writes it as this marker; it must read each value from its holder, as JSON.stringify calls a Buffer's toJSON, which writes {"type":"Buffer","data":[...]}, before a replacer sees the value. Rule (d) is for a Buffer that became that object before an SDK saw it, in a string another library serialized (the AI SDK's ai.prompt), and for the sink. Both count the same bytes; rule (d) may also read a mime type from the enclosing object, which this rule never does.
+
+**Size.** The size in bytes, never a count of items. Python: len of bytes and bytearray, nbytes of memoryview (so a memoryview cast to 4-byte items counts 4 per item); a released memoryview has no size, and its marker's size is unknown. TypeScript: byteLength of an ArrayBuffer, a SharedArrayBuffer and every ArrayBuffer view (ArrayBuffer.isView: each typed array, a Node Buffer and a DataView), the view's own length, not its buffer's.
+
+- Python: `bytes`, `bytearray`, `memoryview`
+- TypeScript: `ArrayBuffer`, `SharedArrayBuffer`, `every ArrayBuffer view (ArrayBuffer.isView): each typed array, Buffer and DataView`
+
+#### `python_bytes_in_a_dict`
+
+Value (python):
+
+```text
+{"image": b"\x89PNG"}
+```
+
+Attribute value:
+
+```text
+{"image":"[stripped unknown 4 bytes]"}
+```
+
+#### `python_bytearray_and_memoryview`
+
+Value (python):
+
+```text
+[bytearray(b"abc"), memoryview(b"abcdef")[2:]]
+```
+
+Attribute value:
+
+```text
+["[stripped unknown 3 bytes]","[stripped unknown 4 bytes]"]
+```
+
+#### `python_memoryview_counts_bytes_not_items`
+
+The view has 2 items of 4 bytes, so its size is 8. At the root, the attribute is the JSON string literal.
+
+Value (python):
+
+```text
+memoryview(bytes(8)).cast("I")
+```
+
+Attribute value:
+
+```text
+"[stripped unknown 8 bytes]"
+```
+
+#### `python_bytes_beside_a_media_type`
+
+The mime is unknown though mediaType names one, and the strip that follows leaves the marker: it is a complete replacement.
+
+Value (python):
+
+```text
+{"type": "file", "data": b"\x89PNG", "mediaType": "image/png"}
+```
+
+Attribute value:
+
+```text
+{"type":"file","data":"[stripped unknown 4 bytes]","mediaType":"image/png"}
+```
+
+#### `python_empty_bytes`
+
+Value (python):
+
+```text
+{"data": b""}
+```
+
+Attribute value:
+
+```text
+{"data":"[stripped unknown 0 bytes]"}
+```
+
+#### `typescript_uint8array`
+
+Value (typescript):
+
+```text
+{ u: new Uint8Array(3) }
+```
+
+Attribute value:
+
+```text
+{"u":"[stripped unknown 3 bytes]"}
+```
+
+#### `typescript_node_buffer_is_a_byte_object`
+
+A Buffer is written as the marker, never as {"type":"Buffer","data":[...]}, so its mime is unknown: compare vercel_buffer_in_ai_prompt, where rule (d) strips a Buffer the AI SDK serialized.
+
+Value (typescript):
+
+```text
+{ type: "file", data: Buffer.from([137, 80, 78, 71]), mediaType: "image/png" }
+```
+
+Attribute value:
+
+```text
+{"type":"file","data":"[stripped unknown 4 bytes]","mediaType":"image/png"}
+```
+
+#### `typescript_typed_array_counts_bytes_not_items`
+
+Two 2-byte items are 4 bytes. At the root, the attribute is the JSON string literal.
+
+Value (typescript):
+
+```text
+new Uint16Array(2)
+```
+
+Attribute value:
+
+```text
+"[stripped unknown 4 bytes]"
+```
+
+#### `typescript_array_buffer_and_data_view`
+
+A view counts its own length, not its buffer's.
+
+Value (typescript):
+
+```text
+[new ArrayBuffer(5), new DataView(new ArrayBuffer(8), 2, 3)]
+```
+
+Attribute value:
+
+```text
+["[stripped unknown 5 bytes]","[stripped unknown 3 bytes]"]
+```
+
+#### Byte objects as attribute values
+
+A byte object used directly as an OpenTelemetry attribute value (of a span, an event or a link), or anywhere inside one (an element of an array or a value of a mapping, at any depth), has no serializer around it: it becomes the marker as a bare string, `[stripped unknown <N> bytes]`, with no JSON quotes, and N its size by the size rule above. Every other value is kept. An OpenTelemetry array is homogeneous, so each array is looked at on its own once its elements are replaced. One that held a byte object and whose elements are then all strings is that array of strings. One that held a byte object beside any element that is then no string (a number, a bool, null, an array, a mapping) is instead one string: the JSON the SDK serializes the array to under the rule above, `[1,"[stripped unknown 2 bytes]"]`, its numbers written as that SDK writes them. An array that held no byte object is kept, its elements walked. The SDK then sets the walked value in the form its OpenTelemetry attribute API holds. OpenTelemetry Python holds a mapping and a nested array, so it sets them as they are. OpenTelemetry JS holds neither, nor an array whose elements, null aside, are not all strings, all numbers or all booleans. So a walked value that held a byte object and is then a mapping, or an array OpenTelemetry JS cannot hold, is set as one string: the JSON the SDK serializes the whole value to under the rule above, every byte object a quoted marker and every array an array. `{k: [1, bytes]}` is `{"k":[1,"[stripped unknown 2 bytes]"]}` and `[1, [1, bytes]]` is `[1,[1,"[stripped unknown 1 bytes]"]]`, each encoded once, never holding a mixed array's own JSON as a string. The sink does the same with an OTLP AnyValue: a bytes_value, alone or at any depth of array_value and kvlist_value, is the marker, N the number of bytes it holds, and an array_value that mixes a bytes_value with a value that is then no string is its compact JSON, an int_value written as a JSON number, a kvlist_value as an object and an empty AnyValue, which OTLP defines as an empty value, as null. A kvlist_value keeps every member in wire order, a duplicate key included, and a bytes_value in each is the marker, so its JSON names the key twice, as the kvlist_value held it; a JSON reader takes the last. In OTLP JSON a bytes_value is base64: the proto3 JSON mapping writes it in the standard alphabet with padding, and a parser accepts the standard or the URL-safe alphabet, padded or not, so N is the length it decodes to (`_-__` is 3 bytes, `iVBORw0KGgo` 8). This differs from the root of a serialized value (above), which is JSON and so quoted. generators/media_parts.py attribute_value and otlp_attribute_value are the reference, and the TypeScript examples run through the replacer the tests hold; each example's output is the attribute value the SDK sets: a string, an array of them, a mapping (Python and the sink), or an array's or a mapping's JSON.
+
+##### `python_bytes_attribute`
+
+Value (Python):
+
+```text
+b"\x89PNG"
+```
+
+Attribute value:
+
+```text
+[stripped unknown 4 bytes]
+```
+
+##### `python_byte_objects_in_an_array_attribute`
+
+Value (Python):
+
+```text
+[b"ab", bytearray(3), memoryview(bytes(8)).cast("I")]
+```
+
+Attribute value:
+
+```text
+["[stripped unknown 2 bytes]", "[stripped unknown 3 bytes]", "[stripped unknown 8 bytes]"]
+```
+
+##### `python_byte_objects_beside_strings_in_an_array_attribute`
+
+Strings and markers are all strings, so the array stays an array.
+
+Value (Python):
+
+```text
+["a", b"ab"]
+```
+
+Attribute value:
+
+```text
+["a", "[stripped unknown 2 bytes]"]
+```
+
+##### `python_byte_objects_in_a_mapping_and_a_nested_array`
+
+Value (Python):
+
+```text
+{"k": b"ab", "n": [[b"abc"], ["x"]], "i": 1}
+```
+
+Attribute value:
+
+```text
+{"k": "[stripped unknown 2 bytes]", "n": [["[stripped unknown 3 bytes]"], ["x"]], "i": 1}
+```
+
+##### `python_byte_object_beside_a_number`
+
+An array of a number and a marker would not be homogeneous, so it is the array's JSON.
+
+Value (Python):
+
+```text
+[1, b"ab"]
+```
+
+Attribute value:
+
+```text
+[1,"[stripped unknown 2 bytes]"]
+```
+
+##### `python_byte_object_in_a_mapping`
+
+OpenTelemetry Python holds a mapping, so it is set as a mapping.
+
+Value (Python):
+
+```text
+{"img": b"abc"}
+```
+
+Attribute value:
+
+```text
+{"img": "[stripped unknown 3 bytes]"}
+```
+
+##### `python_byte_object_beside_a_number_in_a_mapping`
+
+The mixed array is its JSON, and the mapping around it stays a mapping.
+
+Value (Python):
+
+```text
+{"k": [1, b"ab"]}
+```
+
+Attribute value:
+
+```text
+{"k": "[1,\"[stripped unknown 2 bytes]\"]"}
+```
+
+##### `python_byte_object_beside_a_number_in_a_nested_array`
+
+The inner array is its JSON, so the outer one is an array of strings.
+
+Value (Python):
+
+```text
+[[1, b"a"]]
+```
+
+Attribute value:
+
+```text
+["[1,\"[stripped unknown 1 bytes]\"]"]
+```
+
+##### `typescript_buffer_attribute`
+
+Value (TypeScript):
+
+```text
+Buffer.from([137, 80, 78, 71])
+```
+
+Attribute value:
+
+```text
+[stripped unknown 4 bytes]
+```
+
+##### `typescript_byte_objects_in_an_array_attribute`
+
+Value (TypeScript):
+
+```text
+[new Uint8Array(2), new ArrayBuffer(3)]
+```
+
+Attribute value:
+
+```text
+["[stripped unknown 2 bytes]", "[stripped unknown 3 bytes]"]
+```
+
+##### `typescript_byte_objects_beside_strings_in_an_array_attribute`
+
+Value (TypeScript):
+
+```text
+[new Uint8Array(2), "x"]
+```
+
+Attribute value:
+
+```text
+["[stripped unknown 2 bytes]", "x"]
+```
+
+##### `typescript_byte_objects_in_a_mapping_and_a_nested_array`
+
+OpenTelemetry JS holds no mapping, so the mapping is its JSON, one string. A Uint16Array of 2 items is 4 bytes.
+
+Value (TypeScript):
+
+```text
+{ k: new Uint16Array(2), n: [[new DataView(new ArrayBuffer(3))], ["x"]] }
+```
+
+Attribute value:
+
+```text
+{"k":"[stripped unknown 4 bytes]","n":[["[stripped unknown 3 bytes]"],["x"]]}
+```
+
+##### `typescript_byte_object_in_a_nested_array`
+
+OpenTelemetry JS holds no nested array, so the array is its JSON.
+
+Value (TypeScript):
+
+```text
+[[new Uint8Array(3)], ["x"]]
+```
+
+Attribute value:
+
+```text
+[["[stripped unknown 3 bytes]"],["x"]]
+```
+
+##### `typescript_byte_object_beside_a_number`
+
+Value (TypeScript):
+
+```text
+[1, new Uint8Array(2)]
+```
+
+Attribute value:
+
+```text
+[1,"[stripped unknown 2 bytes]"]
+```
+
+##### `typescript_byte_object_beside_a_number_in_a_mapping`
+
+The mapping is its JSON, encoded once, so the mixed array in it is an array, not its own JSON as a string.
+
+Value (TypeScript):
+
+```text
+{ k: [1, new Uint8Array(2)] }
+```
+
+Attribute value:
+
+```text
+{"k":[1,"[stripped unknown 2 bytes]"]}
+```
+
+##### `typescript_byte_object_beside_a_number_in_a_nested_array`
+
+The inner array is its JSON, so the outer one is an array of strings, which OpenTelemetry JS holds.
+
+Value (TypeScript):
+
+```text
+[[1, new Uint8Array(1)]]
+```
+
+Attribute value:
+
+```text
+["[1,\"[stripped unknown 1 bytes]\"]"]
+```
+
+##### `typescript_byte_object_beside_a_number_in_an_array_beside_a_number`
+
+The inner array is its JSON, which leaves the outer one a number beside a string. OpenTelemetry JS cannot hold that array, so the whole value is its JSON, encoded once.
+
+Value (TypeScript):
+
+```text
+[1, [1, new Uint8Array(1)]]
+```
+
+Attribute value:
+
+```text
+[1,[1,"[stripped unknown 1 bytes]"]]
+```
+
+##### `otlp_bytes_value`
+
+An OTLP JSON AnyValue; the protobuf bytes_value is the same 8 bytes.
+
+Value (OTLP JSON (the sink)):
+
+```text
+{"bytesValue":"iVBORw0KGgo="}
+```
+
+Attribute value:
+
+```text
+[stripped unknown 8 bytes]
+```
+
+##### `otlp_bytes_values_in_an_array_value`
+
+Value (OTLP JSON (the sink)):
+
+```text
+{"arrayValue":{"values":[{"bytesValue":"QUJD"},{"bytesValue":""},{"stringValue":"plain"}]}}
+```
+
+Attribute value:
+
+```text
+["[stripped unknown 3 bytes]", "[stripped unknown 0 bytes]", "plain"]
+```
+
+##### `otlp_bytes_values_url_safe_and_unpadded`
+
+A protobuf JSON parser reads _-\_\_ (URL-safe) as 3 bytes and iVBORw0KGgo (unpadded) as 8.
+
+Value (OTLP JSON (the sink)):
+
+```text
+{"arrayValue":{"values":[{"bytesValue":"_-__"},{"bytesValue":"iVBORw0KGgo"}]}}
+```
+
+Attribute value:
+
+```text
+["[stripped unknown 3 bytes]", "[stripped unknown 8 bytes]"]
+```
+
+##### `otlp_bytes_values_in_a_kvlist_value_and_a_nested_array_value`
+
+Value (OTLP JSON (the sink)):
+
+```text
+{"kvlistValue":{"values":[{"key":"k","value":{"bytesValue":"iVBORw0KGgo="}},{"key":"n","value":{"arrayValue":{"values":[{"arrayValue":{"values":[{"bytesValue":"QUJD"}]}}]}}},{"key":"i","value":{"intValue":"1"}}]}}
+```
+
+Attribute value:
+
+```text
+{"k": "[stripped unknown 8 bytes]", "n": [["[stripped unknown 3 bytes]"]], "i": 1}
+```
+
+##### `otlp_bytes_value_beside_an_int_value`
+
+Value (OTLP JSON (the sink)):
+
+```text
+{"arrayValue":{"values":[{"intValue":"1"},{"bytesValue":"QUI="}]}}
+```
+
+Attribute value:
+
+```text
+[1,"[stripped unknown 2 bytes]"]
+```
+
+##### `otlp_bytes_value_beside_an_empty_any_value`
+
+An AnyValue with no value set is an empty value, written as null.
+
+Value (OTLP JSON (the sink)):
+
+```text
+{"arrayValue":{"values":[{},{"bytesValue":"QQ=="}]}}
+```
+
+Attribute value:
+
+```text
+[null,"[stripped unknown 1 bytes]"]
+```
+
+##### `otlp_bytes_values_in_a_kvlist_value_with_a_duplicate_key`
+
+Both members named k are kept, in wire order, the bytes_value in the first one replaced.
+
+Value (OTLP JSON (the sink)):
+
+```text
+{"arrayValue":{"values":[{"bytesValue":"QQ=="},{"kvlistValue":{"values":[{"key":"k","value":{"bytesValue":"YWI="}},{"key":"k","value":{"stringValue":"x"}}]}}]}}
+```
+
+Attribute value:
+
+```text
+["[stripped unknown 1 bytes]",{"k":"[stripped unknown 2 bytes]","k":"x"}]
+```
+
 ## Input
 
 | Source | Shape | Becomes | Modality | Paths | Fixtures | Notes |
@@ -1424,7 +2614,10 @@ Tokens: none.
 | `anthropic.messages` | `image / document with source.type = file` | file / blob | from_mime | passthrough, openllmetry, laminar | none | No recorded family; covered by the SDK pass-through unit tests. An empty or \_\_REDACTED\_\_ file_id becomes a blob with stripped_reason redacted_upstream, keeping source.media_type. |
 | `anthropic.messages` | `document with source.type = text \| content` | text | - | passthrough, openllmetry, laminar | none | No recorded family; covered by the SDK pass-through unit tests. It is text to the model, so it becomes text parts. |
 | `mistral.chat` | `input_audio = base64 string` | blob | audio | passthrough, openllmetry, laminar | none | No recorded family; covered by the SDK pass-through unit tests. Mistral's audio chunk {"type":"input_audio","input_audio":"&lt;base64&gt;"} (inputAudio in a request object from its TypeScript SDK) names no format, so the blob has no mime type. Mistral images are data URLs in image_url, the openai.chat image_url rows. |
-| `langchain.messages` | `v1 standard content block image / audio / video / file / text-plain with base64` | blob | from_mime | passthrough, openllmetry, laminar | none | No recorded family; covered by the SDK pass-through unit tests. The block {"type":"image","base64":...,"mime_type":...}. The mime type comes from mime_type; with none, the modality comes from the block type (file and text-plain are document). An image, audio or video block by url or file_id is not mapped yet and stays as it came. A file block by file_id has a native file part's shape and is read as one; a file block by url is not mapped yet. |
+| `langchain.messages` | `v1 standard content block image / audio / video / file / text-plain with base64` | blob | from_mime | passthrough, openllmetry, laminar | none | No recorded family; covered by the SDK pass-through unit tests. The block {"type":"image","base64":...,"mime_type":...}. The mime type comes from mime_type; with none, the modality comes from the block type (file and text-plain are document). A block by url or file_id is the reference rows below. |
+| `langchain.messages` | `v1 standard content block image / audio / video / file with url` | uri / blob | from_mime | passthrough, openllmetry, laminar | none | No recorded family; covered by the SDK pass-through and sink unit tests. A url that is not a data URL is a uri, its link kept; a data URL is a blob under the data URL rules, mime_type the hint; an empty or \_\_REDACTED\_\_ url, with no usable file_id, is a blob with stripped_reason redacted_upstream (a file block with a string file_id is the native file part of the file_id row instead). The modality comes from mime_type, then the block type (image, audio, video), then, for a file block, the URL path's extension, then document. A LangChain v0 block by url has this shape and is read the same way. |
+| `langchain.messages` | `v1 standard content block image / audio / video / file with file_id` | file / blob | from_mime | passthrough, openllmetry, laminar | none | No recorded family; covered by the SDK pass-through and sink unit tests. A usable file_id is a file part. An image, audio or video block whose file_id is empty or \_\_REDACTED\_\_, with no usable url, is a blob with stripped_reason redacted_upstream. A file block whose file_id is usable, or is a string while the block has no other usable reference (no string base64, no usable url), has a native file part's shape and is read as one, so its file_id is kept as written, empty included, and its modality comes from its own valid modality member, then mime_type, else document; with a usable url or a string base64 beside an empty or \_\_REDACTED\_\_ file_id, the usable reference wins. OpenLLMetry and Laminar write these blocks in gen_ai.prompt.N.content. |
+| `langchain.messages` | `v0 content block with source_type = base64` | generic | - | passthrough, openllmetry, laminar | none | No recorded family; covered by the SDK pass-through and sink unit tests. The block {"type":"image","source_type":"base64","data":...,"mime_type"?}. No rule maps it to a media part, so it stays as it came, and its data is stripped in place per raw_payloads: source_type base64 is the context for data, and the mime type comes from mime_type, else it is unknown. A v0 block by url is the v1 url row; a v0 block by id makes no part and holds nothing to strip. |
 | `bedrock.converse` | `image / document / video / audio with source.bytes` | blob | from_mime | passthrough, laminar | none | No recorded family; covered by the SDK pass-through unit tests. The block {"image":{"format":"png","source":{"bytes":...}}}, with no type. An image's mime type is image/&lt;format&gt;; a video, audio or document format is not always a MIME subtype (three_gp, mp3, docx), so it gives none, and the modality comes from the block. A source by s3Location is not mapped yet and stays as it came. OpenLLMetry content is a block list only when every block has a type, so Bedrock content there stays text, with its bytes stripped per raw_payloads. |
 | `gemini.generate_content` | `inline_data {mime_type, data}` | blob | from_mime | passthrough | none | No recorded family; covered by the SDK pass-through unit tests. |
 | `gemini.generate_content` | `file_data {mime_type, file_uri}` | uri / blob | from_mime | passthrough | none | No recorded family; covered by the SDK pass-through unit tests. The modality comes from the mime type, else from the URI path's extension. A data URL becomes a blob, and an empty or \_\_REDACTED\_\_ file_uri a blob with stripped_reason redacted_upstream. |
@@ -1437,10 +2630,13 @@ Tokens: none.
 | `openinference.llm` | `image.image.url = data:None;url,None` | blob | image | openinference | `openinference-anthropic/image_url` | What OpenInference's Anthropic instrumentor writes for an image with a url source; the URL itself is lost. The data URL names no mime type and holds no bytes, so the blob has neither mime_type nor byte_size, and its stripped_reason is redacted_upstream. |
 | `laminar.openhands` | `ImageContent with image_urls in lmnr.span.input` | no part (raw payload stripped: `lmnr.span.input`) | - | laminar | `laminar/image_base64`, `laminar/image_https_url` | lmnr.span.input is a raw payload, not a message key, so it makes no part. A data URL in it is stripped per raw_payloads; an http(s) URL stays. Written on the conversation.send_message span's input, and the sink keeps it in InputValue. The LLM span drops the image when the model has no vision support. |
 | `vercel.ai` | `file part with Buffer data in ai.prompt` | no part (raw payload stripped: `ai.prompt`) | - | vercel | `vercel-ai-v5/image_file`, `vercel-ai-v5/pdf_file`, `vercel-ai-v5/text_plain_file`, `vercel-ai-v5/audio_file`, `vercel-ai-v6/image_file`, `vercel-ai-v6/pdf_file`, `vercel-ai-v6/text_plain_file`, `vercel-ai-v6/audio_file` | On the operation span (ai.generateText) the prompt is JSON, and a file given as a Buffer is written as an object of type Buffer whose data is a JSON array of byte values, not base64. ai.prompt is a raw payload, so it makes no part; the Buffer object is replaced per raw_payloads, with byte_size the array length. The part comes from ai.prompt.messages on the model-call span (the image / file parts row). |
+| `vercel.ai` | `image part with base64 image in ai.prompt` | no part (raw payload stripped: `ai.prompt`) | - | vercel | none | No recorded family writes it; the recorded image parts are Buffers (the Buffer row). Covered by the golden examples and the TypeScript SDK and sink unit tests. An image given as a base64 string is written {"type":"image","image":"&lt;base64&gt;","mediaType"?}. ai.prompt is a raw payload, so it makes no part; image is stripped per raw_payloads, mime type from mediaType, else unknown. An image that starts with a URL scheme stays a link, and a data URL in it is replaced with its own mime type. |
+| `vercel.ai` | `file / image part with v7 tagged data in ai.prompt` | no part (raw payload stripped: `ai.prompt`) | - | vercel | none | No recorded family writes it; covered by the golden examples and the TypeScript SDK and sink unit tests. v7 writes the payload as {"type":"data","data":"&lt;base64&gt;"} under a file part's data or an image part's image. ai.prompt is a raw payload, so it makes no part; the inner data is stripped per raw_payloads, mime type from the part's mediaType, else unknown. A URL in it stays. A data URL that rule (b)'s pattern matches in full is replaced with its own mime type and size; any other data: string (wrapped, percent-encoded, or with a broken run) is replaced whole as a rule (e) token, with the part's mediaType, else unknown. |
 | `vercel.ai_otel` | `blob part with modality image for a non-image file, in gen_ai.input.messages` | blob | from_mime | native | `vercel-ai-otel/image_file`, `vercel-ai-otel/pdf_file`, `vercel-ai-otel/text_plain_file`, `vercel-ai-otel/audio_file` | @ai-sdk/otel writes every file part as a blob with base64 content and labels application/pdf and text/plain as modality image (audio/wav is labelled audio). The modality is recomputed from the mime type, so these become document blobs. |
 | `openinference.llm` | `message_content.type = image with no image.url (image.media_type and image.type only, or nothing)` | blob | image | openinference | `openinference-js-anthropic/image_base64`, `openinference-js-anthropic/image_url` | What OpenInference's JS Anthropic instrumentor writes for an image. A base64 source leaves image.media_type (the mime type) and image.type = base64 but no data; a url source leaves only message_content.type = image. The blob carries the mime type when given, no byte_size, and stripped_reason redacted_upstream. |
 | `openinference.llm` | `media present only in input.value (audio input, PDF document)` | no part (raw payload stripped: `input.value`) | - | openinference | `openinference-openai/input_audio`, `openinference-js-openai/input_audio`, `openinference-anthropic/document_pdf`, `openinference-js-anthropic/document_pdf` | OpenInference (Python and JS) leaves OpenAI input_audio and an Anthropic base64 document out of the flattened messages, and keeps them only in the request JSON of input.value. No part is made; the raw payload is stripped per raw_payloads. |
 | `openllmetry.openai` | `image as a data URL: the instrumentor drops the prompt content; nothing to normalize` | no part | - | openllmetry | `openllmetry/image_base64` | Before 0.62 the span keeps only gen_ai.prompt.0.role, with no content; 0.62 writes no gen_ai.input.messages at all. This holds for every recorded version. |
+| `rius.sdk` | `byte object in a serialized value (Python bytes, bytearray, memoryview; TypeScript ArrayBuffer and its views, Buffer included)` | no part (raw payload stripped: `input.value`, `output.value`) | - | passthrough | none | No recorded family records one; covered by the SDK serialization unit tests. The SDK writes it as [stripped unknown &lt;N&gt; bytes] while serializing, per raw_payloads byte_objects, so no bytes reach the attribute. It makes no part. The same holds for a value recorded as output, and for a tool's arguments and result. |
 
 ## Output
 
