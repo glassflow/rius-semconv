@@ -180,8 +180,14 @@ PART_MEMBERS = {
     "uri": ["type", "modality", "mime_type", "uri"],
     "file": ["type", "modality", "mime_type", "file_id"],
 }
+#: The member each part type cannot do without, besides type and modality: a
+#: file with no file_id or a uri with no uri points to nothing.
+REQUIRED_MEMBER = {"blob": "stripped_reason", "uri": "uri", "file": "file_id"}
 #: Members whose unknown value is omitted rather than written as null.
 OMITTABLE = {"mime_type", "byte_size"}
+#: The largest byte_size a part may carry: the largest integer a JSON number
+#: holds exactly.
+MAX_BYTE_SIZE = 2**53 - 1
 
 
 def part_order_errors(data: dict, part: Any) -> list[str]:
@@ -198,17 +204,27 @@ def part_order_errors(data: dict, part: Any) -> list[str]:
     if keys != [m for m in members if m in part] or set(keys) - set(members):
         errors.append(f"has members {keys}, not in the order {members}")
     errors += [f"writes {k} as null" for k, v in part.items() if v is None]
-    for required in ("type", "modality"):
+    for required in ("type", "modality", REQUIRED_MEMBER[kind]):
         if required not in part:
             errors.append(f"has no {required}")
     mime_pattern = ((data.get("raw_payloads") or {}).get("replacement") or {}).get("mime_pattern")
     mime = part.get("mime_type")
-    if mime is not None and mime_pattern and not re.fullmatch(str(mime_pattern), str(mime)):
+    if mime is not None and (
+        not isinstance(mime, str) or (mime_pattern and not re.fullmatch(str(mime_pattern), mime))
+    ):
         errors.append(f"has mime_type {mime!r}, which is not a token/token MIME type")
     if part.get("modality") not in set(data.get("modalities") or []):
         errors.append(f"has modality {part.get('modality')!r}")
-    if kind == "blob" and part.get("stripped_reason") not in STRIPPED_REASONS:
+    if kind == "blob" and part.get("stripped_reason") not in set(
+        data.get("stripped_reasons") or []
+    ):
         errors.append(f"has stripped_reason {part.get('stripped_reason')!r}")
+    size = part.get("byte_size")
+    if size is not None and (type(size) is not int or not 0 <= size <= MAX_BYTE_SIZE):
+        errors.append(f"has byte_size {size!r}, which is not a whole number from 0 to 2^53 - 1")
+    for member in ("uri", "file_id"):
+        if member in part and part[member] is not None and not isinstance(part[member], str):
+            errors.append(f"has {member} {part[member]!r}, which is not a string")
     return errors
 
 
@@ -275,6 +291,19 @@ def lint_part_shapes(data: dict) -> list[str]:
             errors.append(f"{where} in_place example {name} must rebuild a part, compactly")
     if not shapes.get("in_place_examples"):
         errors.append(f"{where} needs an in_place example")
+    for example in shapes.get("message_examples") or []:
+        name = example.get("name")
+        try:
+            json.loads(example["input"])
+            after = json.loads(example["output"])
+        except (KeyError, ValueError):
+            errors.append(f"{where} message example {name} needs JSON input and output")
+            continue
+        for part in _json_objects(after):
+            if part.get("type") in PART_MEMBERS:
+                errors += [
+                    f"{where} message example {name} {e}" for e in part_order_errors(data, part)
+                ]
     if seen_types != set(PART_MEMBERS):
         errors.append(f"{where} needs an example of each of {sorted(PART_MEMBERS)}")
     return errors
@@ -1158,6 +1187,10 @@ def _render_part_shapes(shapes: dict) -> list[str]:
         lines += [f"#### `{example['name']}`", "", _prose(example["from"]), ""]
         lines += ["Input:", "", "```json", example["input"], "```", ""]
         lines += ["Output:", "", "```json", example["output"], "```", ""]
+    for example in shapes.get("message_examples") or []:
+        lines += [f"#### `{example['name']}`", "", _prose(example["from"]), ""]
+        lines += [f"Input ({example['source']}):", "", "```json", example["input"], "```", ""]
+        lines += ["Output (gen_ai.input.messages):", "", "```json", example["output"], "```", ""]
     return lines
 
 
