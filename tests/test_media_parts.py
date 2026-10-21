@@ -482,10 +482,31 @@ def test_a_url_data_url_is_not_a_token(base_data):
     assert media_parts.data_url_spans(raw, "data:None;url,None") == []
 
 
-def test_data_url_pattern_needs_its_three_groups(data):
+def test_data_url_pattern_needs_its_four_groups(data):
     (rule,) = [r for r in data["media_parts"]["raw_payloads"]["detection"] if r["id"] == "b"]
     rule["pattern"] = "data:([^;]*);base64,(x)"
-    assert_flags(media_parts.lint(data["media_parts"]), "pattern needs 3 groups")
+    assert_flags(media_parts.lint(data["media_parts"]), "pattern needs 4 groups")
+
+
+@pytest.mark.parametrize(
+    ("text", "run"),
+    [
+        ("data:a/b;base64,QUFB\nQkJD", "QUFB\nQkJD"),
+        ("data:a/b;base64,QUFB\r\nQkJD", "QUFB\r\nQkJD"),
+        ("data:a/b;base64,QUFB\n \tQkJD=", "QUFB\n \tQkJD="),
+        ("data:a/b;base64,\nQUFB", "\nQUFB"),
+        ("data:a/b;base64,QUFB\n\nQkJD", "QUFB"),
+        ("data:a/b;base64,QUFB\rQkJD", "QUFB"),
+        ("data:a/b;base64,QUE=\nQkJD", "QUE="),
+        ("data:a/b;base64,QUFB\n", "QUFB"),
+        ("data:a/b;base64,QUFB\ndata:a/b;base64,QkJD", "QUFB"),
+        ("data:a/b;base64,QUFBdata:a/b;base64,QkJD", "QUFB"),
+    ],
+)
+def test_a_run_goes_on_over_a_line_break_but_never_into_the_next_data_url(base_data, text, run):
+    raw = base_data["media_parts"]["raw_payloads"]
+    span = media_parts.data_url_spans(raw, text)[0]
+    assert text[span.start : span.end] == "data:a/b;base64," + run
 
 
 @pytest.mark.parametrize(
@@ -509,25 +530,40 @@ def test_data_url_mime_is_a_token_or_unknown(base_data, text, mime):
 
 #: Rule (b) is linear: 40 KB of near-matches takes milliseconds. The bound
 #: leaves room for slow CI.
-NEAR_MATCHES = {"data_colon": "data:" * 8_000, "data_a_semicolon": "data:a;" * 6_000}
+NEAR_MATCHES = {
+    "data_colon": "data:" * 8_000,
+    "data_a_semicolon": "data:a;" * 6_000,
+    "blank_continuations": "data:a/b;base64,A" + "\n " * 20_000 + "!",
+    "data_url_lines": "data:a/b;base64,A\n" * 2_000 + "!",
+    "quoted_continuations": "data:a/b;base64,A" + "\n>" * 20_000 + "!",
+    "lines_at_the_cap": "data:a/b;base64," + ("A" * 76 + "\n") * 500 + "!",
+    "lines_past_the_cap": ("data:a/b;base64," + "A" * 77 + "\n") * 400 + "!",
+}
 TIME_BOUND = 0.5
 
 
-@pytest.mark.parametrize("text", NEAR_MATCHES.values(), ids=NEAR_MATCHES.keys())
-def test_near_matches_strip_in_linear_time(base_data, text):
+#: The near matches that hold no token; the others are all tokens.
+NO_TOKENS = {"data_colon", "data_a_semicolon"}
+
+
+@pytest.mark.parametrize("name", NEAR_MATCHES)
+def test_near_matches_strip_in_linear_time(base_data, name):
     raw = base_data["media_parts"]["raw_payloads"]
+    text = NEAR_MATCHES[name]
     start = time.perf_counter()
-    assert media_parts.strip_raw_payload(raw, text) == text
+    stripped = media_parts.strip_raw_payload(raw, text)
     assert time.perf_counter() - start < TIME_BOUND
+    assert (stripped == text) == (name in NO_TOKENS)
+    assert "base64" not in stripped or name in NO_TOKENS
 
 
-@pytest.mark.parametrize("text", NEAR_MATCHES.values(), ids=NEAR_MATCHES.keys())
-def test_near_matches_check_in_linear_time(text):
+@pytest.mark.parametrize("name", NEAR_MATCHES)
+def test_near_matches_check_in_linear_time(name):
     from tools.check_fixtures import _holds_media
 
     _holds_media("", key="input.value")  # loads the registry and payloads once
     start = time.perf_counter()
-    assert not _holds_media(text, key="input.value")
+    assert _holds_media(NEAR_MATCHES[name], key="input.value") == (name not in NO_TOKENS)
     assert time.perf_counter() - start < TIME_BOUND
 
 
@@ -536,6 +572,37 @@ def test_a_long_data_url_without_base64_is_linear(base_data):
     raw = base_data["media_parts"]["raw_payloads"]
     assert media_parts.data_url_spans(raw, "data:x" + "a" * 200_000) == []
     assert media_parts.data_url_spans(raw, "data:x" + ";a" * 100_000) == []
+
+
+@pytest.mark.parametrize("tail", [" ", "!", "\n!", "\n" + "A" * 77 + " "])
+def test_a_whole_value_that_fails_is_linear(base_data, tail):
+    # Anchored and checked at the end, a long run that does not reach the end
+    # of the value fails at once, where fullmatch would try each way to share
+    # a line between the capped run and the uncapped tail.
+    raw = base_data["media_parts"]["raw_payloads"]
+    value = "data:a/b;base64," + "A" * 400_000 + tail
+    start = time.perf_counter()
+    assert media_parts.whole_data_url(raw, value) is None
+    assert not media_parts.kept_url(raw, value)
+    assert time.perf_counter() - start < TIME_BOUND
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "data:a/b;base64,QUFB",
+        "data:a/b;base64," + "A" * 76 + "\n" + "A" * 76 + "\nAAAA",
+        "data:a/b;base64," + "A" * 77 + "\nAAAA",
+        "data:a/b;base64,QUFB\n" + "A" * 80 + "\nAAAA",
+        "data:a/b;base64,QUFB\n> QUFB",
+        "data:a/b;base64,QUE=\nQUFB",
+        "data:a/b;base64,QUFB\n\nQUFB",
+    ],
+)
+def test_a_whole_value_is_what_fullmatch_says(base_data, value):
+    raw = base_data["media_parts"]["raw_payloads"]
+    expected = re.fullmatch(media_parts._rules(raw)["b"]["pattern"], value) is not None
+    assert (media_parts.whole_data_url(raw, value) is not None) == expected
 
 
 def test_in_text_example_is_what_the_rule_does(base_data):
@@ -611,7 +678,19 @@ REQUIRED_GOLDEN = {
     "langchain_v0_base64_blocks_with_a_mime_type",
     "langchain_v0_blocks_with_no_base64_marker_are_left_alone",
     "the_vercel_and_langchain_v0_shapes_stripped_twice_change_nothing",
-    "a_wrapped_base64_data_url_under_a_url_key_is_replaced_whole",
+    "a_wrapped_base64_data_url_under_a_url_key_is_one_rule_b_token",
+    "a_link_followed_by_a_data_url_under_a_url_key_is_replaced_whole",
+    "a_url_led_by_whitespace_under_a_url_key_is_replaced_whole",
+    "a_link_with_data_colon_in_its_path_under_a_url_key",
+    "a_link_followed_by_a_wrapped_data_url_in_a_json_string",
+    "a_wrapped_data_url_in_prose",
+    "a_wrapped_uppercase_data_url_in_prose",
+    "an_unpadded_run_takes_the_first_word_of_the_next_line",
+    "a_long_data_url_at_a_line_end_keeps_the_lines_after_it",
+    "a_tiny_data_url_at_a_line_end_takes_the_one_word_lines_after_it",
+    "a_wrapped_data_url_in_a_quoted_reply",
+    "a_data_url_never_runs_into_the_next",
+    "a_whole_data_url_is_unchanged_by_the_continuation",
     "a_percent_encoded_data_url_under_a_url_key_is_replaced_whole",
     "a_broken_base64_run_under_a_url_key_is_replaced_whole",
     "tagged_data_outside_a_vercel_part_is_left_alone",
@@ -1070,6 +1149,9 @@ def test_data_url_pattern_is_portable(base_data):
     assert rule["pattern"].startswith("[dD][aA][tT][aA]:")
     assert '([^;,:\\t\\n\\f\\r "]*)(;[^;,:\\t\\n\\f\\r "]*)*' in rule["pattern"]
     assert "[A-Za-z0-9+/_-]" in rule["pattern"]
+    assert "([A-Za-z0-9+/_-]{0,76}(\\r{0,1}\\n[ \\t>]*[A-Za-z0-9+/_-]+)*" in rule["pattern"]
+    assert "[A-Za-z0-9+/_-]*={0,2})" in rule["pattern"]
+    assert "?" not in rule["pattern"] and "|" not in rule["pattern"]
 
 
 def test_portability_check_bites():
@@ -1390,6 +1472,76 @@ def test_a_v1_example_block_must_be_an_object(data):
     ]
     example["block"] = "[1]"
     assert_flags(media_parts.lint(data["media_parts"]), "block must be a JSON object")
+
+
+PROVIDER_PART_EXAMPLES = [e for e in PART_EXAMPLES if "provider" in e]
+
+#: A provider URI holding data: after a link, for every reader, the
+#: whitespace-led, uppercase and percent-encoded forms, and the negatives.
+REQUIRED_PROVIDER_EXAMPLES = {
+    "image_url_by_a_link_followed_by_a_data_url",
+    "image_url_by_a_url_led_by_whitespace",
+    "image_url_by_a_wrapped_uppercase_data_url",
+    "image_url_by_a_plain_link",
+    "image_url_by_a_link_with_data_colon_in_its_path",
+    "image_url_by_a_whole_data_url",
+    "input_image_by_a_link_followed_by_a_percent_encoded_data_url",
+    "anthropic_url_source_by_a_link_followed_by_a_data_url",
+    "anthropic_document_url_source_by_a_link_followed_by_a_data_url",
+    "input_file_by_a_link_followed_by_a_data_url",
+    "input_file_by_a_file_url_led_by_whitespace",
+    "gemini_file_data_by_a_link_followed_by_a_data_url",
+    "gemini_file_data_by_a_plain_link",
+    "vercel_file_by_a_link_followed_by_a_data_url",
+    "vercel_file_by_a_url_tag_holding_a_data_url_after_a_link",
+    "vercel_image_by_a_link_followed_by_a_data_url",
+    "openinference_image_url_by_a_link_followed_by_a_data_url",
+    "image_url_that_is_empty",
+    "vercel_file_by_url_with_no_media_type",
+}
+
+
+def test_provider_examples_cover_every_reader():
+    assert {e["name"] for e in PROVIDER_PART_EXAMPLES} >= REQUIRED_PROVIDER_EXAMPLES
+
+
+@pytest.mark.parametrize(
+    "example", PROVIDER_PART_EXAMPLES, ids=[e["name"] for e in PROVIDER_PART_EXAMPLES]
+)
+def test_provider_part_examples_are_what_the_reference_makes(base_data, example):
+    part = media_parts.provider_uri_part(base_data["media_parts"], json.loads(example["provider"]))
+    assert part is not None
+    assert media_parts.part_text(part) == example["part"]
+
+
+@pytest.mark.parametrize(
+    "item",
+    [
+        '{"type":"file","data":"iVBORw0KGgo="}',
+        '{"type":"image","image":"iVBORw0KGgo="}',
+        '{"type":"image","image":" https://example.com/a.png"}',
+        '{"type":"image_url","image_url":{"url":5}}',
+        '{"type":"image","source":{"type":"base64","data":"QUFB"}}',
+        '{"type":"input_file","file_id":"file-abc"}',
+        '{"type":"input_image","image_url":"__REDACTED__","file_id":"file-abc123"}',
+        '{"type":"input_image","image_url":"","file_id":"file-abc123"}',
+        '{"type":"input_file","file_url":"__REDACTED__","file_id":"file-abc"}',
+        '{"type":"input_file","file_url":"","file_data":"data:application/pdf;base64,JVBERi0="}',
+        '{"type":"text","text":"https://x/a.png data:image/png;base64,QUFB"}',
+    ],
+)
+def test_items_that_point_at_nothing_by_uri(base_data, item):
+    assert media_parts.provider_uri_part(base_data["media_parts"], json.loads(item)) is None
+
+
+def test_a_provider_example_must_be_an_object(data):
+    (example,) = [
+        e
+        for e in data["media_parts"]["part_shapes"]["examples"]
+        if e["name"] == "image_url_by_a_plain_link"
+    ]
+    example["provider"] = "[1]"
+    assert_flags(media_parts.lint(data["media_parts"]), "provider must be a JSON object")
 
 
 NATIVE_PART_EXAMPLES = [e for e in PART_EXAMPLES if "native" in e]

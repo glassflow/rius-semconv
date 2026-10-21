@@ -275,7 +275,7 @@ def lint_part_shapes(data: dict) -> list[str]:
         if isinstance(part, dict):
             seen_types.add(part.get("type"))
         errors += [f"{where} example {name} {e}" for e in part_order_errors(data, part)]
-        for field in ("block", "native"):
+        for field in ("block", "native", "provider"):
             if field not in example:
                 continue
             try:
@@ -373,9 +373,10 @@ def lint_raw_payloads(raw: Any) -> list[str]:
         except re.error as exc:
             errors.append(f"{where} detection rule b pattern does not compile ({exc})")
         else:
-            if groups != 3:
+            if groups != 4:
                 errors.append(
-                    f"{where} detection rule b pattern needs 3 groups (mime, parameters, base64)"
+                    f"{where} detection rule b pattern needs 4 groups"
+                    " (mime, parameters, base64, continuation)"
                 )
     for marker in rules.get("e", {}).get("base64_markers") or []:
         if (
@@ -570,6 +571,12 @@ def base64_size(value: str) -> int | None:
     return len(text) * 3 // 4 - padding
 
 
+def run_size(run: str) -> int | None:
+    """The size of a rule b run: its base64 size with the > of each quoted
+    line it goes on over removed too."""
+    return base64_size(run.replace(">", ""))
+
+
 @dataclass(frozen=True)
 class Token:
     """A media token a strip replaced: its rule, mime type and size (None is
@@ -617,13 +624,33 @@ def _mime_or_unknown(raw: dict, mime: str | None) -> str | None:
     return mime if is_mime(raw, mime) else None
 
 
+#: data: anywhere in a value, in any ASCII case: where a rule b token can start.
+_DATA_ANYWHERE = re.compile("[dD][aA][tT][aA]:")
+
+
 def data_url_spans(raw: dict, value: str) -> list[Span]:
-    """Rule b: every data URL token in a string, wherever it sits. A media type
+    """Rule b: every data URL token in a string, wherever it sits. The string
+    is cut before each data: (in any ASCII case), and the pattern is tried at
+    the start of each piece and never past its end, so a run that continues
+    over a line break never takes the start of the next data URL. A media type
     that is not token/token is unknown."""
-    return [
-        Span(m.start(), m.end(), _mime_or_unknown(raw, m.group(1)), base64_size(m.group(3)))
-        for m in re.finditer(_rules(raw)["b"]["pattern"], value)
-    ]
+    pattern = re.compile(_rules(raw)["b"]["pattern"])
+    starts = [m.start() for m in _DATA_ANYWHERE.finditer(value)]
+    spans = []
+    for start, end in zip(starts, [*starts[1:], len(value)], strict=False):
+        m = pattern.match(value, start, end)
+        if m:
+            mime = _mime_or_unknown(raw, m.group(1))
+            spans.append(Span(m.start(), m.end(), mime, run_size(m.group(3))))
+    return spans
+
+
+def whole_data_url(raw: dict, value: str) -> re.Match | None:
+    """Rule b's match when it is the whole string: the pattern anchored at the
+    start, its match ending at the end. The same as fullmatch, since the run's
+    greedy match reaches furthest, but fast when a long value fails."""
+    m = re.compile(_rules(raw)["b"]["pattern"]).match(value)
+    return m if m and m.end() == len(value) else None
 
 
 def is_data_url(raw: dict, value: str) -> bool:
@@ -750,15 +777,15 @@ def is_url(raw: dict, value: Any) -> bool:
 
 def kept_url(raw: dict, value: Any) -> bool:
     """Whether a typed key that keeps URLs leaves a string alone for rule b: it
-    starts with a URL scheme, and either the scheme is not data (in any ASCII
-    case) or the whole string is one rule b token, so rule b replaces all of
-    it. Any other data: string (wrapped, percent-encoded, or with a broken
-    run) stays a rule e token and is replaced whole."""
+    starts with a URL scheme, and either it holds no data: (in any ASCII case)
+    or the whole string is one rule b token, so rule b replaces all of it. Any
+    other string holding data: (a percent-encoded data URL, a broken run, a
+    link with a data URL after it) stays a rule e token and is replaced whole."""
     if not is_url(raw, value):
         return False
-    if value.split(":", 1)[0].lower() != "data":
+    if _DATA_ANYWHERE.search(value) is None:
         return True
-    return re.fullmatch(_rules(raw)["b"]["pattern"], value) is not None
+    return whole_data_url(raw, value) is not None
 
 
 def url_keys(
@@ -1230,10 +1257,6 @@ def _usable(value: Any) -> bool:
     return isinstance(value, str) and value not in ("", REDACTED)
 
 
-#: data: anywhere in a value, in any ASCII case.
-_DATA_ANYWHERE = re.compile("[dD][aA][tT][aA]:")
-
-
 def _is_data_scheme(value: str) -> bool:
     """A value that is a data URL: it starts with data:, in any ASCII case."""
     return value[:5].lower() == "data:"
@@ -1274,10 +1297,10 @@ def _data_url_part(data: dict, url: str, hint: str | None, kind_modality: str | 
     redacted_upstream when its payload is empty or None. The mime type is the
     URL's when valid, else the hint."""
     raw = data["raw_payloads"]
-    match = re.fullmatch(_rules(raw)["b"]["pattern"], url)
+    match = whole_data_url(raw, url)
     if match:
         mime = _mime_or_unknown(raw, match.group(1)) or hint
-        size, reason = base64_size(match.group(3)), "not_captured"
+        size, reason = run_size(match.group(3)), "not_captured"
     else:
         rest = url.split(":", 1)[1]
         mime = _mime_or_unknown(raw, re.split("[;,]", rest, maxsplit=1)[0]) or hint
@@ -1414,6 +1437,112 @@ def native_part(data: dict, part: dict) -> dict | None:
             stripped_reason=reason,
         )
     return None
+
+
+# --- Provider URIs ----------------------------------------------------------------
+#
+# provider_uri_part is the reference for a provider item that points at its
+# media by URI: the part its URI makes, with its modality and MIME type. The
+# part examples that carry a provider item are its tests.
+
+#: The flattened OpenInference keys of one image content entry, relative to
+#: its message_content prefix.
+OPENINFERENCE_IMAGE_TYPE = "message_content.type"
+OPENINFERENCE_IMAGE_URL = "message_content.image.image.url"
+
+
+def _filename_modality(data: dict, filename: Any) -> str | None:
+    """The modality an OpenAI file item's filename names; None with none."""
+    if not isinstance(filename, str) or not filename:
+        return None
+    return _extension_modality(data, filename)
+
+
+def _provider_uri(raw: dict, item: dict) -> tuple[Any, Any, str | None, bool] | None:
+    """The URI a provider item points at, with the item's MIME type, the
+    modality its kind names (for an OpenAI input_file, its filename does) and
+    whether a uri reads its path's extension. None for an item that points at
+    nothing by URI: a Vercel value with no URL scheme is base64."""
+    kind = item.get("type")
+    if kind == "image_url" and isinstance(item.get("image_url"), dict):
+        return item["image_url"].get("url"), None, "image", False
+    if kind == "input_image" and "image_url" in item:
+        return item["image_url"], None, "image", False
+    source = item.get("source")
+    if kind in ("image", "document") and isinstance(source, dict) and source.get("type") == "url":
+        return source.get("url"), source.get("media_type"), kind, False
+    if kind == "input_file" and "file_url" in item:
+        return item["file_url"], None, None, False
+    if isinstance(item.get("file_data"), dict):
+        file_data = item["file_data"]
+        return file_data.get("file_uri"), file_data.get("mime_type"), None, True
+    if kind in ("file", "image"):
+        value = item.get("data" if kind == "file" else "image")
+        if isinstance(value, dict) and value.get("type") == "url":
+            value = value.get("url")
+        elif not is_url(raw, value):
+            return None
+        return value, item.get("mediaType"), "image" if kind == "image" else None, kind == "file"
+    if item.get(OPENINFERENCE_IMAGE_TYPE) == "image" and OPENINFERENCE_IMAGE_URL in item:
+        return item[OPENINFERENCE_IMAGE_URL], None, "image", False
+    return None
+
+
+#: The references beside a provider URI that win over it when usable.
+OTHER_REFERENCES = {"input_image": ("file_id",), "input_file": ("file_id", "file_data")}
+
+
+def _another_reference_wins(item: dict, uri: Any) -> bool:
+    """Whether the item's reader takes another reference before its URI. An
+    input_file takes a usable file_id or file_data first. An input_image takes
+    its image_url first, so its file_id wins only when the image_url is not
+    usable."""
+    if item.get("type") == "input_image" and _usable(uri):
+        return False
+    return any(_usable(item.get(key)) for key in OTHER_REFERENCES.get(item.get("type"), ()))
+
+
+def provider_uri_part(data: dict, item: dict) -> dict | None:
+    """The part a provider item that points at its media by URI makes: an
+    OpenAI image_url's url, an input_image's image_url, an Anthropic image or
+    document by a url source, an OpenAI input_file's file_url, a Gemini
+    file_data's file_uri, a Vercel file or image part by URL (a value that
+    starts with a URL scheme, or v7's {"type":"url"} data), and OpenInference's
+    flattened image url. None for any other item, for a URI that is not a
+    string, and for an item whose reader takes another usable reference first:
+    an input_file's file_id or file_data, and an input_image's file_id when its
+    image_url is empty or __REDACTED__. A usable image_url beside a file_id
+    stays a uri (or a blob, for a data URL), as the readers take it first.
+
+    An empty or __REDACTED__ URI was dropped upstream. A data URL follows the
+    data URL rules. A URI that holds data: anywhere else, in any ASCII case, is
+    a blob with no byte_size, so no byte of it is kept. Any other URI is a uri,
+    as it came. A blob's modality comes from the MIME type, then the item's
+    kind (an input_file's filename), then document; a uri's from the same, then
+    its path's extension where the item reads one."""
+    raw = data["raw_payloads"]
+    found = _provider_uri(raw, item)
+    if found is None:
+        return None
+    uri, mime, kind_modality, reads_extension = found
+    if item.get("type") == "input_file":
+        kind_modality = _filename_modality(data, item.get("filename"))
+    if not isinstance(uri, str):
+        return None
+    if _another_reference_wins(item, uri):
+        return None
+    mime = _mime_or_unknown(raw, mime)
+    blob_modality = _mime_modality(mime) or kind_modality or "document"
+    if not _usable(uri):
+        return _part("blob", blob_modality, mime_type=mime, stripped_reason="redacted_upstream")
+    if _is_data_scheme(uri):
+        return _data_url_part(data, uri, mime, kind_modality)
+    if _DATA_ANYWHERE.search(uri):
+        return _part("blob", blob_modality, mime_type=mime, stripped_reason="not_captured")
+    modality = _mime_modality(mime) or kind_modality
+    if modality is None:
+        modality = _extension_modality(data, uri) if reads_extension else "document"
+    return _part("uri", modality, mime_type=mime, uri=uri)
 
 
 def part_text(part: dict) -> str:
