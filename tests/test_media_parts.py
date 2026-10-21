@@ -1329,6 +1329,17 @@ REQUIRED_PART_EXAMPLES = {
     "langchain_v1_file_by_redacted_file_id_and_base64",
     "langchain_v1_file_by_redacted_file_id_and_an_empty_url",
     "langchain_v1_file_with_a_file_id_that_is_not_a_string_and_a_url",
+    "langchain_v1_text_plain_by_base64",
+    "langchain_v1_image_by_a_url_led_by_whitespace",
+    "langchain_v1_image_by_a_url_led_by_a_tab",
+    "langchain_v1_file_by_an_https_url_led_by_a_space",
+    "langchain_v1_image_by_a_data_url_with_a_trailing_space",
+    "langchain_v1_image_by_a_wrapped_data_url",
+    "langchain_v1_file_by_a_url_led_by_whitespace_and_an_empty_file_id",
+    "langchain_v1_file_by_empty_file_id_and_empty_base64",
+    "langchain_v1_file_by_empty_file_id_and_redacted_base64",
+    "langchain_v1_image_by_redacted_base64",
+    "langchain_v1_audio_by_empty_base64",
 }
 
 
@@ -1353,6 +1364,7 @@ def test_v1_part_examples_are_what_the_reference_makes(base_data, example):
         '{"type":"image","id":"x","source_type":"id"}',
         '{"type":"image","source_type":"base64","data":"QUFB"}',
         '{"type":"text-plain","url":"https://example.com/a.txt"}',
+        '{"type":"text-plain","file_id":"file-abc","url":""}',
         '{"type":"text","text":"hi"}',
     ],
 )
@@ -1531,6 +1543,45 @@ def test_typescript_attribute_values_are_their_output():
 
 def test_attribute_values_cover_every_language():
     assert {e["language"] for e in ATTRIBUTE_VALUES} == set(media_parts.ATTRIBUTE_VALUE_LANGUAGES)
+
+
+@pytest.mark.parametrize(
+    ("value", "output"),
+    [
+        ([True, b"ab"], '[true,"[stripped unknown 2 bytes]"]'),
+        ([None, b"ab"], '[null,"[stripped unknown 2 bytes]"]'),
+        ([b"ab", [b"c"]], '["[stripped unknown 2 bytes]",["[stripped unknown 1 bytes]"]]'),
+        ([b"ab", {"k": "v"}], '["[stripped unknown 2 bytes]",{"k":"v"}]'),
+        ([1, [b"c"]], [1, ["[stripped unknown 1 bytes]"]]),
+        ((b"ab", "x"), ["[stripped unknown 2 bytes]", "x"]),
+        ([[1, b"c"]], ['[1,"[stripped unknown 1 bytes]"]']),
+        ({"k": [1, b"c"]}, {"k": '[1,"[stripped unknown 1 bytes]"]'}),
+        ([1, "x"], [1, "x"]),
+    ],
+)
+def test_only_an_array_holding_a_byte_object_and_a_non_string_is_json(base_data, value, output):
+    raw = base_data["media_parts"]["raw_payloads"]
+    assert media_parts.attribute_value(raw, value) == output
+
+
+@pytest.mark.parametrize(
+    ("text", "size"),
+    [("QUJD", 3), ("QUI=", 2), ("QUI", 2), ("_-__", 3), ("/+//", 3), ("iVBORw0KGgo", 8), ("", 0)],
+)
+def test_an_otlp_bytes_value_decodes_either_alphabet_padded_or_not(text, size):
+    assert len(media_parts.otlp_bytes(text)) == size
+
+
+@pytest.mark.parametrize("text", ["Q", "+-AA", "QU!D"])
+def test_an_otlp_bytes_value_that_is_not_base64_raises(text):
+    with pytest.raises(ValueError):
+        media_parts.otlp_bytes(text)
+
+
+def test_an_attribute_value_with_no_marker_fails_lint(data):
+    section = data["media_parts"]["raw_payloads"]["byte_objects"]["attribute_values"]
+    section["examples"][0]["output"] = {"k": "plain", "n": [1]}
+    assert_flags(media_parts.lint(data["media_parts"]), "must be a bare marker")
 
 
 def test_a_quoted_attribute_value_marker_fails_lint(data):
