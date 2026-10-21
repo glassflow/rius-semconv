@@ -29,18 +29,19 @@ Rius uses it.
 | <a id="gen-ai-agent-id"></a>[`gen_ai.agent.id`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-agent-id) | string | conditionally required (when the invoked agent is a hosted resource with an id) | OpenTelemetry GenAI | Emitted. [2] |
 | <a id="gen-ai-agent-name"></a>[`gen_ai.agent.name`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-agent-name) | string | conditionally required (when the agent is known) | OpenTelemetry GenAI | Emitted. [3] |
 | <a id="gen-ai-agent-version"></a>[`gen_ai.agent.version`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-agent-version) | string | recommended | OpenTelemetry GenAI | Emitted. [4] |
-| <a id="gen-ai-conversation-id"></a>[`gen_ai.conversation.id`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-conversation-id) | string | recommended | OpenTelemetry GenAI | Stored, not emitted. [5] |
-| <a id="gen-ai-data-source-id"></a>[`gen_ai.data_source.id`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-data-source-id) | string | conditionally required (when the retrieval has a single identifiable data source) | OpenTelemetry GenAI | Emitted. [6] |
+| <a id="gen-ai-conversation-compacted"></a>[`gen_ai.conversation.compacted`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-conversation-compacted) | boolean | recommended | OpenTelemetry GenAI | Emitted. [5] |
+| <a id="gen-ai-conversation-id"></a>[`gen_ai.conversation.id`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-conversation-id) | string | recommended | OpenTelemetry GenAI | Stored, not emitted. [6] |
+| <a id="gen-ai-data-source-id"></a>[`gen_ai.data_source.id`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-data-source-id) | string | conditionally required (when the retrieval has a single identifiable data source) | OpenTelemetry GenAI | Emitted. [7] |
 | <a id="gen-ai-input-messages"></a>[`gen_ai.input.messages`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-input-messages) | any | opt in | OpenTelemetry GenAI | Emitted. |
-| <a id="gen-ai-main-agent-description"></a>[`gen_ai.main_agent.description`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-main-agent-description) | string | recommended | OpenTelemetry GenAI | Emitted. [7] |
-| <a id="gen-ai-main-agent-id"></a>[`gen_ai.main_agent.id`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-main-agent-id) | string | conditionally required (always, whenever the main-agent entity is emitted) | OpenTelemetry GenAI | Emitted. [8] |
-| <a id="gen-ai-main-agent-name"></a>[`gen_ai.main_agent.name`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-main-agent-name) | string | recommended | OpenTelemetry GenAI | Emitted. [9] |
+| <a id="gen-ai-main-agent-description"></a>[`gen_ai.main_agent.description`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-main-agent-description) | string | recommended | OpenTelemetry GenAI | Emitted. [8] |
+| <a id="gen-ai-main-agent-id"></a>[`gen_ai.main_agent.id`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-main-agent-id) | string | conditionally required (always, whenever the main-agent entity is emitted) | OpenTelemetry GenAI | Emitted. [9] |
+| <a id="gen-ai-main-agent-name"></a>[`gen_ai.main_agent.name`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-main-agent-name) | string | recommended | OpenTelemetry GenAI | Emitted. [10] |
 | <a id="gen-ai-operation-name"></a>[`gen_ai.operation.name`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-operation-name) | string | required | OpenTelemetry GenAI | Emitted. |
 | <a id="gen-ai-output-messages"></a>[`gen_ai.output.messages`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-output-messages) | any | opt in | OpenTelemetry GenAI | Emitted. |
-| <a id="gen-ai-output-type"></a>[`gen_ai.output.type`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-output-type) | string | conditionally required (when the request specifies an output format) | OpenTelemetry GenAI | Emitted. [10] |
+| <a id="gen-ai-output-type"></a>[`gen_ai.output.type`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-output-type) | string | conditionally required (when the request specifies an output format) | OpenTelemetry GenAI | Emitted. [11] |
 | <a id="gen-ai-provider-name"></a>[`gen_ai.provider.name`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-provider-name) | string | conditionally required (when known) | OpenTelemetry GenAI | Emitted. |
-| <a id="gen-ai-request-choice-count"></a>[`gen_ai.request.choice.count`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-request-choice-count) | int | conditionally required (when available and not 1) | OpenTelemetry GenAI | Emitted. [11] |
-| <a id="gen-ai-request-encoding-formats"></a>[`gen_ai.request.encoding_formats`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-request-encoding-formats) | string[] | recommended | OpenTelemetry GenAI | Emitted. [12] |
+| <a id="gen-ai-request-choice-count"></a>[`gen_ai.request.choice.count`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-request-choice-count) | int | conditionally required (when available and not 1) | OpenTelemetry GenAI | Emitted. [12] |
+| <a id="gen-ai-request-encoding-formats"></a>[`gen_ai.request.encoding_formats`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-request-encoding-formats) | string[] | recommended | OpenTelemetry GenAI | Emitted. [13] |
 | <a id="gen-ai-request-frequency-penalty"></a>[`gen_ai.request.frequency_penalty`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-request-frequency-penalty) | double | recommended | OpenTelemetry GenAI | Emitted. |
 | <a id="gen-ai-request-max-tokens"></a>[`gen_ai.request.max_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-request-max-tokens) | int | recommended | OpenTelemetry GenAI | Emitted. |
 | <a id="gen-ai-request-model"></a>[`gen_ai.request.model`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-request-model) | string | conditionally required (when known) | OpenTelemetry GenAI | Emitted. |
@@ -49,85 +50,85 @@ Rius uses it.
 | <a id="gen-ai-request-reasoning-level"></a>[`gen_ai.request.reasoning.level`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-request-reasoning-level) | string | recommended | OpenTelemetry GenAI | Emitted. |
 | <a id="gen-ai-request-seed"></a>[`gen_ai.request.seed`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-request-seed) | int | conditionally required (when the request includes a seed) | OpenTelemetry GenAI | Emitted. |
 | <a id="gen-ai-request-stop-sequences"></a>[`gen_ai.request.stop_sequences`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-request-stop-sequences) | string[] | recommended | OpenTelemetry GenAI | Emitted. |
-| <a id="gen-ai-request-stream"></a>[`gen_ai.request.stream`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-request-stream) | boolean | conditionally required (when streaming) | OpenTelemetry GenAI | Emitted. [13] |
+| <a id="gen-ai-request-stream"></a>[`gen_ai.request.stream`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-request-stream) | boolean | conditionally required (when streaming) | OpenTelemetry GenAI | Emitted. [14] |
 | <a id="gen-ai-request-stream-cursor"></a>[`gen_ai.request.stream_cursor`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-request-stream-cursor) | string | recommended | OpenTelemetry GenAI | Emitted. |
-| <a id="gen-ai-request-temperature"></a>[`gen_ai.request.temperature`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-request-temperature) | double | recommended | OpenTelemetry GenAI | Emitted. [14] |
+| <a id="gen-ai-request-temperature"></a>[`gen_ai.request.temperature`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-request-temperature) | double | recommended | OpenTelemetry GenAI | Emitted. [15] |
 | <a id="gen-ai-request-top-k"></a>[`gen_ai.request.top_k`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-request-top-k) | int | recommended | OpenTelemetry GenAI | Emitted. |
 | <a id="gen-ai-request-top-p"></a>[`gen_ai.request.top_p`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-request-top-p) | double | recommended | OpenTelemetry GenAI | Emitted. |
 | <a id="gen-ai-response-finish-reasons"></a>[`gen_ai.response.finish_reasons`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-response-finish-reasons) | string[] | recommended | OpenTelemetry GenAI | Emitted. |
-| <a id="gen-ai-response-id"></a>[`gen_ai.response.id`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-response-id) | string | recommended | OpenTelemetry GenAI | Emitted. [15] |
+| <a id="gen-ai-response-id"></a>[`gen_ai.response.id`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-response-id) | string | recommended | OpenTelemetry GenAI | Emitted. [16] |
 | <a id="gen-ai-response-model"></a>[`gen_ai.response.model`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-response-model) | string | recommended | OpenTelemetry GenAI | Emitted. |
-| <a id="gen-ai-response-time-to-first-chunk"></a>[`gen_ai.response.time_to_first_chunk`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-response-time-to-first-chunk) | double | recommended | OpenTelemetry GenAI | Emitted. [16] |
-| <a id="gen-ai-retrieval-documents"></a>[`gen_ai.retrieval.documents`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-retrieval-documents) | any | recommended | OpenTelemetry GenAI | Emitted. [17] |
-| <a id="gen-ai-retrieval-top-k"></a>[`gen_ai.retrieval.top_k`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-retrieval-top-k) | int | recommended | OpenTelemetry GenAI | Emitted. [18] |
-| <a id="gen-ai-system-instructions"></a>[`gen_ai.system_instructions`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-system-instructions) | any | opt in | OpenTelemetry GenAI | Planned, not emitted yet. [19] |
-| <a id="gen-ai-tool-call-arguments"></a>[`gen_ai.tool.call.arguments`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-tool-call-arguments) | any | opt in | OpenTelemetry GenAI | Planned, not emitted yet. [20] |
-| <a id="gen-ai-tool-call-id"></a>[`gen_ai.tool.call.id`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-tool-call-id) | string | recommended | OpenTelemetry GenAI | Emitted. [21] |
-| <a id="gen-ai-tool-call-result"></a>[`gen_ai.tool.call.result`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-tool-call-result) | any | opt in | OpenTelemetry GenAI | Planned, not emitted yet. [22] |
-| <a id="gen-ai-tool-definitions"></a>[`gen_ai.tool.definitions`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-tool-definitions) | any | opt in | OpenTelemetry GenAI | Emitted. [23] |
+| <a id="gen-ai-response-time-to-first-chunk"></a>[`gen_ai.response.time_to_first_chunk`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-response-time-to-first-chunk) | double | recommended | OpenTelemetry GenAI | Emitted. [17] |
+| <a id="gen-ai-retrieval-documents"></a>[`gen_ai.retrieval.documents`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-retrieval-documents) | any | recommended | OpenTelemetry GenAI | Emitted. [18] |
+| <a id="gen-ai-retrieval-top-k"></a>[`gen_ai.retrieval.top_k`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-retrieval-top-k) | int | recommended | OpenTelemetry GenAI | Emitted. [19] |
+| <a id="gen-ai-system-instructions"></a>[`gen_ai.system_instructions`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-system-instructions) | any | opt in | OpenTelemetry GenAI | Planned, not emitted yet. [20] |
+| <a id="gen-ai-tool-call-arguments"></a>[`gen_ai.tool.call.arguments`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-tool-call-arguments) | any | opt in | OpenTelemetry GenAI | Planned, not emitted yet. [21] |
+| <a id="gen-ai-tool-call-id"></a>[`gen_ai.tool.call.id`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-tool-call-id) | string | recommended | OpenTelemetry GenAI | Emitted. [22] |
+| <a id="gen-ai-tool-call-result"></a>[`gen_ai.tool.call.result`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-tool-call-result) | any | opt in | OpenTelemetry GenAI | Planned, not emitted yet. [23] |
+| <a id="gen-ai-tool-definitions"></a>[`gen_ai.tool.definitions`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-tool-definitions) | any | opt in | OpenTelemetry GenAI | Emitted. [24] |
 | <a id="gen-ai-tool-name"></a>[`gen_ai.tool.name`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-tool-name) | string | required | OpenTelemetry GenAI | Emitted. |
-| <a id="gen-ai-tool-type"></a>[`gen_ai.tool.type`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-tool-type) | string | recommended | OpenTelemetry GenAI | Emitted. [24] |
-| <a id="gen-ai-usage-audio-cache-read-input-tokens"></a>[`gen_ai.usage.audio.cache_read.input_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-audio-cache-read-input-tokens) | int | recommended | OpenTelemetry GenAI | Emitted. [25] |
-| <a id="gen-ai-usage-audio-input-tokens"></a>[`gen_ai.usage.audio.input_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-audio-input-tokens) | int | recommended | OpenTelemetry GenAI | Emitted. [26] |
-| <a id="gen-ai-usage-audio-output-tokens"></a>[`gen_ai.usage.audio.output_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-audio-output-tokens) | int | recommended | OpenTelemetry GenAI | Emitted. [27] |
+| <a id="gen-ai-tool-type"></a>[`gen_ai.tool.type`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-tool-type) | string | recommended | OpenTelemetry GenAI | Emitted. [25] |
+| <a id="gen-ai-usage-audio-cache-read-input-tokens"></a>[`gen_ai.usage.audio.cache_read.input_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-audio-cache-read-input-tokens) | int | recommended | OpenTelemetry GenAI | Emitted. [26] |
+| <a id="gen-ai-usage-audio-input-tokens"></a>[`gen_ai.usage.audio.input_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-audio-input-tokens) | int | recommended | OpenTelemetry GenAI | Emitted. [27] |
+| <a id="gen-ai-usage-audio-output-tokens"></a>[`gen_ai.usage.audio.output_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-audio-output-tokens) | int | recommended | OpenTelemetry GenAI | Emitted. [28] |
 | <a id="gen-ai-usage-cache-read-input-tokens"></a>[`gen_ai.usage.cache_read.input_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-cache-read-input-tokens) | int | recommended | OpenTelemetry GenAI | Emitted. |
-| <a id="gen-ai-usage-cache-write-input-tokens"></a>[`gen_ai.usage.cache_write.input_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-cache-write-input-tokens) | int | recommended | OpenTelemetry GenAI | Emitted. [28] |
-| <a id="gen-ai-usage-image-cache-read-input-tokens"></a>[`gen_ai.usage.image.cache_read.input_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-image-cache-read-input-tokens) | int | recommended | OpenTelemetry GenAI | Emitted. [29] |
-| <a id="gen-ai-usage-image-input-tokens"></a>[`gen_ai.usage.image.input_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-image-input-tokens) | int | recommended | OpenTelemetry GenAI | Emitted. [30] |
-| <a id="gen-ai-usage-image-output-tokens"></a>[`gen_ai.usage.image.output_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-image-output-tokens) | int | recommended | OpenTelemetry GenAI | Emitted. [31] |
+| <a id="gen-ai-usage-cache-write-input-tokens"></a>[`gen_ai.usage.cache_write.input_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-cache-write-input-tokens) | int | recommended | OpenTelemetry GenAI | Emitted. [29] |
+| <a id="gen-ai-usage-image-cache-read-input-tokens"></a>[`gen_ai.usage.image.cache_read.input_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-image-cache-read-input-tokens) | int | recommended | OpenTelemetry GenAI | Emitted. [30] |
+| <a id="gen-ai-usage-image-input-tokens"></a>[`gen_ai.usage.image.input_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-image-input-tokens) | int | recommended | OpenTelemetry GenAI | Emitted. [31] |
+| <a id="gen-ai-usage-image-output-tokens"></a>[`gen_ai.usage.image.output_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-image-output-tokens) | int | recommended | OpenTelemetry GenAI | Emitted. [32] |
 | <a id="gen-ai-usage-input-tokens"></a>[`gen_ai.usage.input_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-input-tokens) | int | recommended | OpenTelemetry GenAI | Emitted. |
 | <a id="gen-ai-usage-output-tokens"></a>[`gen_ai.usage.output_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-output-tokens) | int | recommended | OpenTelemetry GenAI | Emitted. |
 | <a id="gen-ai-usage-reasoning-output-tokens"></a>[`gen_ai.usage.reasoning.output_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-reasoning-output-tokens) | int | recommended | OpenTelemetry GenAI | Emitted. |
-| <a id="gen-ai-usage-text-cache-read-input-tokens"></a>[`gen_ai.usage.text.cache_read.input_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-text-cache-read-input-tokens) | int | recommended | OpenTelemetry GenAI | Emitted. [32] |
-| <a id="gen-ai-usage-text-input-tokens"></a>[`gen_ai.usage.text.input_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-text-input-tokens) | int | recommended | OpenTelemetry GenAI | Emitted. [33] |
-| <a id="gen-ai-usage-text-output-tokens"></a>[`gen_ai.usage.text.output_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-text-output-tokens) | int | recommended | OpenTelemetry GenAI | Emitted. [34] |
+| <a id="gen-ai-usage-text-cache-read-input-tokens"></a>[`gen_ai.usage.text.cache_read.input_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-text-cache-read-input-tokens) | int | recommended | OpenTelemetry GenAI | Emitted. [33] |
+| <a id="gen-ai-usage-text-input-tokens"></a>[`gen_ai.usage.text.input_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-text-input-tokens) | int | recommended | OpenTelemetry GenAI | Emitted. [34] |
+| <a id="gen-ai-usage-text-output-tokens"></a>[`gen_ai.usage.text.output_tokens`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/gen-ai.md#gen-ai-usage-text-output-tokens) | int | recommended | OpenTelemetry GenAI | Emitted. [35] |
 
 ## `mcp`
 
 | Key | Type | Requirement level | Defined in | How Rius uses it |
 | -- | -- | -- | -- | -- |
-| <a id="mcp-method-name"></a>[`mcp.method.name`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/mcp.md#mcp-method-name) | string | required | OpenTelemetry GenAI | Emitted. [35] |
-| <a id="mcp-protocol-version"></a>[`mcp.protocol.version`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/mcp.md#mcp-protocol-version) | string | recommended | OpenTelemetry GenAI | Emitted. [36] |
+| <a id="mcp-method-name"></a>[`mcp.method.name`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/mcp.md#mcp-method-name) | string | required | OpenTelemetry GenAI | Emitted. [36] |
+| <a id="mcp-protocol-version"></a>[`mcp.protocol.version`](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/registry/attributes/mcp.md#mcp-protocol-version) | string | recommended | OpenTelemetry GenAI | Emitted. [37] |
 
 ## `process`
 
 | Key | Type | Requirement level | Defined in | How Rius uses it |
 | -- | -- | -- | -- | -- |
-| <a id="process-exit-code"></a>[`process.exit.code`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/process.md#process-exit-code) | int | recommended | OpenTelemetry v1.44.0 | Emitted. [37] |
-| <a id="process-working-directory"></a>[`process.working_directory`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/process.md#process-working-directory) | string | recommended | OpenTelemetry v1.44.0 | Emitted. [38] |
+| <a id="process-exit-code"></a>[`process.exit.code`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/process.md#process-exit-code) | int | recommended | OpenTelemetry v1.44.0 | Emitted. [38] |
+| <a id="process-working-directory"></a>[`process.working_directory`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/process.md#process-working-directory) | string | recommended | OpenTelemetry v1.44.0 | Emitted. [39] |
 
 ## `service`
 
 | Key | Type | Requirement level | Defined in | How Rius uses it |
 | -- | -- | -- | -- | -- |
-| <a id="service-instance-id"></a>[`service.instance.id`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/service.md#service-instance-id) | string | required | OpenTelemetry v1.44.0 | Emitted. [39] |
-| <a id="service-name"></a>[`service.name`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/service.md#service-name) | string | required | OpenTelemetry v1.44.0 | Emitted. [40] |
-| <a id="service-version"></a>[`service.version`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/service.md#service-version) | string | recommended | OpenTelemetry v1.44.0 | Emitted. [41] |
+| <a id="service-instance-id"></a>[`service.instance.id`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/service.md#service-instance-id) | string | required | OpenTelemetry v1.44.0 | Emitted. [40] |
+| <a id="service-name"></a>[`service.name`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/service.md#service-name) | string | required | OpenTelemetry v1.44.0 | Emitted. [41] |
+| <a id="service-version"></a>[`service.version`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/service.md#service-version) | string | recommended | OpenTelemetry v1.44.0 | Emitted. [42] |
 
 ## `session`
 
 | Key | Type | Requirement level | Defined in | How Rius uses it |
 | -- | -- | -- | -- | -- |
-| <a id="session-id"></a>[`session.id`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/session.md#session-id) | string | recommended | OpenTelemetry v1.44.0 | Emitted. [42] |
+| <a id="session-id"></a>[`session.id`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/session.md#session-id) | string | recommended | OpenTelemetry v1.44.0 | Emitted. [43] |
 
 ## `telemetry`
 
 | Key | Type | Requirement level | Defined in | How Rius uses it |
 | -- | -- | -- | -- | -- |
-| <a id="telemetry-distro-name"></a>[`telemetry.distro.name`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/telemetry.md#telemetry-distro-name) | string | required | OpenTelemetry v1.44.0 | Emitted. [43] |
-| <a id="telemetry-distro-version"></a>[`telemetry.distro.version`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/telemetry.md#telemetry-distro-version) | string | required | OpenTelemetry v1.44.0 | Emitted. [44] |
+| <a id="telemetry-distro-name"></a>[`telemetry.distro.name`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/telemetry.md#telemetry-distro-name) | string | required | OpenTelemetry v1.44.0 | Emitted. [44] |
+| <a id="telemetry-distro-version"></a>[`telemetry.distro.version`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/telemetry.md#telemetry-distro-version) | string | required | OpenTelemetry v1.44.0 | Emitted. [45] |
 
 ## `user`
 
 | Key | Type | Requirement level | Defined in | How Rius uses it |
 | -- | -- | -- | -- | -- |
-| <a id="user-id"></a>[`user.id`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/user.md#user-id) | string | recommended | OpenTelemetry v1.44.0 | Emitted. [45] |
+| <a id="user-id"></a>[`user.id`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/user.md#user-id) | string | recommended | OpenTelemetry v1.44.0 | Emitted. [46] |
 
 ## `vcs`
 
 | Key | Type | Requirement level | Defined in | How Rius uses it |
 | -- | -- | -- | -- | -- |
-| <a id="vcs-ref-head-name"></a>[`vcs.ref.head.name`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/vcs.md#vcs-ref-head-name) | string | recommended | OpenTelemetry v1.44.0 | Emitted. [46] |
+| <a id="vcs-ref-head-name"></a>[`vcs.ref.head.name`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/vcs.md#vcs-ref-head-name) | string | recommended | OpenTelemetry v1.44.0 | Emitted. [47] |
 
 ## Notes
 
@@ -155,19 +156,31 @@ the process's own version and never service.version. Registry type is a
 plain string and the conventions' own examples are "1.0.0" and "2025-05-01",
 so the caller's value is taken verbatim: there is no format to validate.
 
-**[5] `gen_ai.conversation.id`:** pydantic-ai writes it. Neither SDK emits or rewrites it: they write
+**[5] `gen_ai.conversation.compacted`:** The convention's positive marker that the context a model call ran on is
+a compacted view of a prior conversation. A producer sets it only when
+true, on every LLM span whose context was compacted, and leaves it unset
+otherwise: the convention says never to write false, so a reader treats a
+missing key as "not known to be compacted". The compaction itself, and
+how much it removed, is the rius.compaction span or event; this key only
+marks the calls that ran on the result. Metadata, not identity: the
+producer learns the context was compacted when it links the call to the
+compaction, which can be after the call span has started, so it never
+rides a pending snapshot. Not content, so it survives
+capture_content=False.
+
+**[6] `gen_ai.conversation.id`:** pydantic-ai writes it. Neither SDK emits or rewrites it: they write
 session.id, one name for one fact. The Rius backend falls back to it for
 session.id (tools/go_reference_only.yaml, GenAIConversationID).
 
-**[6] `gen_ai.data_source.id`:** The index, collection or knowledge base a retrieval ran against. Identity,
+**[7] `gen_ai.data_source.id`:** The index, collection or knowledge base a retrieval ran against. Identity,
 set at span creation: it is what a retriever span is named after and the
 only thing that distinguishes two otherwise identical searches.
 
-**[7] `gen_ai.main_agent.description`:** What the agent this process is does, in free text. Stamped only when
+**[8] `gen_ai.main_agent.description`:** What the agent this process is does, in free text. Stamped only when
 configured, and only with gen_ai.main_agent.id. Replaces
 rius.main_agent.description.
 
-**[8] `gen_ai.main_agent.id`:** The stable identifier of the agent this process is, and the identity of
+**[9] `gen_ai.main_agent.id`:** The stable identifier of the agent this process is, and the identity of
 the conventions' gen_ai.main_agent entity: no id, no entity. It is the
 configured main-agent id when one is set (the SDK setting, or a
 gen_ai.main_agent.id the operator already put on the resource),
@@ -185,14 +198,14 @@ gen_ai.main_agent.\* key is emitted at all.
 Replaces rius.main_agent.id, which was only ever the configured id: the
 derived value is never copied into it.
 
-**[9] `gen_ai.main_agent.name`:** The name of the agent this process is, from the same setting as
+**[10] `gen_ai.main_agent.name`:** The name of the agent this process is, from the same setting as
 gen_ai.agent.name on the resource, and suppressed the same way: a process
 whose name is the unknown_service placeholder stamps none. Emitted only
 with gen_ai.main_agent.id, because the conventions make the id the
 entity's identity and say the entity is not emitted without one.
 Replaces rius.main_agent.name.
 
-**[10] `gen_ai.output.type`:** The output modality the client ASKED for (text / json / image / speech in
+**[11] `gen_ai.output.type`:** The output modality the client ASKED for (text / json / image / speech in
 the registry today), Conditionally Required when the request specifies one.
 Identity: it describes the request, so it is known at span creation and must
 ride pending snapshots. Note the key is NOT under gen_ai.request., so
@@ -201,31 +214,31 @@ entry. Recorded verbatim rather than validated against the enum: the
 conventions are free to extend it, and a value we do not recognise is still
 the caller's truth. Not content, for the reason the response id is not.
 
-**[11] `gen_ai.request.choice.count`:** "The target number of candidate completions to return": OpenAI's `n`.
+**[12] `gen_ai.request.choice.count`:** "The target number of candidate completions to return": OpenAI's `n`.
 
-**[12] `gen_ai.request.encoding_formats`:** Reached only through model parameters (and so through the request
+**[13] `gen_ai.request.encoding_formats`:** Reached only through model parameters (and so through the request
 parameter table), named because the normalizer's per-key type guard is
 keyed by it.
 
-**[13] `gen_ai.request.stream`:** Streaming, per the GenAI inference-span conventions: gen_ai.request.stream
+**[14] `gen_ai.request.stream`:** Streaming, per the GenAI inference-span conventions: gen_ai.request.stream
 (boolean, Conditionally Required when streaming) and
 gen_ai.response.time_to_first_chunk (double, seconds, "measured from request
 issuance", Recommended for streaming requests). Both are set by
 record_first_token: a first chunk arriving is what proves the request
 streamed, and the SDK has no earlier hook for it.
 
-**[14] `gen_ai.request.temperature`:** Sampling parameters. Produced from a generation's model parameters through
+**[15] `gen_ai.request.temperature`:** Sampling parameters. Produced from a generation's model parameters through
 GEN_AI_REQUEST_PARAMETERS, and by normalization, which promotes them out of
 a third-party instrumentor's request bag (llm.invocation_parameters). Names
 and types are the GenAI registry's.
 
-**[15] `gen_ai.response.id`:** The provider's own identifier for the completion ("chatcmpl-123"),
+**[16] `gen_ai.response.id`:** The provider's own identifier for the completion ("chatcmpl-123"),
 Recommended on an inference span. Metadata: it exists only once the provider
 has answered, so it is a post-call setter and never reaches a pending
 snapshot. Not content (an opaque id says nothing about what was said), so
 it survives capture_content=False.
 
-**[16] `gen_ai.response.time_to_first_chunk`:** The whole time-to-first-chunk signal: no first-token event is written
+**[17] `gen_ai.response.time_to_first_chunk`:** The whole time-to-first-chunk signal: no first-token event is written
 beside it. For a span with no first-chunk event, the backend
 synthesizes the gen_ai.first_token event it stores from this value, at
 span start plus the duration and never after the span's end; a
@@ -243,104 +256,104 @@ clamped to the span's end: LlamaIndex ends its stream_chat span before
 the first chunk arrives, and the backend keeps a recorded marker's
 time as it is.
 
-**[17] `gen_ai.retrieval.documents`:** What the retriever RETURNED, as the conventions define it: a JSON array of
+**[18] `gen_ai.retrieval.documents`:** What the retriever RETURNED, as the conventions define it: a JSON array of
 objects each with an optional `id` and an optional `score`. Identifiers and
 relevance only, never document text, which is why the spec does not mark it
 sensitive and why it is NOT on the content allowlist. It is metadata: known
 only once the search has run, so it never reaches a pending snapshot, and
 it survives capture_content=False because a document id is not content.
 
-**[18] `gen_ai.retrieval.top_k`:** How many documents the retriever was ASKED for, the spec's own framing
+**[19] `gen_ai.retrieval.top_k`:** How many documents the retriever was ASKED for, the spec's own framing
 ("also known as k, limit, or max_num_results"). Identity: it is a property
 of the request, known before the search runs, so it rides pending snapshots.
 
-**[19] `gen_ai.system_instructions`:** The system prompt, apart from the input messages. The TypeScript SDK
+**[20] `gen_ai.system_instructions`:** The system prompt, apart from the input messages. The TypeScript SDK
 writes it when it normalizes a Vercel AI SDK span, as an inline literal
 with no semconv constant, which is why the row is planned rather than
 shipped. Content, listed in CONTENT_ATTRIBUTES by key.
 
-**[20] `gen_ai.tool.call.arguments`:** The arguments the model passed to the tool. The TypeScript SDK writes it
+**[21] `gen_ai.tool.call.arguments`:** The arguments the model passed to the tool. The TypeScript SDK writes it
 from the Vercel AI SDK's ai.toolCall.args, as an inline literal with no
 semconv constant, which is why the row is planned rather than shipped.
 Content, listed in CONTENT_ATTRIBUTES by key.
 
-**[21] `gen_ai.tool.call.id`:** The identifier of the tool call this execution answers: the id the MODEL
+**[22] `gen_ai.tool.call.id`:** The identifier of the tool call this execution answers: the id the MODEL
 minted on its tool-call message, which is what joins a tool span back to the
 generation that asked for it. Identity, set at span creation, so it needs an
 allowlist entry. Never derived: only the caller holds the model's
 response. Its sibling gen_ai.tool.call.arguments IS content and is listed in
 CONTENT_ATTRIBUTES; an opaque id is not.
 
-**[22] `gen_ai.tool.call.result`:** What the tool returned. Written as gen_ai.tool.call.arguments is, from
+**[23] `gen_ai.tool.call.result`:** What the tool returned. Written as gen_ai.tool.call.arguments is, from
 ai.toolCall.result; planned for the same reason. Content, listed in
 CONTENT_ATTRIBUTES by key.
 
-**[23] `gen_ai.tool.definitions`:** The request's tool/function definitions, serialized verbatim (provider
+**[24] `gen_ai.tool.definitions`:** The request's tool/function definitions, serialized verbatim (provider
 shapes differ; the backend reads names and sizes from either). Content,
 not identity, so it is listed in CONTENT_ATTRIBUTES.
 
-**[24] `gen_ai.tool.type`:** What KIND of tool ran, the conventions' own examples being "function"
+**[25] `gen_ai.tool.type`:** What KIND of tool ran, the conventions' own examples being "function"
 (client-side), "extension" (agent-side) and "datastore". Identity for the
 same reason the call id is: caller-supplied, known before the tool runs.
 A free string, not an enum, in the registry.
 
-**[25] `gen_ai.usage.audio.cache_read.input_tokens`:** A per-modality subset of gen_ai.usage.cache_read.input_tokens: never summed
+**[26] `gen_ai.usage.audio.cache_read.input_tokens`:** A per-modality subset of gen_ai.usage.cache_read.input_tokens: never summed
 into it.
 
-**[26] `gen_ai.usage.audio.input_tokens`:** A per-modality subset of gen_ai.usage.input_tokens: never summed
+**[27] `gen_ai.usage.audio.input_tokens`:** A per-modality subset of gen_ai.usage.input_tokens: never summed
 into it.
 
-**[27] `gen_ai.usage.audio.output_tokens`:** A per-modality subset of gen_ai.usage.output_tokens: never summed
+**[28] `gen_ai.usage.audio.output_tokens`:** A per-modality subset of gen_ai.usage.output_tokens: never summed
 into it.
 
-**[28] `gen_ai.usage.cache_write.input_tokens`:** semconv-genai renamed cache_creation -&gt; cache_write (PR #440) before our
+**[29] `gen_ai.usage.cache_write.input_tokens`:** semconv-genai renamed cache_creation -&gt; cache_write (PR #440) before our
 cache fields first shipped; no released SDK version carries the old name.
 
-**[29] `gen_ai.usage.image.cache_read.input_tokens`:** A per-modality subset of gen_ai.usage.cache_read.input_tokens: never summed
+**[30] `gen_ai.usage.image.cache_read.input_tokens`:** A per-modality subset of gen_ai.usage.cache_read.input_tokens: never summed
 into it.
 
-**[30] `gen_ai.usage.image.input_tokens`:** A per-modality subset of gen_ai.usage.input_tokens: never summed
+**[31] `gen_ai.usage.image.input_tokens`:** A per-modality subset of gen_ai.usage.input_tokens: never summed
 into it.
 
-**[31] `gen_ai.usage.image.output_tokens`:** A per-modality subset of gen_ai.usage.output_tokens: never summed
+**[32] `gen_ai.usage.image.output_tokens`:** A per-modality subset of gen_ai.usage.output_tokens: never summed
 into it.
 
-**[32] `gen_ai.usage.text.cache_read.input_tokens`:** A per-modality subset of gen_ai.usage.cache_read.input_tokens: never summed
+**[33] `gen_ai.usage.text.cache_read.input_tokens`:** A per-modality subset of gen_ai.usage.cache_read.input_tokens: never summed
 into it.
 
-**[33] `gen_ai.usage.text.input_tokens`:** A per-modality subset of gen_ai.usage.input_tokens: never summed
+**[34] `gen_ai.usage.text.input_tokens`:** A per-modality subset of gen_ai.usage.input_tokens: never summed
 into it.
 
-**[34] `gen_ai.usage.text.output_tokens`:** A per-modality subset of gen_ai.usage.output_tokens: never summed
+**[35] `gen_ai.usage.text.output_tokens`:** A per-modality subset of gen_ai.usage.output_tokens: never summed
 into it.
 
-**[35] `mcp.method.name`:** OTel MCP semantic conventions (semantic-conventions-genai, Development
+**[36] `mcp.method.name`:** OTel MCP semantic conventions (semantic-conventions-genai, Development
 stability). mcp.method.name is the REQUIRED attribute of an MCP client span
 and the marker everything downstream keys on: a local TOOL span has the same
 kind, name and I/O shape, so this is what tells the two apart.
 
-**[36] `mcp.protocol.version`:** The version the initialize handshake negotiated, not the one we asked for.
+**[37] `mcp.protocol.version`:** The version the initialize handshake negotiated, not the one we asked for.
 
-**[37] `process.exit.code`:** A shell tool call's exit code, when the agent reports one: Codex and
+**[38] `process.exit.code`:** A shell tool call's exit code, when the agent reports one: Codex and
 Cursor on every call that has one, Claude Code only on a failed call.
 Written next to rius.command.class, so a failed test run reads as such
 without the command or its output.
 
-**[38] `process.working_directory`:** The directory a coding-agent session runs in, as the agent reports it.
+**[39] `process.working_directory`:** The directory a coding-agent session runs in, as the agent reports it.
 The OTel process convention's key for the fact, replacing cc.cwd,
 codex.cwd and cursor.cwd. The backend shows a trace's repository from
 it only on spans whose telemetry.distro.name is the plugin's, since any
 process may send the key, and reads the old per-agent spellings for
 traces stored before.
 
-**[39] `service.instance.id`:** OTel standard identity of one process lifetime (one uuid per client, minted
+**[40] `service.instance.id`:** OTel standard identity of one process lifetime (one uuid per client, minted
 at init). The heartbeat payload's instance_id carries the SAME value, which
 is what lets the backend join heartbeats to traces and count replicas.
 
-**[40] `service.name`:** OTel standard logical service name. The backend falls back to it when a
+**[41] `service.name`:** OTel standard logical service name. The backend falls back to it when a
 process names no agent.
 
-**[41] `service.version`:** OTel standard version of the deployed service. Metadata about the process,
+**[42] `service.version`:** OTel standard version of the deployed service. Metadata about the process,
 not about any one span. Stamped only when a version is actually known: there
 is deliberately no placeholder default, because a fake one merges every
 deployment into a single bucket, the same mistake `unknown_service` makes
@@ -349,11 +362,11 @@ The coding-agent plugin stamps the coding agent's own version here (Claude
 Code, Codex or Cursor, which service.name names), replacing cc.version,
 codex.version and cursor.version.
 
-**[42] `session.id`:** The session grouping key. OpenInference's spelling, and the one the sink
+**[43] `session.id`:** The session grouping key. OpenInference's spelling, and the one the sink
 reads first; gen_ai.conversation.id is deliberately not emitted alongside
 it, one name for one fact.
 
-**[43] `telemetry.distro.name`:** Names the distribution that exported the span. Both SDKs set it to
+**[44] `telemetry.distro.name`:** Names the distribution that exported the span. Both SDKs set it to
 "glassflow-rius", a literal with no value row since the backend never
 matches on it. The coding-agent plugin sets
 TELEMETRY_DISTRO_NAME_CODING_AGENTS, and the backend reads
@@ -361,15 +374,15 @@ process.working_directory and vcs.ref.head.name as a coding session's
 repo and branch only on spans carrying that value: both keys are general
 OpenTelemetry keys any process may send.
 
-**[44] `telemetry.distro.version`:** The version of the distribution that exported the span: the SDK's, or the
+**[45] `telemetry.distro.version`:** The version of the distribution that exported the span: the SDK's, or the
 coding-agent plugin's.
 
-**[45] `user.id`:** The end-user identity. OpenInference's spelling, also what Langfuse reads
+**[46] `user.id`:** The end-user identity. OpenInference's spelling, also what Langfuse reads
 and what the OTel registry lists; the sink additionally accepts OTel's
 enduser.id / enduser.pseudo.id from third-party instrumentors, but the SDKs
 emit one name for one fact.
 
-**[46] `vcs.ref.head.name`:** The git branch a coding-agent session runs on, as the agent reports it.
+**[47] `vcs.ref.head.name`:** The git branch a coding-agent session runs on, as the agent reports it.
 The OTel VCS convention's key for the current reference, the one Claude
 Code's own telemetry uses too, replacing cc.git_branch, codex.git_branch
 and cursor.git_branch. Like process.working_directory, the backend reads

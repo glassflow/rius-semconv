@@ -74,6 +74,7 @@ params:
   - const: GEN_AI_REQUEST_ENCODING_FORMATS
   - const: GEN_AI_REQUEST_PREVIOUS_RESPONSE_ID
   - const: GEN_AI_REQUEST_STREAM_CURSOR
+  - const: GEN_AI_CONVERSATION_COMPACTED
   - const: GEN_AI_USAGE_INPUT_TOKENS
   - const: GEN_AI_USAGE_OUTPUT_TOKENS
   - const: GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS
@@ -145,7 +146,53 @@ params:
       names each usage key on its own.
   - const: RIUS_AGGREGATED_USAGE_PREFIX
   - const: RIUS_CONTEXT_SIZES
+  - const: RIUS_COMPACTION_KIND
+  - const: RIUS_COMPACTION_KIND_SUMMARIZE
+    key: summarize
+    symbol: value
+    of: RIUS_COMPACTION_KIND
+  - const: RIUS_COMPACTION_KIND_CLEAR_TOOL_RESULTS
+    key: clear_tool_results
+    symbol: value
+    of: RIUS_COMPACTION_KIND
+  - const: RIUS_COMPACTION_KIND_CLEAR_THINKING
+    key: clear_thinking
+    symbol: value
+    of: RIUS_COMPACTION_KIND
+  - const: RIUS_COMPACTION_KIND_TRUNCATE
+    key: truncate
+    symbol: value
+    of: RIUS_COMPACTION_KIND
+  - const: RIUS_COMPACTION_EXECUTOR
+  - const: RIUS_COMPACTION_EXECUTOR_CLIENT
+    key: client
+    symbol: value
+    of: RIUS_COMPACTION_EXECUTOR
+  - const: RIUS_COMPACTION_EXECUTOR_PROVIDER
+    key: provider
+    symbol: value
+    of: RIUS_COMPACTION_EXECUTOR
+  - const: RIUS_COMPACTION_TRIGGER
+  - const: RIUS_COMPACTION_TRIGGER_AUTO
+    key: auto
+    symbol: value
+    of: RIUS_COMPACTION_TRIGGER
+  - const: RIUS_COMPACTION_TRIGGER_MANUAL
+    key: manual
+    symbol: value
+    of: RIUS_COMPACTION_TRIGGER
+  - const: RIUS_COMPACTION_TOKENS_BEFORE
+  - const: RIUS_COMPACTION_TOKENS_AFTER
+  - const: RIUS_COMPACTION_TOKENS_DROPPED
+  - const: RIUS_COMPACTION_CONTEXT_WINDOW
+  - const: RIUS_COMPACTION_MESSAGES_COMPACTED
+  - const: RIUS_COMPACTION_MESSAGES_KEPT
+  - const: RIUS_COMPACTION_TOOL_RESULTS_CLEARED
+  - const: RIUS_COMPACTION_ID
+  - const: RIUS_COMPACTION_SUMMARY_BYTES
+  - const: RIUS_COMPACTION_SUMMARY_TEXT
   - const: GEN_AI_FIRST_TOKEN_EVENT
+  - const: RIUS_COMPACTION_EVENT
   - const: RIUS_SPAN_PENDING
   - const: RIUS_PARENT_FOREIGN
   - const: RIUS_SDK_GLOBAL_PROVIDER
@@ -837,6 +884,12 @@ params:
           BEFORE masking and has already promoted every member the rule table
           recognises onto gen_ai.request.*, so what reaches here is exactly
           the set nothing has classified.
+      - ref: RIUS_COMPACTION_SUMMARY_TEXT
+        note: |
+          A compaction's summary restates the conversation it replaced, so it
+          is content in the same sense messages are. Its size,
+          rius.compaction.summary.bytes, is not: it stays off this list and
+          survives masking.
       derived:
         prefixes:
         - GEN_AI_REQUEST_PREFIX
@@ -1079,8 +1132,8 @@ params:
         go: KindByOperation
       doc: |
         The inverse, for spans that speak the conventions (and the GenAI-native
-        vendor operations listed below, such as agent_step and rerank). A
-        GenAI-native instrumentation sets gen_ai.operation.name and never heard of
+        vendor operations listed below, such as agent_step, compaction and rerank).
+        A GenAI-native instrumentation sets gen_ai.operation.name and never heard of
         openinference.span.kind, and both keys must be present on every span, so
         the derivation has to run in both directions.
 
@@ -1090,7 +1143,7 @@ params:
             are LLM calls the same way chat is, and create_agent is an AGENT span
             just as invoke_agent is, so the mapping is many-to-one and only the
             chat/invoke_agent entries round-trip.
-          - CHAIN has no operation of its own, but three operations land on it.
+          - CHAIN has no operation of its own, but four operations land on it.
             invoke_workflow and plan are real GenAI operations with no taxonomy
             value of their own; CHAIN is the honest home for both, and the reverse
             direction is the only one that can say so. agent_step is not a
@@ -1098,6 +1151,13 @@ params:
             each step of an agent run (one model call and the tools it asked
             for), a step within the run rather than an agent invocation, so
             CHAIN as well.
+          - compaction is not a conventions operation either. A producer writes it
+            on the span of a step that shrinks the agent's context (a summary
+            replaces older turns, tool results are cleared, old turns are cut). The
+            step is not a model call and not an agent invocation, so neither LLM
+            nor AGENT fits, even when a model writes the summary: the cost of that
+            call, if any, is its own LLM span. CHAIN is the honest home, as for
+            agent_step. The span's attributes are the rius.compaction.* keys.
           - LLM also takes four operations @ai-sdk/otel writes that no convention
             defines, kept as written rather than rewritten to chat or given an
             invented name: decide (the experimental decision call: an operation
@@ -1130,6 +1190,8 @@ params:
       - - plan
         - CHAIN
       - - agent_step
+        - CHAIN
+      - - compaction
         - CHAIN
       - - decide
         - LLM

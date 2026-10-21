@@ -99,12 +99,16 @@ def test_python_allowlists(py_module):
     content = py_module["CONTENT_ATTRIBUTES"]["__set__"]
     assert "llm.invocation_parameters" in content
     assert {"gen_ai.request.tools", "rius.request.functions"} <= set(content)
+    # A summary restates the conversation; its size does not.
+    assert "rius.compaction.summary.text" in content
+    assert "rius.compaction.summary.bytes" not in content
 
 
 def test_python_tables(py_module):
     assert py_module["_OPERATION_BY_KIND"]["LLM"] == "chat"
     assert "CHAIN" not in py_module["_OPERATION_BY_KIND"]
     assert py_module["_KIND_BY_OPERATION"]["plan"] == "CHAIN"
+    assert py_module["_KIND_BY_OPERATION"]["compaction"] == "CHAIN"
     assert py_module["_OPERATION_BY_KIND"]["RERANKER"] == "rerank"
     assert py_module["_KIND_BY_OPERATION"]["rerank"] == "RERANKER"
     assert py_module["_OTEL_KIND_BY_KIND"]["TOOL"] == "INTERNAL"

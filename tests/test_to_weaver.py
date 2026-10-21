@@ -112,10 +112,19 @@ def test_the_upstream_main_agent_keys_are_referenced_not_defined(files, own):
         assert f"gen_ai.main_agent.{field}" not in defined
 
 
-def test_the_rius_event_is_an_event(own):
-    (event,) = own["events"]
-    assert event["name"] == "gen_ai.first_token"
-    assert event["requirement_level"] == "recommended"
+def test_no_attribute_name_is_also_a_namespace(own):
+    # OpenTelemetry's naming rules: a key that holds a value cannot also be the
+    # parent of another key. rius.request is a template, the one deliberate pair.
+    keys = {a["key"] for a in own["attributes"] if not a["type"].startswith("template[")}
+    for key in keys:
+        assert not any(other.startswith(key + ".") for other in keys), key
+
+
+def test_the_rius_events_are_events(own):
+    events = {e["name"]: e for e in own["events"]}
+    assert set(events) == {"gen_ai.first_token", "rius.compaction"}
+    for event in events.values():
+        assert event["requirement_level"] == "recommended"
 
 
 def test_columns_without_a_weaver_field_ride_the_annotation(own):

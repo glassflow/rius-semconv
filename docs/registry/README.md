@@ -12,6 +12,6 @@ namespace Rius defines keys in, then the keys it takes from elsewhere.
 | [`cursor`](cursor.md) | 19 | Rius keys outside `rius.*`, by namespace exception or deprecated. |
 | [`gen_ai`](gen_ai.md) | 1 | Rius keys outside `rius.*`, by namespace exception or deprecated. |
 | [`mcp`](mcp.md) | 1 | Rius keys outside `rius.*`, by namespace exception or deprecated. |
-| [`rius`](rius.md) | 13 | The namespace Rius owns. |
-| [Upstream keys](upstream.md) | 69 | OpenTelemetry keys the SDKs emit or read, linked to their upstream definitions. |
+| [`rius`](rius.md) | 27 | The namespace Rius owns. |
+| [Upstream keys](upstream.md) | 70 | OpenTelemetry keys the SDKs emit or read, linked to their upstream definitions. |
 | [Keys other producers write](normalizer-inputs.md) | 34 | OpenInference, OpenLLMetry, Vercel AI SDK and pydantic-ai keys the SDKs emit or the normalizers read. |

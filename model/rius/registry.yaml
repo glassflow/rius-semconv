@@ -17,6 +17,19 @@ attribute_groups:
   - ref: rius.request.tool_choice
   - ref: rius.aggregated_usage
   - ref: rius.context.sizes
+  - ref: rius.compaction.kind
+  - ref: rius.compaction.executor
+  - ref: rius.compaction.trigger
+  - ref: rius.compaction.tokens.before
+  - ref: rius.compaction.tokens.after
+  - ref: rius.compaction.tokens.dropped
+  - ref: rius.compaction.context_window
+  - ref: rius.compaction.messages.compacted
+  - ref: rius.compaction.messages.kept
+  - ref: rius.compaction.tool_results.cleared
+  - ref: rius.compaction.id
+  - ref: rius.compaction.summary.bytes
+  - ref: rius.compaction.summary.text
   - ref: rius.span.pending
   - ref: rius.parent.foreign
   - ref: rius.sdk.global_provider
@@ -462,6 +475,445 @@ attributes:
         messages are truncated or stripped) and from PENDING_IDENTITY_ATTRIBUTES
         (content is unknown at span start, so a pending snapshot never has it).
       wire_type: json
+- key: rius.compaction.kind
+  type: string
+  brief: 'What a compaction did to the context: summarize, clear_tool_results, clear_thinking or truncate.'
+  note: |
+    How the context was shrunk: summarize (a summary replaces older turns),
+    clear_tool_results (old tool results are emptied), clear_thinking (old
+    thinking blocks are dropped) or truncate (old turns are cut with nothing
+    in their place). A reader needs it because the four lose different
+    things, and a drop in context between two calls means something else
+    after each.
+    Required on a compaction span and a rius.compaction event, which is why
+    it is conditionally required rather than required: only those carry it,
+    and a CHAIN or LLM span that is no compaction has nothing to say here.
+    The span form is keyed by gen_ai.operation.name, not by the span name:
+    the registry's conventions already key spans by the operation, and
+    taxonomy.yaml maps "compaction" to the CHAIN kind from it, so a reader
+    that finds compaction spans by operation needs no name parsing.
+    A Rius key under rius.*, never gen_ai.*: no convention defines a
+    compaction span or event, and the GenAI registry is free to define one
+    later and mean something else.
+  stability: development
+  examples:
+  - summarize
+  - clear_tool_results
+  annotations:
+    rius:
+      const: RIUS_COMPACTION_KIND
+      section: |
+        --- Context compaction ---
+        An agent's context can shrink in two ways: the history is dropped without
+        a word, or the producer compacts it on purpose. A backend can tell the two
+        apart only if the producer says so, and no convention carries more than a
+        boolean on the calls that ran on a compacted context
+        (gen_ai.conversation.compacted).
+        The rius.compaction.* keys say what was compacted, by whom and how much.
+
+        They ride in two placements, because compaction happens in two ways. A
+        compaction that is a step of its own (Claude Code, Codex, an on-demand
+        provider call) is a CHAIN span whose gen_ai.operation.name is
+        "compaction", carrying the keys itself. A compaction that happens inside
+        one request (provider-side context editing, Cursor's preCompact) is a
+        rius.compaction span event on that LLM span, carrying the same keys.
+        Every LLM call that runs on the compacted context sets
+        gen_ai.conversation.compacted.
+      key: rius.compaction.kind
+      symbol: attribute
+      origin: rius
+      kinds:
+      - CHAIN
+      - LLM
+      category: metadata
+      level: conditionally_required
+      level_note: on every compaction span and rius.compaction event
+      type: string
+      fill:
+      - native
+      - coding_agents
+      rationale: |
+        How the context was shrunk: summarize (a summary replaces older turns),
+        clear_tool_results (old tool results are emptied), clear_thinking (old
+        thinking blocks are dropped) or truncate (old turns are cut with nothing
+        in their place). A reader needs it because the four lose different
+        things, and a drop in context between two calls means something else
+        after each.
+        Required on a compaction span and a rius.compaction event, which is why
+        it is conditionally required rather than required: only those carry it,
+        and a CHAIN or LLM span that is no compaction has nothing to say here.
+        The span form is keyed by gen_ai.operation.name, not by the span name:
+        the registry's conventions already key spans by the operation, and
+        taxonomy.yaml maps "compaction" to the CHAIN kind from it, so a reader
+        that finds compaction spans by operation needs no name parsing.
+        A Rius key under rius.*, never gen_ai.*: no convention defines a
+        compaction span or event, and the GenAI registry is free to define one
+        later and mean something else.
+- key: rius.compaction.executor
+  type: string
+  brief: 'Who performed the compaction: the client that sent the request, or the provider.'
+  note: |
+    client when the application or agent did the work (it summarized the
+    history itself, or cut it before sending), provider when the model
+    provider did it on its side (context editing, a server-side compaction
+    call). It tells a reader whose behaviour to look at when context
+    shrinks: the agent's own policy, or a provider setting. Required where
+    rius.compaction.kind is, for the same reason.
+  stability: development
+  examples:
+  - client
+  - provider
+  annotations:
+    rius:
+      const: RIUS_COMPACTION_EXECUTOR
+      key: rius.compaction.executor
+      symbol: attribute
+      origin: rius
+      kinds:
+      - CHAIN
+      - LLM
+      category: metadata
+      level: conditionally_required
+      level_note: on every compaction span and rius.compaction event
+      type: string
+      fill:
+      - native
+      - coding_agents
+      rationale: |
+        client when the application or agent did the work (it summarized the
+        history itself, or cut it before sending), provider when the model
+        provider did it on its side (context editing, a server-side compaction
+        call). It tells a reader whose behaviour to look at when context
+        shrinks: the agent's own policy, or a provider setting. Required where
+        rius.compaction.kind is, for the same reason.
+- key: rius.compaction.trigger
+  type: string
+  brief: 'What started the compaction: the context filling up (auto) or a request to compact (manual).'
+  note: |
+    auto when the producer or provider compacted because the context neared
+    its limit, manual when a person or the calling code asked for it (a
+    /compact command, an explicit call). Absent when the producer cannot
+    tell. It separates a compaction that was a cost of the run from one
+    somebody chose.
+  stability: development
+  examples:
+  - auto
+  - manual
+  annotations:
+    rius:
+      const: RIUS_COMPACTION_TRIGGER
+      key: rius.compaction.trigger
+      symbol: attribute
+      origin: rius
+      kinds:
+      - CHAIN
+      - LLM
+      category: metadata
+      level: vendor
+      type: string
+      fill:
+      - native
+      - coding_agents
+      rationale: |
+        auto when the producer or provider compacted because the context neared
+        its limit, manual when a person or the calling code asked for it (a
+        /compact command, an explicit call). Absent when the producer cannot
+        tell. It separates a compaction that was a cost of the run from one
+        somebody chose.
+- key: rius.compaction.tokens.before
+  type: int
+  brief: Tokens in the context just before the compaction.
+  note: |
+    The size of the context the compaction started from, in the model's
+    tokens. Not gen_ai.usage.input_tokens: that bills one request, while this
+    measures the context window's contents at a point in time.
+  stability: development
+  examples:
+  - 168000
+  annotations:
+    rius:
+      const: RIUS_COMPACTION_TOKENS_BEFORE
+      key: rius.compaction.tokens.before
+      symbol: attribute
+      origin: rius
+      kinds:
+      - CHAIN
+      - LLM
+      category: metadata
+      level: vendor
+      type: int
+      fill:
+      - native
+      - coding_agents
+      rationale: |
+        The size of the context the compaction started from, in the model's
+        tokens. Not gen_ai.usage.input_tokens: that bills one request, while this
+        measures the context window's contents at a point in time.
+- key: rius.compaction.tokens.after
+  type: int
+  brief: Tokens in the context just after the compaction.
+  note: |
+    The size of the context the compaction left behind, measured the same
+    way as rius.compaction.tokens.before.
+  stability: development
+  examples:
+  - 31000
+  annotations:
+    rius:
+      const: RIUS_COMPACTION_TOKENS_AFTER
+      key: rius.compaction.tokens.after
+      symbol: attribute
+      origin: rius
+      kinds:
+      - CHAIN
+      - LLM
+      category: metadata
+      level: vendor
+      type: int
+      fill:
+      - native
+      - coding_agents
+      rationale: |
+        The size of the context the compaction left behind, measured the same
+        way as rius.compaction.tokens.before.
+- key: rius.compaction.tokens.dropped
+  type: int
+  brief: How many tokens the compaction removed from the context.
+  note: |
+    What the compaction removed: tokens.before minus tokens.after when both
+    are known. Its own key because a provider that clears tool results often
+    reports only how much it cleared and never the two sizes, and a reader
+    should not have to subtract to answer "how much was lost".
+  stability: development
+  examples:
+  - 137000
+  annotations:
+    rius:
+      const: RIUS_COMPACTION_TOKENS_DROPPED
+      key: rius.compaction.tokens.dropped
+      symbol: attribute
+      origin: rius
+      kinds:
+      - CHAIN
+      - LLM
+      category: metadata
+      level: vendor
+      type: int
+      fill:
+      - native
+      - coding_agents
+      rationale: |
+        What the compaction removed: tokens.before minus tokens.after when both
+        are known. Its own key because a provider that clears tool results often
+        reports only how much it cleared and never the two sizes, and a reader
+        should not have to subtract to answer "how much was lost".
+- key: rius.compaction.context_window
+  type: int
+  brief: The size of the model's context window, in tokens, when the compaction ran.
+  note: |
+    The limit the context was measured against, so tokens.before reads as how
+    full the window was. Shared form of what Cursor's preCompact hook reports
+    as cursor.context.context_window_size.
+  stability: development
+  examples:
+  - 200000
+  annotations:
+    rius:
+      const: RIUS_COMPACTION_CONTEXT_WINDOW
+      key: rius.compaction.context_window
+      symbol: attribute
+      origin: rius
+      kinds:
+      - CHAIN
+      - LLM
+      category: metadata
+      level: vendor
+      type: int
+      fill:
+      - native
+      - coding_agents
+      rationale: |
+        The limit the context was measured against, so tokens.before reads as how
+        full the window was. Shared form of what Cursor's preCompact hook reports
+        as cursor.context.context_window_size.
+- key: rius.compaction.messages.compacted
+  type: int
+  brief: How many messages the compaction replaced or removed.
+  note: |
+    The number of messages that were summarized, cut or emptied, whichever
+    the kind says.
+  stability: development
+  examples:
+  - 42
+  annotations:
+    rius:
+      const: RIUS_COMPACTION_MESSAGES_COMPACTED
+      key: rius.compaction.messages.compacted
+      symbol: attribute
+      origin: rius
+      kinds:
+      - CHAIN
+      - LLM
+      category: metadata
+      level: vendor
+      type: int
+      fill:
+      - native
+      - coding_agents
+      rationale: |
+        The number of messages that were summarized, cut or emptied, whichever
+        the kind says.
+- key: rius.compaction.messages.kept
+  type: int
+  brief: How many messages the compaction left in the context as they were.
+  note: |
+    The messages the next call still sees unchanged, usually the most recent
+    turns. The summary, when there is one, is not counted here.
+  stability: development
+  examples:
+  - 6
+  annotations:
+    rius:
+      const: RIUS_COMPACTION_MESSAGES_KEPT
+      key: rius.compaction.messages.kept
+      symbol: attribute
+      origin: rius
+      kinds:
+      - CHAIN
+      - LLM
+      category: metadata
+      level: vendor
+      type: int
+      fill:
+      - native
+      - coding_agents
+      rationale: |
+        The messages the next call still sees unchanged, usually the most recent
+        turns. The summary, when there is one, is not counted here.
+- key: rius.compaction.tool_results.cleared
+  type: int
+  brief: How many tool results the compaction emptied.
+  note: |
+    Set for a clear_tool_results compaction, where the messages stay but
+    their tool results are replaced by a placeholder, so
+    rius.compaction.messages.compacted does not describe the loss.
+  stability: development
+  examples:
+  - 18
+  annotations:
+    rius:
+      const: RIUS_COMPACTION_TOOL_RESULTS_CLEARED
+      key: rius.compaction.tool_results.cleared
+      symbol: attribute
+      origin: rius
+      kinds:
+      - CHAIN
+      - LLM
+      category: metadata
+      level: vendor
+      type: int
+      fill:
+      - native
+      - coding_agents
+      rationale: |
+        Set for a clear_tool_results compaction, where the messages stay but
+        their tool results are replaced by a placeholder, so
+        rius.compaction.messages.compacted does not describe the loss.
+- key: rius.compaction.id
+  type: string
+  brief: The identifier the provider or the agent gave one compaction, when it has one.
+  note: |
+    Lets a reader join a compaction to the record the provider or the agent
+    keeps for it. Set only when one exists: an id is never made up, as with
+    gen_ai.conversation.id.
+  stability: development
+  examples:
+  - cmp_9f3a2c
+  annotations:
+    rius:
+      const: RIUS_COMPACTION_ID
+      key: rius.compaction.id
+      symbol: attribute
+      origin: rius
+      kinds:
+      - CHAIN
+      - LLM
+      category: metadata
+      level: vendor
+      type: string
+      fill:
+      - native
+      - coding_agents
+      rationale: |
+        Lets a reader join a compaction to the record the provider or the agent
+        keeps for it. Set only when one exists: an id is never made up, as with
+        gen_ai.conversation.id.
+- key: rius.compaction.summary.bytes
+  type: int
+  brief: The size of the summary that replaced the compacted context, in bytes.
+  note: |
+    A size, not content, like rius.context.sizes: deliberately absent from
+    CONTENT_ATTRIBUTES, so it survives masking and capture_content=False and
+    a reader can see how big the summary was when its text is withheld.
+  stability: development
+  examples:
+  - 4096
+  annotations:
+    rius:
+      const: RIUS_COMPACTION_SUMMARY_BYTES
+      key: rius.compaction.summary.bytes
+      symbol: attribute
+      origin: rius
+      kinds:
+      - CHAIN
+      - LLM
+      category: metadata
+      level: vendor
+      type: int
+      fill:
+      - native
+      - coding_agents
+      rationale: |
+        A size, not content, like rius.context.sizes: deliberately absent from
+        CONTENT_ATTRIBUTES, so it survives masking and capture_content=False and
+        a reader can see how big the summary was when its text is withheld.
+- key: rius.compaction.summary.text
+  type: string
+  brief: The text of the summary that replaced the compacted context.
+  note: |
+    What the summary said, for a summarize compaction. Content in the same
+    sense messages are: a summary restates the conversation, so it is on
+    CONTENT_ATTRIBUTES and is masked or stripped at export. Never on a
+    pending snapshot, since it exists only once the compaction ran.
+    A leaf under rius.compaction.summary rather than the key itself, so the
+    name is not also the namespace of rius.compaction.summary.bytes, which
+    the OpenTelemetry naming rules do not allow for an attribute.
+  stability: development
+  examples:
+  - The user is migrating the billing service to the new queue. The consumer is done; the retry policy is still open.
+  annotations:
+    rius:
+      const: RIUS_COMPACTION_SUMMARY_TEXT
+      key: rius.compaction.summary.text
+      symbol: attribute
+      origin: rius
+      kinds:
+      - CHAIN
+      - LLM
+      category: content
+      level: vendor
+      type: string
+      fill:
+      - native
+      - coding_agents
+      rationale: |
+        What the summary said, for a summarize compaction. Content in the same
+        sense messages are: a summary restates the conversation, so it is on
+        CONTENT_ATTRIBUTES and is masked or stripped at export. Never on a
+        pending snapshot, since it exists only once the compaction ran.
+        A leaf under rius.compaction.summary rather than the key itself, so the
+        name is not also the namespace of rius.compaction.summary.bytes, which
+        the OpenTelemetry naming rules do not allow for an attribute.
 - key: rius.span.pending
   type: boolean
   brief: Marks the content-free snapshot of a span that is exported when the span starts, before the real span ends.
@@ -1897,3 +2349,29 @@ events:
         creates. Producers need not send it. The constant stays, deprecated,
         until a major release.
       replaced_by: gen_ai.response.time_to_first_chunk
+- name: rius.compaction
+  brief: The context of this model call was compacted inside the request.
+  note: |
+    A compaction that happens inside one request, with no step of its own:
+    the provider edits the context as part of the call, or the agent's hook
+    reports it while the call is open. It is an event on that LLM span and
+    carries the rius.compaction.* attributes. A compaction that is a step of
+    its own is a CHAIN span with gen_ai.operation.name "compaction" instead,
+    never both for the same compaction. Every LLM call that runs on the
+    compacted context sets gen_ai.conversation.compacted.
+  stability: development
+  requirement_level: recommended
+  annotations:
+    rius:
+      const: RIUS_COMPACTION_EVENT
+      key: rius.compaction
+      symbol: event
+      origin: rius
+      rationale: |
+        A compaction that happens inside one request, with no step of its own:
+        the provider edits the context as part of the call, or the agent's hook
+        reports it while the call is open. It is an event on that LLM span and
+        carries the rius.compaction.* attributes. A compaction that is a step of
+        its own is a CHAIN span with gen_ai.operation.name "compaction" instead,
+        never both for the same compaction. Every LLM call that runs on the
+        compacted context sets gen_ai.conversation.compacted.
