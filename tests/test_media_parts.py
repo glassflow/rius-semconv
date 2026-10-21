@@ -33,7 +33,7 @@ def test_committed_file_is_clean(base_data):
 
 def test_every_row_has_a_source_shape_and_direction(base_data):
     rows = base_data["media_parts"]["rows"]
-    assert len(rows) == 37
+    assert len(rows) == 39
     assert {r["direction"] for r in rows} == {"input", "output"}
 
 
@@ -1220,3 +1220,38 @@ def test_byte_objects_rendered(base_data):
     assert "### Byte objects" in table
     for example in BYTE_OBJECTS["examples"]:
         assert f"`{example['name']}`" in table
+
+
+# --- LangChain v1 reference blocks and message example attributes ---------------
+
+
+def test_langchain_v1_reference_rows_name_the_prompt_paths(base_data):
+    rows = [
+        r
+        for r in base_data["media_parts"]["rows"]
+        if r["source"] == "langchain.messages" and r["shape"].startswith("v1 ")
+    ]
+    assert len(rows) == 3
+    for row in rows:
+        assert {"openllmetry", "laminar"} <= set(row["paths"]), row["shape"]
+    assert not any("not mapped yet" in str(r.get("note")) for r in rows)
+
+
+def test_message_examples_cover_the_prompt_paths(base_data):
+    examples = base_data["media_parts"]["part_shapes"]["message_examples"]
+    sources = {e["source"] for e in examples}
+    assert "gen_ai.prompt.0.content" in sources
+    assert any((e.get("attributes") or {}).get("lmnr.span.type") == "LLM" for e in examples)
+
+
+def test_message_example_attributes_must_be_strings(data):
+    example = data["media_parts"]["part_shapes"]["message_examples"][0]
+    example["attributes"] = {"gen_ai.prompt.0.role": 5}
+    assert_flags(media_parts.lint(data["media_parts"]), "attributes must map keys to strings")
+
+
+def test_a_generic_row_needs_no_modality(data):
+    rows = data["media_parts"]["rows"]
+    (row,) = [r for r in rows if r["normalized"] == "generic"]
+    assert "modality" not in row
+    assert media_parts.lint(data["media_parts"]) == []

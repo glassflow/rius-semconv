@@ -302,6 +302,11 @@ def lint_part_shapes(data: dict) -> list[str]:
         except (KeyError, ValueError):
             errors.append(f"{where} message example {name} needs JSON input and output")
             continue
+        attributes = example.get("attributes", {})
+        if not isinstance(attributes, dict) or not all(
+            isinstance(k, str) and isinstance(v, str) for k, v in attributes.items()
+        ):
+            errors.append(f"{where} message example {name} attributes must map keys to strings")
         for part in _json_objects(after):
             if part.get("type") in PART_MEMBERS:
                 errors += [
@@ -1348,7 +1353,12 @@ def _render_part_shapes(shapes: dict) -> list[str]:
         lines += ["Output:", "", "```json", example["output"], "```", ""]
     for example in shapes.get("message_examples") or []:
         lines += [f"#### `{example['name']}`", "", _prose(example["from"]), ""]
-        lines += [f"Input ({example['source']}):", "", "```json", example["input"], "```", ""]
+        beside = "".join(
+            f", with `{key}` = `{value}`"
+            for key, value in (example.get("attributes") or {}).items()
+        )
+        source = f"{example['source']}{beside}"
+        lines += [f"Input ({source}):", "", "```json", example["input"], "```", ""]
         lines += ["Output (gen_ai.input.messages):", "", "```json", example["output"], "```", ""]
     return lines
 
