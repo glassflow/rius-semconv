@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.7.0](https://github.com/glassflow/rius-semconv/compare/v1.6.0...v1.7.0) (2026-10-21)
+
+
+### Features
+
+* decide pydantic-ai's Gemini image and audio usage details ([#83](https://github.com/glassflow/rius-semconv/issues/83)) ([e1c20a5](https://github.com/glassflow/rius-semconv/commit/e1c20a5b768865b711e7ef977e33dbe824d8ebc6))
+* media parts contract and byte-identical raw-payload stripping ([#74](https://github.com/glassflow/rius-semconv/issues/74)) ([c57bca4](https://github.com/glassflow/rius-semconv/commit/c57bca42590b2986741859178b76660682295067))
+* settle non-http URIs, empty and redacted references and the Vercel fallback in media parts ([#81](https://github.com/glassflow/rius-semconv/issues/81)) ([c41e782](https://github.com/glassflow/rius-semconv/commit/c41e782da010d95a1ca7ef241580b0bfdc58cbe6))
+* strip LangChain v1, Bedrock and Mistral audio base64 from raw payloads ([#80](https://github.com/glassflow/rius-semconv/issues/80)) ([2ee2925](https://github.com/glassflow/rius-semconv/commit/2ee29256a0a38184f3495cf2f45028bc98bdb524))
+* strip Vercel image parts and LangChain v0 base64, write byte objects as the strip marker, map LangChain v1 reference blocks ([#82](https://github.com/glassflow/rius-semconv/issues/82)) ([8436c52](https://github.com/glassflow/rius-semconv/commit/8436c523f40e67af0caf1c25bce5e8d24f1f3667))
+
+
+### Bug Fixes
+
+* strip a data URL that follows a link or wraps across lines ([#84](https://github.com/glassflow/rius-semconv/issues/84)) ([2be324c](https://github.com/glassflow/rius-semconv/commit/2be324c7a914e66de964e34e184c70305755f39f))
+
 ## [1.6.0](https://github.com/glassflow/rius-semconv/compare/v1.5.0...v1.6.0) (2026-10-19)
 
 
