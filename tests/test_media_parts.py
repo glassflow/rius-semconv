@@ -723,16 +723,22 @@ def test_rows_with_a_part_example_follow_the_member_order(base_data):
                 assert list(part) == [m for m in members[part["type"]] if m in part]
 
 
-def test_in_place_example_changes_only_the_part(base_data):
-    for example in base_data["media_parts"]["part_shapes"]["in_place_examples"]:
-        before, after = example["input"], example["output"]
-        start = after.index('{"type":')
-        end = after.index("}", start) + 1
-        assert after[:start] == before[: before.index('{"type"')]
-        assert after[end:] == before[before.index("}", before.index('{"type"')) + 1 :]
-        assert list(json.loads(after[start:end])) == [
-            "type", "modality", "mime_type", "byte_size", "stripped_reason",
-        ]  # fmt: skip
+IN_PLACE_EXAMPLES = Registry.load().media_parts["part_shapes"]["in_place_examples"]
+
+
+@pytest.mark.parametrize("example", IN_PLACE_EXAMPLES, ids=[e["name"] for e in IN_PLACE_EXAMPLES])
+def test_in_place_example_changes_only_the_part(base_data, example):
+    """Only the part object is replaced, by what native_part makes of it."""
+    before, after = example["input"], example["output"]
+    start = after.index('{"type":')
+    end = after.index("}", start) + 1
+    assert after[:start] == before[: before.index('{"type"')]
+    assert after[end:] == before[before.index("}", before.index('{"type"')) + 1 :]
+    (message,) = json.loads(before)
+    (part,) = message["parts"]
+    rebuilt = media_parts.native_part(base_data["media_parts"], part)
+    assert rebuilt is not None
+    assert media_parts.part_text(rebuilt) == after[start:end]
 
 
 def test_members_out_of_order_fail_lint(data):
@@ -1384,6 +1390,83 @@ def test_a_v1_example_block_must_be_an_object(data):
     ]
     example["block"] = "[1]"
     assert_flags(media_parts.lint(data["media_parts"]), "block must be a JSON object")
+
+
+NATIVE_PART_EXAMPLES = [e for e in PART_EXAMPLES if "native" in e]
+
+
+def test_native_part_examples_cover_the_native_uri_holding_a_data_url():
+    assert "uri_led_by_whitespace_holding_a_data_url" in {e["name"] for e in NATIVE_PART_EXAMPLES}
+
+
+@pytest.mark.parametrize(
+    "example", NATIVE_PART_EXAMPLES, ids=[e["name"] for e in NATIVE_PART_EXAMPLES]
+)
+def test_native_part_examples_are_what_the_reference_makes(base_data, example):
+    part = media_parts.native_part(base_data["media_parts"], json.loads(example["native"]))
+    assert part is not None
+    assert media_parts.part_text(part) == example["part"]
+
+
+@pytest.mark.parametrize(
+    "part",
+    [
+        '{"type":"uri","uri":5}',
+        '{"type":"file","file_id":null}',
+        '{"type":"file","file_id":5}',
+        '{"type":"text","content":"hi"}',
+    ],
+)
+def test_native_parts_left_as_they_came(base_data, part):
+    assert media_parts.native_part(base_data["media_parts"], json.loads(part)) is None
+
+
+@pytest.mark.parametrize(
+    ("part", "rebuilt"),
+    [
+        (
+            '{"type":"file","file_id":"","url":"https://example.com/a.pdf"}',
+            '{"type":"uri","modality":"document","uri":"https://example.com/a.pdf"}',
+        ),
+        (
+            '{"type":"file","file_id":"x","url":"https://example.com/a.pdf"}',
+            '{"type":"file","modality":"document","file_id":"x"}',
+        ),
+        (
+            '{"type":"file","file_id":"","modality":"audio"}',
+            '{"type":"file","modality":"audio","file_id":""}',
+        ),
+        (
+            '{"type":"uri","modality":"picture","mime_type":"video/mp4","uri":"https://e/a.png"}',
+            '{"type":"uri","modality":"video","mime_type":"video/mp4","uri":"https://e/a.png"}',
+        ),
+        (
+            '{"type":"uri","modality":"audio","mime_type":"image/png","uri":"x data:y"}',
+            '{"type":"blob","modality":"image","mime_type":"image/png","stripped_reason":"not_captured"}',
+        ),
+        (
+            '{"type":"blob","stripped_reason":"lost","content":null,"byte_size":-1}',
+            '{"type":"blob","modality":"document","stripped_reason":"redacted_upstream"}',
+        ),
+        (
+            '{"type":"blob","stripped_reason":"not_captured","byte_size":8e0}',
+            '{"type":"blob","modality":"document","byte_size":8,"stripped_reason":"not_captured"}',
+        ),
+    ],
+)
+def test_native_part_rebuilds(base_data, part, rebuilt):
+    native = media_parts.native_part(base_data["media_parts"], json.loads(part))
+    assert media_parts.part_text(native) == rebuilt
+
+
+def test_a_native_example_must_be_an_object(data):
+    (example,) = [
+        e
+        for e in data["media_parts"]["part_shapes"]["examples"]
+        if e["name"] == "uri_led_by_whitespace_holding_a_data_url"
+    ]
+    example["native"] = "[1]"
+    assert_flags(media_parts.lint(data["media_parts"]), "native must be a JSON object")
 
 
 def test_an_empty_otlp_any_value_is_null():

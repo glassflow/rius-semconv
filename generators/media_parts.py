@@ -275,13 +275,15 @@ def lint_part_shapes(data: dict) -> list[str]:
         if isinstance(part, dict):
             seen_types.add(part.get("type"))
         errors += [f"{where} example {name} {e}" for e in part_order_errors(data, part)]
-        if "block" in example:
+        for field in ("block", "native"):
+            if field not in example:
+                continue
             try:
-                block = json.loads(str(example["block"]))
+                source = json.loads(str(example[field]))
             except ValueError:
-                block = None
-            if not isinstance(block, dict):
-                errors.append(f"{where} example {name} block must be a JSON object")
+                source = None
+            if not isinstance(source, dict):
+                errors.append(f"{where} example {name} {field} must be a JSON object")
     for example in shapes.get("in_place_examples") or []:
         name = example.get("name")
         try:
@@ -1343,6 +1345,73 @@ def langchain_v1_part(data: dict, block: dict) -> dict | None:
     if isinstance(url, str) or isinstance(file_id, str):
         return _part(
             "blob", modality or "document", mime_type=mime, stripped_reason="redacted_upstream"
+        )
+    return None
+
+
+def _byte_size_kept(value: Any) -> int | None:
+    """A native blob's byte_size, kept when it is a whole, non-negative number
+    no larger than MAX_BYTE_SIZE (8.0 is 8); None otherwise."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    if value != value or value % 1 or not 0 <= value <= MAX_BYTE_SIZE:
+        return None
+    return int(value)
+
+
+def native_part(data: dict, part: dict) -> dict | None:
+    """The part a native blob, uri or file part in a message key is rebuilt
+    into; None when it is left as it came (a uri or file_id that is not a
+    string). An object of type file holding a string base64 or url is a
+    LangChain v1 file block, read by langchain_v1_part."""
+    raw = data["raw_payloads"]
+    kind = part.get("type")
+    mime = _mime_or_unknown(raw, part.get("mime_type"))
+    own = part.get("modality") if part.get("modality") in data["modalities"] else None
+    if kind == "file":
+        if isinstance(part.get("base64"), str) or isinstance(part.get("url"), str):
+            return langchain_v1_part(data, part)
+        if not isinstance(part.get("file_id"), str):
+            return None
+        modality = own or _mime_modality(mime) or "document"
+        return _part("file", modality, mime_type=mime, file_id=part["file_id"])
+    if kind == "uri":
+        uri = part.get("uri")
+        if not isinstance(uri, str):
+            return None
+        blob_modality = _mime_modality(mime) or own
+        if _is_data_scheme(uri):
+            return _data_url_part(data, uri, mime, own)
+        if _DATA_ANYWHERE.search(uri):
+            return _part(
+                "blob",
+                blob_modality or "document",
+                mime_type=mime,
+                stripped_reason="not_captured",
+            )
+        modality = own or _mime_modality(mime) or _extension_modality(data, uri)
+        return _part("uri", modality, mime_type=mime, uri=uri)
+    if kind == "blob":
+        content = part.get("content")
+        if isinstance(content, str):
+            if _is_data_scheme(content):
+                return _data_url_part(data, content, mime, own)
+            return _part(
+                "blob",
+                _mime_modality(mime) or own or "document",
+                mime_type=mime,
+                byte_size=base64_size(content),
+                stripped_reason="not_captured",
+            )
+        reason = part.get("stripped_reason")
+        if not isinstance(reason, str) or reason not in data["stripped_reasons"]:
+            reason = "redacted_upstream" if content is None else "not_captured"
+        return _part(
+            "blob",
+            own or _mime_modality(mime) or "document",
+            mime_type=mime,
+            byte_size=_byte_size_kept(part.get("byte_size")),
+            stripped_reason=reason,
         )
     return None
 

@@ -27,7 +27,7 @@ A normalized part in a message key is written with exactly these members, in ord
 - A member whose value is unknown is omitted, never written as null. This applies to mime_type and byte_size.
 - mime_type is written only when it is a valid token/token MIME type, matching the replacement's mime_pattern in full. Anything else is omitted.
 - The modality is taken from the prefix of the MIME type, matched case-insensitively. image/\* is image, audio/\* audio, video/\* video, anything else document.
-- Every native media part in a message key (blob, uri or file) is always rebuilt into its canonical shape: members in the pinned order, extra members dropped, and every member that is unknown omitted. The only exception is a uri part whose uri is not a string, or a file part whose file_id is not a string: it is left as it came. Any string is a usable uri or file_id, the empty string included. An object of type file that holds a base64 or a url that is a string is no native file part but a LangChain v1 file block, read by the v1 rule below: so {"type":"file","file_id":5,"url":"https://example.com/a.wav"} is a uri, while {"type":"file","file_id":5} is a native file part left as it came. Every other normalized media part carries a modality.
+- Every native media part in a message key (blob, uri or file) is always rebuilt into its canonical shape: members in the pinned order, extra members dropped, and every member that is unknown omitted. The only exception is a uri part whose uri is not a string, or a file part whose file_id is not a string: it is left as it came. Any string is a usable uri or file_id, the empty string included. An object of type file that holds a base64 or a url that is a string is no native file part but a LangChain v1 file block, read by the v1 rule below: so {"type":"file","file_id":5,"url":"https://example.com/a.wav"} is a uri, while {"type":"file","file_id":5} is a native file part left as it came. Every other normalized media part carries a modality. generators/media_parts.py native_part(data, part) is the reference: each example's native part, and the part in each in_place example, is its test.
 - Parts are rebuilt only in a message-key value that parses as JSON and nests at most 1000 levels deep. Arrays and objects count together from the value's root, which is level 1: the message array, a message, its parts array and a tool call part are 4 levels. A value nested deeper (a tool call whose arguments add 997 more arrays makes 1001 levels) is left as it came, every part in it included; at 1000 levels its parts are rebuilt. The implementation counts the depth itself and never relies on its parser's or its language's recursion limit. The strip still runs on a value left this way.
 - The modality that the part already has is kept, when it is one of modalities (any other value is ignored), except for a blob whose content is a string and a uri holding a data URL (below). Otherwise it is taken from the MIME type. Failing that, a provider item whose kind names a modality takes it from the kind: an image, image_url, input_image or image_generation_call item is image, an input_audio item audio, a document item document. A LangChain v1 block of type image, audio or video is that modality; a block of type file names none, so by a url that is not a data URL it takes the modality from the extension of the URL's path (see extensions), and otherwise it is document. A text-plain block by base64 names none either and is document (one by url or file_id makes no part). A Bedrock Converse image, video, audio or document block is that modality. An OpenAI file or input_file item names none; its modality comes from the extension of its filename member alone (never from a file_url), and with no filename, or an empty one, it is document. A Gemini file_data, a native uri and a Vercel file part by URL take it from the extension of their URI's path (see extensions), the Vercel part whether its URL is a plain string or v7's {"type":"url"} data; a Vercel image part is an image. Otherwise it is document. So an Anthropic document by URL ending in .png is a document, an OpenAI input_file named a.png is an image, and an input_file by a file_url ending in .png with no filename is a document; a LangChain v1 image block by a URL ending in .bin is an image, and a v1 file block by a URL ending in .wav is audio. A native file part with no valid modality and no MIME type gets document; no member of it is read for an extension. Any other part with no MIME type and no other hint also gets document.
 - A blob whose `content` is a string is rebuilt with stripped_reason not_captured and a byte_size taken from the content under the size rule of the strip (omitted when the size is unknown). Its modality comes from its MIME type first, then from the modality it has, then document: a PDF blob labelled image is a document. A content string that is itself a data URL follows the data URL rules below, with the part's mime_type as the hint and the same modality order. A blob in a message key never carries content.
@@ -570,6 +570,70 @@ Output:
 
 ```json
 [ {"role": "user", "parts": [ {"type":"blob","modality":"image","mime_type":"image/png","byte_size":3,"stripped_reason":"not_captured"} ] } ]
+```
+
+#### `file_part_by_a_url_led_by_whitespace_holding_a_data_url`
+
+An object of type file with a string url is a LangChain v1 file block, not a native file part, on this path too. Its url holds data: but is no data URL, so it is a blob with no byte_size.
+
+Input:
+
+```json
+[ {"role": "user", "parts": [ {"type": "file", "url": " data:image/png;base64,iVBO\nRw0KGgo="} ] } ]
+```
+
+Output:
+
+```json
+[ {"role": "user", "parts": [ {"type":"blob","modality":"document","stripped_reason":"not_captured"} ] } ]
+```
+
+#### `file_part_with_an_empty_file_id_and_a_url`
+
+The usable url wins over the empty file_id, so the object is a uri, not a native file part with an empty file_id.
+
+Input:
+
+```json
+[ {"role": "user", "parts": [ {"type": "file", "file_id": "", "url": "https://example.com/a.pdf"} ] } ]
+```
+
+Output:
+
+```json
+[ {"role": "user", "parts": [ {"type":"uri","modality":"document","uri":"https://example.com/a.pdf"} ] } ]
+```
+
+#### `file_part_with_a_file_id_that_is_not_a_string_and_a_url`
+
+A file_id that is not a string would leave a native file part as it came, but the string url makes the object a v1 file block, so it is a uri, its modality from the extension.
+
+Input:
+
+```json
+[ {"role": "user", "parts": [ {"type": "file", "file_id": 5, "url": "https://example.com/a.wav"} ] } ]
+```
+
+Output:
+
+```json
+[ {"role": "user", "parts": [ {"type":"uri","modality":"audio","uri":"https://example.com/a.wav"} ] } ]
+```
+
+#### `file_part_with_a_redacted_file_id_and_base64`
+
+The string base64 makes the object a v1 file block, and as a usable reference it wins over the \_\_REDACTED\_\_ file_id, so it is a blob of 3 bytes.
+
+Input:
+
+```json
+[ {"role": "user", "parts": [ {"type": "file", "file_id": "__REDACTED__", "base64": "QUJD"} ] } ]
+```
+
+Output:
+
+```json
+[ {"role": "user", "parts": [ {"type":"blob","modality":"document","byte_size":3,"stripped_reason":"not_captured"} ] } ]
 ```
 
 #### `vercel_file_part_with_unreadable_data_makes_no_part`
