@@ -20,6 +20,7 @@ tools/check_fixtures.py refuses in an expected result. No input raises out of
 
 from __future__ import annotations
 
+import base64
 import json
 import pathlib
 import re
@@ -392,6 +393,8 @@ def lint_raw_payloads(raw: Any) -> list[str]:
 
 #: The languages a byte_objects example is written in, and their names.
 BYTE_OBJECT_LANGUAGES = {"python": "Python", "typescript": "TypeScript"}
+#: The languages an attribute_values example is written in.
+ATTRIBUTE_VALUE_LANGUAGES = {"python": "Python", "otlp": "OTLP JSON (the sink)"}
 
 
 def lint_byte_objects(raw: dict) -> list[str]:
@@ -434,6 +437,28 @@ def lint_byte_objects(raw: dict) -> list[str]:
             errors.append(f"{where} {name} output holds no marker with the unknown mime")
         if strip(raw, output).text != output:
             errors.append(f"{where} {name} output is not final: a strip changes it")
+    attributes = section.get("attribute_values")
+    if not isinstance(attributes, dict) or not attributes.get("rule"):
+        errors.append(f"{where} needs attribute_values with a rule")
+        return errors
+    for example in attributes.get("examples") or []:
+        name = example.get("name")
+        if example.get("language") not in ATTRIBUTE_VALUE_LANGUAGES:
+            errors.append(
+                f"{where} attribute_values {name} language must be one of "
+                f"{sorted(ATTRIBUTE_VALUE_LANGUAGES)}"
+            )
+        output = example.get("output")
+        outputs = output if isinstance(output, list) else [output]
+        if not all(isinstance(o, str) for o in outputs) or not any(
+            marker.fullmatch(o) for o in outputs
+        ):
+            errors.append(
+                f"{where} attribute_values {name} output must be a bare marker"
+                " or a list holding one"
+            )
+    if not attributes.get("examples"):
+        errors.append(f"{where} attribute_values needs examples")
     return errors
 
 
@@ -1296,10 +1321,18 @@ def byte_object_size(value: bytes | bytearray | memoryview) -> int | None:
     return len(value)
 
 
+#: A lone surrogate: a code point a Python string can hold and UTF-8 cannot.
+_SURROGATE = re.compile("[\ud800-\udfff]")
+
+
 def serialize_value(raw: dict, value: Any) -> str:
     """A value as an SDK writes it into an attribute: compact JSON with raw
     UTF-8, every bytes, bytearray or memoryview in it written as the
-    replacement with the unknown mime, and the text then stripped."""
+    replacement with the unknown mime, and the text then stripped. A lone
+    surrogate, which raw UTF-8 cannot carry, is written as its \\uXXXX escape
+    in lower-case hex, as the Python SDK and JSON.stringify write it. The
+    SDKs' size cap and their fallback for a value JSON cannot hold are theirs,
+    not this reference's."""
 
     def default(obj: Any) -> str:
         if isinstance(obj, (bytes, bytearray, memoryview)):
@@ -1307,7 +1340,33 @@ def serialize_value(raw: dict, value: Any) -> str:
         raise TypeError(f"{type(obj).__name__} is not serializable")
 
     text = json.dumps(value, default=default, separators=(",", ":"), ensure_ascii=False)
+    text = _SURROGATE.sub(lambda m: f"\\u{ord(m.group()):04x}", text)
     return strip_raw_payload(raw, text)
+
+
+def attribute_value(raw: dict, value: Any) -> Any:
+    """A value an SDK sets directly as an attribute value: a byte object is
+    the bare marker; in an array, each byte object element is; anything else
+    is kept."""
+    if isinstance(value, (bytes, bytearray, memoryview)):
+        return replacement(raw, None, byte_object_size(value))
+    if isinstance(value, (list, tuple)):
+        return [attribute_value(raw, v) if not isinstance(v, (list, tuple)) else v for v in value]
+    return value
+
+
+def otlp_attribute_value(raw: dict, any_value: dict) -> Any:
+    """An OTLP JSON AnyValue as the sink stores it: a bytesValue is the bare
+    marker with its decoded length; in an arrayValue, each bytesValue element
+    is; a stringValue is its string."""
+    if "bytesValue" in any_value:
+        return replacement(raw, None, len(base64.b64decode(any_value["bytesValue"])))
+    if "arrayValue" in any_value:
+        values = any_value["arrayValue"].get("values") or []
+        return [v if "arrayValue" in v else otlp_attribute_value(raw, v) for v in values]
+    if "stringValue" in any_value:
+        return any_value["stringValue"]
+    raise ValueError(f"no reference for {any_value!r}")
 
 
 # --- the fixtures ------------------------------------------------------------
@@ -1476,6 +1535,17 @@ def _render_byte_objects(section: dict) -> list[str]:
             lines += [_prose(example["note"]), ""]
         lines += [f"Value ({example['language']}):", "", "```text", example["value"], "```", ""]
         lines += ["Attribute value:", "", "```text", example["output"], "```", ""]
+    attributes = section["attribute_values"]
+    lines += ["#### Byte objects as attribute values", "", _prose(attributes["rule"]), ""]
+    for example in attributes["examples"]:
+        lines += [f"##### `{example['name']}`", ""]
+        if example.get("note"):
+            lines += [_prose(example["note"]), ""]
+        language = ATTRIBUTE_VALUE_LANGUAGES[example["language"]]
+        lines += [f"Value ({language}):", "", "```text", example["value"], "```", ""]
+        output = example["output"]
+        shown = output if isinstance(output, str) else json.dumps(output, ensure_ascii=False)
+        lines += ["Attribute value:", "", "```text", shown, "```", ""]
     return lines
 
 

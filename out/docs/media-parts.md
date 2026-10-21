@@ -1902,7 +1902,7 @@ Tokens: none.
 
 ### Byte objects
 
-When an SDK serializes a value that is not a string into an attribute (an input or output it records, a tool's arguments or result), every byte object in it is written as the replacement with the unknown mime, `[stripped unknown <N> bytes]`, where N is its size in bytes (see size), as a JSON string literal in the place the value had. The byte objects are the types listed below for each SDK, subclasses included. The mime is always unknown, never read from a sibling such as mediaType: a serializer writes each value on its own. A byte object at the root is serialized like any other value that is not a string, so the attribute holds the JSON string literal, quotes included. An object key is never a byte object. The strip then runs as on any value, and since the marker is a complete replacement it is never stripped again and is never context for rule (e) (see idempotence). Rule (d) and this rule meet at the Node Buffer. A Buffer is a Uint8Array, so the TypeScript SDK writes it as this marker; it must read each value from its holder, as JSON.stringify calls a Buffer's toJSON, which writes {"type":"Buffer","data":[...]}, before a replacer sees the value. Rule (d) is for a Buffer that became that object before an SDK saw it, in a string another library serialized (the AI SDK's ai.prompt), and for the sink. Both count the same bytes; rule (d) may also read a mime type from the enclosing object, which this rule never does.
+When an SDK serializes a value that is not a string into an attribute (an input or output it records, a tool's arguments or result), every byte object in it is written as the replacement with the unknown mime, `[stripped unknown <N> bytes]`, where N is its size in bytes (see size), as a JSON string literal in the place the value had. The byte objects are the types listed below for each SDK, subclasses included, and in TypeScript those of another realm too (a vm context, an iframe). The mime is always unknown, never read from a sibling such as mediaType: a serializer writes each value on its own. A byte object at the root is serialized like any other value that is not a string, so the attribute holds the JSON string literal, quotes included. An object key is never a byte object. The strip then runs as on any value, and since the marker is a complete replacement it is never stripped again and is never context for rule (e) (see idempotence). Rule (d) and this rule meet at the Node Buffer. A Buffer is a Uint8Array, so the TypeScript SDK writes it as this marker; it must read each value from its holder, as JSON.stringify calls a Buffer's toJSON, which writes {"type":"Buffer","data":[...]}, before a replacer sees the value. Rule (d) is for a Buffer that became that object before an SDK saw it, in a string another library serialized (the AI SDK's ai.prompt), and for the sink. Both count the same bytes; rule (d) may also read a mime type from the enclosing object, which this rule never does.
 
 **Size.** The size in bytes, never a count of items. Python: len of bytes and bytearray, nbytes of memoryview (so a memoryview cast to 4-byte items counts 4 per item); a released memoryview has no size, and its marker's size is unknown. TypeScript: byteLength of an ArrayBuffer, a SharedArrayBuffer and every ArrayBuffer view (ArrayBuffer.isView: each typed array, a Node Buffer and a DataView), the view's own length, not its buffer's.
 
@@ -2043,6 +2043,68 @@ Attribute value:
 
 ```text
 ["[stripped unknown 5 bytes]","[stripped unknown 3 bytes]"]
+```
+
+#### Byte objects as attribute values
+
+A byte object used directly as an OpenTelemetry attribute value (of a span, an event or a link), or as an element of an array attribute value, has no serializer around it: it becomes the marker as a bare string attribute value, `[stripped unknown <N> bytes]`, with no JSON quotes, and N its size by the size rule above. Every other element of an array keeps its value. The sink does the same with an OTLP AnyValue whose bytes_value is set, alone or as an element of an array_value: N is the number of bytes it holds (the decoded length of the base64 that OTLP JSON writes). This differs from the root of a serialized value (above), which is JSON and so quoted. generators/media_parts.py attribute_value and otlp_attribute_value are the reference; each example's output is the attribute value, a string or a list of them.
+
+##### `python_bytes_attribute`
+
+Value (Python):
+
+```text
+b"\x89PNG"
+```
+
+Attribute value:
+
+```text
+[stripped unknown 4 bytes]
+```
+
+##### `python_byte_objects_in_an_array_attribute`
+
+Value (Python):
+
+```text
+[b"ab", bytearray(3), memoryview(bytes(8)).cast("I")]
+```
+
+Attribute value:
+
+```text
+["[stripped unknown 2 bytes]", "[stripped unknown 3 bytes]", "[stripped unknown 8 bytes]"]
+```
+
+##### `otlp_bytes_value`
+
+An OTLP JSON AnyValue; the protobuf bytes_value is the same 8 bytes.
+
+Value (OTLP JSON (the sink)):
+
+```text
+{"bytesValue":"iVBORw0KGgo="}
+```
+
+Attribute value:
+
+```text
+[stripped unknown 8 bytes]
+```
+
+##### `otlp_bytes_values_in_an_array_value`
+
+Value (OTLP JSON (the sink)):
+
+```text
+{"arrayValue":{"values":[{"bytesValue":"QUJD"},{"bytesValue":""},{"stringValue":"plain"}]}}
+```
+
+Attribute value:
+
+```text
+["[stripped unknown 3 bytes]", "[stripped unknown 0 bytes]", "plain"]
 ```
 
 ## Input

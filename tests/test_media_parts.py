@@ -1368,6 +1368,51 @@ def test_a_v1_example_block_must_be_an_object(data):
     assert_flags(media_parts.lint(data["media_parts"]), "block must be a JSON object")
 
 
+def test_a_lone_surrogate_is_written_escaped(base_data):
+    """As the Python SDK writes it, and JSON.stringify: raw UTF-8 cannot carry
+    a lone surrogate, so it is its lower-case \\uXXXX escape."""
+    raw = base_data["media_parts"]["raw_payloads"]
+    value = {"a": "x\ud800y", "\udfff": b"ab", "b": "é"}
+    assert media_parts.serialize_value(raw, value) == (
+        '{"a":"x\\ud800y","\\udfff":"[stripped unknown 2 bytes]","b":"é"}'
+    )
+
+
+# --- byte objects as attribute values -------------------------------------------
+
+ATTRIBUTE_VALUES = BYTE_OBJECTS["attribute_values"]["examples"]
+
+
+@pytest.mark.parametrize("example", ATTRIBUTE_VALUES, ids=[e["name"] for e in ATTRIBUTE_VALUES])
+def test_attribute_value_examples_are_what_the_reference_makes(base_data, example):
+    """A byte object set as an attribute value is the bare marker, no quotes."""
+    raw = base_data["media_parts"]["raw_payloads"]
+    if example["language"] == "python":
+        value = eval(
+            example["value"],
+            {"__builtins__": {}, "bytearray": bytearray, "bytes": bytes, "memoryview": memoryview},
+        )  # noqa: S307
+        assert media_parts.attribute_value(raw, value) == example["output"]
+    else:
+        any_value = json.loads(example["value"])
+        assert media_parts.otlp_attribute_value(raw, any_value) == example["output"]
+
+
+def test_attribute_values_cover_python_and_the_sink():
+    assert {e["language"] for e in ATTRIBUTE_VALUES} == set(media_parts.ATTRIBUTE_VALUE_LANGUAGES)
+
+
+def test_a_quoted_attribute_value_marker_fails_lint(data):
+    section = data["media_parts"]["raw_payloads"]["byte_objects"]["attribute_values"]
+    section["examples"][0]["output"] = '"[stripped unknown 4 bytes]"'
+    assert_flags(media_parts.lint(data["media_parts"]), "must be a bare marker")
+
+
+def test_attribute_values_are_required(data):
+    del data["media_parts"]["raw_payloads"]["byte_objects"]["attribute_values"]
+    assert_flags(media_parts.lint(data["media_parts"]), "needs attribute_values with a rule")
+
+
 @pytest.mark.parametrize(
     ("block", "modality"),
     [
