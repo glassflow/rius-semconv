@@ -275,7 +275,7 @@ def lint_part_shapes(data: dict) -> list[str]:
         if isinstance(part, dict):
             seen_types.add(part.get("type"))
         errors += [f"{where} example {name} {e}" for e in part_order_errors(data, part)]
-        for field in ("block", "native"):
+        for field in ("block", "native", "provider"):
             if field not in example:
                 continue
             try:
@@ -1423,6 +1423,94 @@ def native_part(data: dict, part: dict) -> dict | None:
             stripped_reason=reason,
         )
     return None
+
+
+# --- Provider URIs ----------------------------------------------------------------
+#
+# provider_uri_part is the reference for a provider item that points at its
+# media by URI: the part its URI makes, with its modality and MIME type. The
+# part examples that carry a provider item are its tests.
+
+#: The flattened OpenInference keys of one image content entry, relative to
+#: its message_content prefix.
+OPENINFERENCE_IMAGE_TYPE = "message_content.type"
+OPENINFERENCE_IMAGE_URL = "message_content.image.image.url"
+
+
+def _filename_modality(data: dict, filename: Any) -> str | None:
+    """The modality an OpenAI file item's filename names; None with none."""
+    if not isinstance(filename, str) or not filename:
+        return None
+    return _extension_modality(data, filename)
+
+
+def _provider_uri(raw: dict, item: dict) -> tuple[Any, Any, str | None, bool] | None:
+    """The URI a provider item points at, with the item's MIME type, the
+    modality its kind names (for an OpenAI input_file, its filename does) and
+    whether a uri reads its path's extension. None for an item that points at
+    nothing by URI: a Vercel value with no URL scheme is base64."""
+    kind = item.get("type")
+    if kind == "image_url" and isinstance(item.get("image_url"), dict):
+        return item["image_url"].get("url"), None, "image", False
+    if kind == "input_image" and "image_url" in item:
+        return item["image_url"], None, "image", False
+    source = item.get("source")
+    if kind in ("image", "document") and isinstance(source, dict) and source.get("type") == "url":
+        return source.get("url"), source.get("media_type"), kind, False
+    if kind == "input_file" and "file_url" in item:
+        return item["file_url"], None, None, False
+    if isinstance(item.get("file_data"), dict):
+        file_data = item["file_data"]
+        return file_data.get("file_uri"), file_data.get("mime_type"), None, True
+    if kind in ("file", "image"):
+        value = item.get("data" if kind == "file" else "image")
+        if isinstance(value, dict) and value.get("type") == "url":
+            value = value.get("url")
+        elif not is_url(raw, value):
+            return None
+        return value, item.get("mediaType"), "image" if kind == "image" else None, kind == "file"
+    if item.get(OPENINFERENCE_IMAGE_TYPE) == "image" and OPENINFERENCE_IMAGE_URL in item:
+        return item[OPENINFERENCE_IMAGE_URL], None, "image", False
+    return None
+
+
+def provider_uri_part(data: dict, item: dict) -> dict | None:
+    """The part a provider item that points at its media by URI makes: an
+    OpenAI image_url's url, an input_image's image_url, an Anthropic image or
+    document by a url source, an OpenAI input_file's file_url, a Gemini
+    file_data's file_uri, a Vercel file or image part by URL (a value that
+    starts with a URL scheme, or v7's {"type":"url"} data), and OpenInference's
+    flattened image url. None for any other item, or a URI that is not a
+    string. Only the URI and the item's hints are read, so an item holding
+    another reference (an input_image's file_id) is not one of its tests.
+
+    An empty or __REDACTED__ URI was dropped upstream. A data URL follows the
+    data URL rules. A URI that holds data: anywhere else, in any ASCII case, is
+    a blob with no byte_size, so no byte of it is kept. Any other URI is a uri,
+    as it came. A blob's modality comes from the MIME type, then the item's
+    kind (an input_file's filename), then document; a uri's from the same, then
+    its path's extension where the item reads one."""
+    raw = data["raw_payloads"]
+    found = _provider_uri(raw, item)
+    if found is None:
+        return None
+    uri, mime, kind_modality, reads_extension = found
+    if item.get("type") == "input_file":
+        kind_modality = _filename_modality(data, item.get("filename"))
+    if not isinstance(uri, str):
+        return None
+    mime = _mime_or_unknown(raw, mime)
+    blob_modality = _mime_modality(mime) or kind_modality or "document"
+    if not _usable(uri):
+        return _part("blob", blob_modality, mime_type=mime, stripped_reason="redacted_upstream")
+    if _is_data_scheme(uri):
+        return _data_url_part(data, uri, mime, kind_modality)
+    if _DATA_ANYWHERE.search(uri):
+        return _part("blob", blob_modality, mime_type=mime, stripped_reason="not_captured")
+    modality = _mime_modality(mime) or kind_modality
+    if modality is None:
+        modality = _extension_modality(data, uri) if reads_extension else "document"
+    return _part("uri", modality, mime_type=mime, uri=uri)
 
 
 def part_text(part: dict) -> str:

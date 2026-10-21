@@ -1436,6 +1436,72 @@ def test_a_v1_example_block_must_be_an_object(data):
     assert_flags(media_parts.lint(data["media_parts"]), "block must be a JSON object")
 
 
+PROVIDER_PART_EXAMPLES = [e for e in PART_EXAMPLES if "provider" in e]
+
+#: A provider URI holding data: after a link, for every reader, the
+#: whitespace-led, uppercase and percent-encoded forms, and the negatives.
+REQUIRED_PROVIDER_EXAMPLES = {
+    "image_url_by_a_link_followed_by_a_data_url",
+    "image_url_by_a_url_led_by_whitespace",
+    "image_url_by_a_wrapped_uppercase_data_url",
+    "image_url_by_a_plain_link",
+    "image_url_by_a_link_with_data_colon_in_its_path",
+    "image_url_by_a_whole_data_url",
+    "input_image_by_a_link_followed_by_a_percent_encoded_data_url",
+    "anthropic_url_source_by_a_link_followed_by_a_data_url",
+    "anthropic_document_url_source_by_a_link_followed_by_a_data_url",
+    "input_file_by_a_link_followed_by_a_data_url",
+    "input_file_by_a_file_url_led_by_whitespace",
+    "gemini_file_data_by_a_link_followed_by_a_data_url",
+    "gemini_file_data_by_a_plain_link",
+    "vercel_file_by_a_link_followed_by_a_data_url",
+    "vercel_file_by_a_url_tag_holding_a_data_url_after_a_link",
+    "vercel_image_by_a_link_followed_by_a_data_url",
+    "openinference_image_url_by_a_link_followed_by_a_data_url",
+    "image_url_that_is_empty",
+    "vercel_file_by_url_with_no_media_type",
+}
+
+
+def test_provider_examples_cover_every_reader():
+    assert {e["name"] for e in PROVIDER_PART_EXAMPLES} >= REQUIRED_PROVIDER_EXAMPLES
+
+
+@pytest.mark.parametrize(
+    "example", PROVIDER_PART_EXAMPLES, ids=[e["name"] for e in PROVIDER_PART_EXAMPLES]
+)
+def test_provider_part_examples_are_what_the_reference_makes(base_data, example):
+    part = media_parts.provider_uri_part(base_data["media_parts"], json.loads(example["provider"]))
+    assert part is not None
+    assert media_parts.part_text(part) == example["part"]
+
+
+@pytest.mark.parametrize(
+    "item",
+    [
+        '{"type":"file","data":"iVBORw0KGgo="}',
+        '{"type":"image","image":"iVBORw0KGgo="}',
+        '{"type":"image","image":" https://example.com/a.png"}',
+        '{"type":"image_url","image_url":{"url":5}}',
+        '{"type":"image","source":{"type":"base64","data":"QUFB"}}',
+        '{"type":"input_file","file_id":"file-abc"}',
+        '{"type":"text","text":"https://x/a.png data:image/png;base64,QUFB"}',
+    ],
+)
+def test_items_that_point_at_nothing_by_uri(base_data, item):
+    assert media_parts.provider_uri_part(base_data["media_parts"], json.loads(item)) is None
+
+
+def test_a_provider_example_must_be_an_object(data):
+    (example,) = [
+        e
+        for e in data["media_parts"]["part_shapes"]["examples"]
+        if e["name"] == "image_url_by_a_plain_link"
+    ]
+    example["provider"] = "[1]"
+    assert_flags(media_parts.lint(data["media_parts"]), "provider must be a JSON object")
+
+
 NATIVE_PART_EXAMPLES = [e for e in PART_EXAMPLES if "native" in e]
 
 
