@@ -645,12 +645,23 @@ def data_url_spans(raw: dict, value: str) -> list[Span]:
     return spans
 
 
-def whole_data_url(raw: dict, value: str) -> re.Match | None:
+#: The one final line break a key that keeps URLs lets follow a whole data
+#: URL: base64.encodebytes ends its output with a newline.
+FINAL_LINE_BREAKS = ("\n", "\r\n")
+
+
+def whole_data_url(raw: dict, value: str, line_break: bool = False) -> re.Match | None:
     """Rule b's match when it is the whole string: the pattern anchored at the
     start, its match ending at the end. The same as fullmatch, since the run's
-    greedy match reaches furthest, but fast when a long value fails."""
+    greedy match reaches furthest, but fast when a long value fails. With
+    `line_break`, as a key that keeps URLs reads it, the match may also end
+    one final line break (a newline, or a carriage return and newline) before
+    the end."""
     m = re.compile(_rules(raw)["b"]["pattern"]).match(value)
-    return m if m and m.end() == len(value) else None
+    if m is None:
+        return None
+    rest = value[m.end() :]
+    return m if rest == "" or (line_break and rest in FINAL_LINE_BREAKS) else None
 
 
 def is_data_url(raw: dict, value: str) -> bool:
@@ -778,14 +789,15 @@ def is_url(raw: dict, value: Any) -> bool:
 def kept_url(raw: dict, value: Any) -> bool:
     """Whether a typed key that keeps URLs leaves a string alone for rule b: it
     starts with a URL scheme, and either it holds no data: (in any ASCII case)
-    or the whole string is one rule b token, so rule b replaces all of it. Any
+    or the whole string is one rule b token, or one rule b token and one final
+    line break, so rule b replaces all of it (see url_line_break_token). Any
     other string holding data: (a percent-encoded data URL, a broken run, a
     link with a data URL after it) stays a rule e token and is replaced whole."""
     if not is_url(raw, value):
         return False
     if _DATA_ANYWHERE.search(value) is None:
         return True
-    return whole_data_url(raw, value) is not None
+    return whole_data_url(raw, value, line_break=True) is not None
 
 
 def url_keys(
@@ -1171,18 +1183,20 @@ def _walk(
             return
         keyed = set(keyed_base64(raw, members, parent_key, holder))
         mime = keyed_mime(raw, members, parent_key, holder) if keyed else None
-        urls = url_keys(raw, members, parent_key, holder) if keyed else set()
+        urls = url_keys(raw, members, parent_key, holder)
         for i, (key, child) in enumerate(node.members):
-            if i not in keyed:
+            if key in urls and url_line_break_token(raw, child, tokens, edits):
+                continue
+            if i not in keyed and not (key in urls and child.items is not None):
                 _walk(raw, child, key, members, depth + 1, tokens, edits)
             elif child.items is None:
                 _keyed_token(raw, child, mime, tokens, edits)
             else:
                 # A string array under the key: each string element is a token.
                 for item in child.items:
-                    if keyed_token(raw, key, item.value, urls):
+                    if i in keyed and keyed_token(raw, key, item.value, urls):
                         _keyed_token(raw, item, mime, tokens, edits)
-                    else:
+                    elif not (key in urls and url_line_break_token(raw, item, tokens, edits)):
                         _walk(raw, item, key, members, depth + 2, tokens, edits)
     elif node.items is not None:
         for child in node.items:
@@ -1194,6 +1208,22 @@ def _walk(
             raw_start = node.chars[start][0]
             raw_end = node.chars[end - 1][1] if end > start else raw_start
             edits.append((raw_start, raw_end, json_escape(text)))
+
+
+def url_line_break_token(raw: dict, node: _Value, tokens: list[Token], edits: list[_Edit]) -> bool:
+    """Rule b on a string under a key that keeps URLs that is one data URL and
+    one final line break: the whole value, its line break included, replaced
+    inside its quotes, with the data URL's mime type and size. False, with no
+    edit, for any other value."""
+    if node.chars is None or not node.chars:
+        return False
+    m = whole_data_url(raw, node.value, line_break=True)
+    if m is None or m.end() == len(node.value):
+        return False
+    mime, size = _mime_or_unknown(raw, m.group(1)), run_size(m.group(3))
+    tokens.append(Token("b", mime, size))
+    edits.append((node.chars[0][0], node.chars[-1][1], json_escape(replacement(raw, mime, size))))
+    return True
 
 
 def _keyed_token(

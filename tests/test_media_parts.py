@@ -605,6 +605,27 @@ def test_a_whole_value_is_what_fullmatch_says(base_data, value):
     assert (media_parts.whole_data_url(raw, value) is not None) == expected
 
 
+@pytest.mark.parametrize(
+    ("tail", "kept"),
+    [
+        ("", True),
+        ("\n", True),
+        ("\r\n", True),
+        ("\n\n", False),
+        ("\r", False),
+        (" \n", False),
+        ("\n ", False),
+        ("\n\r\n", False),
+    ],
+)
+def test_a_url_key_takes_one_final_line_break(base_data, tail, kept):
+    raw = base_data["media_parts"]["raw_payloads"]
+    value = "data:image/png;base64,iVBORw0KGgo=" + tail
+    assert (media_parts.whole_data_url(raw, value, line_break=True) is not None) == kept
+    assert media_parts.kept_url(raw, value) == kept
+    assert (media_parts.whole_data_url(raw, value) is not None) == (tail == "")
+
+
 def test_in_text_example_is_what_the_rule_does(base_data):
     raw = base_data["media_parts"]["raw_payloads"]
     example = raw["replacement"]["in_text"]
@@ -617,6 +638,7 @@ GOLDEN = Registry.load().media_parts["raw_payloads"]["golden"]
 
 #: The cases the contract must pin, by golden name.
 REQUIRED_GOLDEN = {
+    "a_base64_data_url_that_ends_in_one_line_break_under_a_url_key",
     "anthropic_base64_image_pretty_printed",
     "openai_input_audio_wav",
     "vercel_buffer_in_ai_prompt",
@@ -1372,6 +1394,8 @@ def test_a_base64_marker_without_its_keys_fails_lint(data):
         "data:image/png;base64,iVBO\\r\\nRw0KGgo=",
         "data:image/png;base64,iVBO Rw0KGgo=",
         "data:image/png;base64,iVBORw0KGgo=\\n",
+        "data:image/png;base64,iVBORw0KGgo=\\r\\n",
+        "data:image/png;base64,iVBORw0KGgo=\\n\\n",
         "data:image/png,%89PNG%0D%0A",
         "Data:image/png;charset=x,iVBORw0KGgo=",
         "data:image/png;base64,@@@iVBORw0KGgo=",
