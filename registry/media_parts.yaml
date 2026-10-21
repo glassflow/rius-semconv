@@ -972,7 +972,11 @@ raw_payloads:
         array_value and kvlist_value, is the marker, N the number of bytes it
         holds, and an array_value that mixes a bytes_value with a value that
         is then no string is its compact JSON, an int_value written as a JSON
-        number and a kvlist_value as an object. In OTLP JSON a bytes_value is base64:
+        number, a kvlist_value as an object and an empty AnyValue, which OTLP
+        defines as an empty value, as null. A kvlist_value keeps every member
+        in wire order, a duplicate key included, and a bytes_value in each is
+        the marker, so its JSON names the key twice, as the kvlist_value held
+        it; a JSON reader takes the last. In OTLP JSON a bytes_value is base64:
         the proto3 JSON mapping writes it in the standard alphabet with
         padding, and a parser accepts the standard or the URL-safe alphabet,
         padded or not, so N is the length it decodes to (`_-__` is 3 bytes,
@@ -1084,6 +1088,16 @@ raw_payloads:
           language: otlp
           value: '{"arrayValue":{"values":[{"intValue":"1"},{"bytesValue":"QUI="}]}}'
           output: '[1,"[stripped unknown 2 bytes]"]'
+        - name: otlp_bytes_value_beside_an_empty_any_value
+          language: otlp
+          note: An AnyValue with no value set is an empty value, written as null.
+          value: '{"arrayValue":{"values":[{},{"bytesValue":"QQ=="}]}}'
+          output: '[null,"[stripped unknown 1 bytes]"]'
+        - name: otlp_bytes_values_in_a_kvlist_value_with_a_duplicate_key
+          language: otlp
+          note: Both members named k are kept, in wire order, the bytes_value in the first one replaced.
+          value: '{"arrayValue":{"values":[{"bytesValue":"QQ=="},{"kvlistValue":{"values":[{"key":"k","value":{"bytesValue":"YWI="}},{"key":"k","value":{"stringValue":"x"}}]}}]}}'
+          output: '["[stripped unknown 1 bytes]",{"k":"[stripped unknown 2 bytes]","k":"x"}]'
     python: [bytes, bytearray, memoryview]
     typescript: [ArrayBuffer, SharedArrayBuffer, 'every ArrayBuffer view (ArrayBuffer.isView): each typed array, Buffer and DataView']
     examples:

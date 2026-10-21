@@ -1386,6 +1386,24 @@ def test_a_v1_example_block_must_be_an_object(data):
     assert_flags(media_parts.lint(data["media_parts"]), "block must be a JSON object")
 
 
+def test_an_empty_otlp_any_value_is_null():
+    assert media_parts.otlp_value({}) is None
+
+
+def test_a_duplicate_kvlist_key_keeps_every_member_in_wire_order(base_data):
+    raw = base_data["media_parts"]["raw_payloads"]
+    any_value = {
+        "kvlistValue": {
+            "values": [
+                {"key": "k", "value": {"bytesValue": "YQ=="}},
+                {"key": "k", "value": {"stringValue": "x"}},
+            ]
+        }
+    }
+    value = media_parts.otlp_attribute_value(raw, any_value)
+    assert list(value.items()) == [("k", "[stripped unknown 1 bytes]"), ("k", "x")]
+
+
 def _vercel_makes_no_part(part: dict) -> bool:
     """A Vercel file or image part whose payload is neither a string nor v7
     tagged data holding one, or a v7 text tag whose text is not a string."""

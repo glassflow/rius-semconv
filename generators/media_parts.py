@@ -1397,6 +1397,19 @@ def serialize_value(raw: dict, value: Any) -> str:
 BYTE_OBJECT_TYPES = (bytes, bytearray, memoryview)
 
 
+class KvList(dict):
+    """An OTLP kvlist_value: the mapping a JSON reader sees, where the last of
+    a duplicate key wins, that still lists every member in wire order. items()
+    gives every member, so json.dumps writes each one, as the sink does."""
+
+    def __init__(self, members: Any = ()) -> None:
+        self.members = list(members)
+        super().__init__(self.members)
+
+    def items(self) -> list[tuple[str, Any]]:  # type: ignore[override]
+        return list(self.members)
+
+
 def attribute_value(raw: dict, value: Any) -> Any:
     """A value an SDK sets directly as an attribute value: a byte object is
     the bare marker, at any depth of arrays and mappings. An array that holds
@@ -1408,6 +1421,8 @@ def attribute_value(raw: dict, value: Any) -> Any:
     the JSON of the value."""
     if isinstance(value, BYTE_OBJECT_TYPES):
         return replacement(raw, None, byte_object_size(value))
+    if isinstance(value, KvList):
+        return KvList((k, attribute_value(raw, v)) for k, v in value.items())
     if isinstance(value, dict):
         return {k: attribute_value(raw, v) for k, v in value.items()}
     if isinstance(value, (list, tuple)):
@@ -1433,20 +1448,23 @@ def otlp_bytes(text: str) -> bytes:
 
 def otlp_value(any_value: dict) -> Any:
     """An OTLP JSON AnyValue as a native value: a bytesValue is bytes, an
-    arrayValue a list, a kvlistValue a mapping (the last of a duplicate key
-    wins), an intValue an int (OTLP JSON may write it as a string)."""
+    arrayValue a list, a kvlistValue a KvList (every member kept, in wire
+    order), an intValue an int (OTLP JSON may write it as a string), and an
+    empty AnyValue, which OTLP defines as an empty value, None."""
     if "bytesValue" in any_value:
         return otlp_bytes(any_value["bytesValue"])
     if "arrayValue" in any_value:
         return [otlp_value(v) for v in any_value["arrayValue"].get("values") or []]
     if "kvlistValue" in any_value:
         values = any_value["kvlistValue"].get("values") or []
-        return {kv["key"]: otlp_value(kv.get("value") or {}) for kv in values}
+        return KvList((kv["key"], otlp_value(kv.get("value") or {})) for kv in values)
     if "intValue" in any_value:
         return int(any_value["intValue"])
     for key in ("stringValue", "boolValue", "doubleValue"):
         if key in any_value:
             return any_value[key]
+    if not any_value:
+        return None
     raise ValueError(f"no reference for {any_value!r}")
 
 
