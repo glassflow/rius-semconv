@@ -10,6 +10,8 @@ import copy
 import json
 import random
 import re
+import shutil
+import subprocess
 import time
 
 import pytest
@@ -1366,6 +1368,92 @@ def test_a_v1_example_block_must_be_an_object(data):
     ]
     example["block"] = "[1]"
     assert_flags(media_parts.lint(data["media_parts"]), "block must be a JSON object")
+
+
+def _vercel_makes_no_part(part: dict) -> bool:
+    """A Vercel file or image part whose payload is neither a string nor v7
+    tagged data holding one, or a v7 text tag whose text is not a string."""
+    payload = part.get("data" if part.get("type") == "file" else "image")
+    if isinstance(payload, str):
+        return False
+    if isinstance(payload, dict) and payload.get("type") in ("data", "url"):
+        return not isinstance(payload.get(payload["type"]), str)
+    if isinstance(payload, dict) and payload.get("type") == "text":
+        return not isinstance(payload.get("text"), str)
+    return True
+
+
+def _message_parts(media: dict, example: dict) -> list:
+    """gen_ai.input.messages for a message example: a text block is a text
+    part, a LangChain v1 block the reference's part, and a Vercel part that
+    makes no part is dropped. Any other block is outside what the examples
+    hold, and fails."""
+
+    def parts(blocks: list) -> list:
+        out = []
+        for block in blocks:
+            if block.get("type") == "text":
+                out.append({"type": "text", "content": block["text"]})
+            elif example["source"] == "ai.prompt.messages":
+                assert block.get("type") in ("file", "image") and _vercel_makes_no_part(block)
+            else:
+                part = media_parts.langchain_v1_part(media, block)
+                assert part is not None, block
+                out.append(part)
+        return out
+
+    value = json.loads(example["input"])
+    if example["source"] == "ai.prompt.messages":
+        return [{"role": m["role"], "parts": parts(m["content"])} for m in value]
+    (index,) = re.fullmatch(r"gen_ai\.prompt\.([0-9]+)\.content", example["source"]).groups()
+    role = example["attributes"][f"gen_ai.prompt.{index}.role"]
+    return [{"role": role, "parts": parts(value)}]
+
+
+MESSAGE_EXAMPLES = Registry.load().media_parts["part_shapes"]["message_examples"]
+
+
+@pytest.mark.parametrize("example", MESSAGE_EXAMPLES, ids=[e["name"] for e in MESSAGE_EXAMPLES])
+def test_message_examples_are_what_the_reference_makes(base_data, example):
+    messages = _message_parts(base_data["media_parts"], example)
+    text = json.dumps(messages, separators=(",", ":"), ensure_ascii=False)
+    assert text == example["output"]
+
+
+# --- the TypeScript byte objects, through Node ----------------------------------
+
+TYPESCRIPT_BYTE_OBJECTS = [e for e in BYTE_OBJECTS["examples"] if e["language"] == "typescript"]
+
+# The TypeScript SDK's rule as a JSON.stringify replacer: it reads the
+# holder's original property (so a Buffer's toJSON never runs) and tells a
+# byte object by its tag, which holds across realms, or ArrayBuffer.isView.
+BYTE_OBJECT_SCRIPT = r"""
+const tag = (v) => Object.prototype.toString.call(v);
+const isBytes = (v) =>
+  tag(v) === "[object ArrayBuffer]" ||
+  tag(v) === "[object SharedArrayBuffer]" ||
+  ArrayBuffer.isView(v);
+const replacer = function (key, value) {
+  const original = this[key];
+  return isBytes(original) ? `[stripped unknown ${original.byteLength} bytes]` : value;
+};
+const examples = JSON.parse(process.argv[1]);
+const write = (e) => JSON.stringify((0, eval)("(" + e + ")"), replacer);
+console.log(JSON.stringify(examples.map(write)));
+"""
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is not installed")
+def test_typescript_byte_objects_serialize_to_their_output():
+    """N is the byte length (byteLength), never the item count."""
+    values = [e["value"] for e in TYPESCRIPT_BYTE_OBJECTS]
+    out = subprocess.run(
+        [shutil.which("node"), "-e", BYTE_OBJECT_SCRIPT, json.dumps(values)],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    assert json.loads(out) == [e["output"] for e in TYPESCRIPT_BYTE_OBJECTS]
 
 
 def test_a_lone_surrogate_is_written_escaped(base_data):
