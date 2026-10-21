@@ -583,8 +583,10 @@ REQUIRED_GOLDEN = {
     "a_typed_key_counts_when_any_type_member_qualifies",
     "bedrock_converse_image_bytes",
     "bedrock_converse_document_and_video_bytes",
+    "bedrock_converse_audio_bytes",
     "bytes_outside_a_source_is_left_alone",
     "mistral_input_audio_string",
+    "mistral_typescript_input_audio_string",
     "input_audio_string_with_no_type_is_left_alone",
     "the_new_shapes_stripped_twice_change_nothing",
 }
