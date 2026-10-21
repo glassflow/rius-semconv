@@ -1184,7 +1184,14 @@ def media_tokens(raw: dict, value: Any) -> list[Token]:
 # order, with its modality and MIME type. The v1 part examples are its tests.
 
 #: The block types the rule maps, and the modality each names (None: none).
-LANGCHAIN_V1_TYPES = {"image": "image", "audio": "audio", "video": "video", "file": None}
+#: A text-plain block is mapped by its base64 alone.
+LANGCHAIN_V1_TYPES = {
+    "image": "image",
+    "audio": "audio",
+    "video": "video",
+    "file": None,
+    "text-plain": None,
+}
 #: The marker an instrumentor writes in place of a dropped reference.
 REDACTED = "__REDACTED__"
 
@@ -1192,6 +1199,12 @@ REDACTED = "__REDACTED__"
 def _usable(value: Any) -> bool:
     """A usable reference: a string that is neither empty nor __REDACTED__."""
     return isinstance(value, str) and value not in ("", REDACTED)
+
+
+def _usable_url(raw: dict, value: Any) -> bool:
+    """A usable url: a usable reference that starts with a URL scheme
+    (url_scheme), nothing trimmed first, so a url led by whitespace is not."""
+    return _usable(value) and is_url(raw, value)
 
 
 def _is_data_scheme(value: str) -> bool:
@@ -1248,11 +1261,12 @@ def _data_url_part(data: dict, url: str, hint: str | None, kind_modality: str | 
 
 
 def langchain_v1_part(data: dict, block: dict) -> dict | None:
-    """The part a LangChain v1 block of type image, audio, video or file
-    makes, by the first case that applies; None when it makes none and stays
-    as it came. Only type, base64, url, file_id and mime_type are read, but
-    for a native file part ((1) and (5)), which keeps a valid modality
-    member first."""
+    """The part a LangChain v1 block of type image, audio, video or file, or
+    a text-plain block by base64, makes, by the first case that applies; None
+    when it makes none and stays as it came. Only type, base64, url, file_id
+    and mime_type are read, but for a native file part ((1) and (5)), which
+    keeps a valid modality member first. A text-plain block reads its base64
+    alone, in (2) and (6)."""
     raw = data["raw_payloads"]
     kind = block.get("type")
     if kind not in LANGCHAIN_V1_TYPES:
@@ -1261,13 +1275,15 @@ def langchain_v1_part(data: dict, block: dict) -> dict | None:
     mime = _mime_or_unknown(raw, block.get("mime_type"))
     modality = _mime_modality(mime) or kind_modality
     base64, url, file_id = block.get("base64"), block.get("url"), block.get("file_id")
+    if kind == "text-plain":
+        url = file_id = None
     own = block.get("modality")
     native = own if own in data["modalities"] else modality
     # (1) A file block by a usable file_id: a native file part.
     if kind == "file" and _usable(file_id):
         return _part("file", native or "document", mime_type=mime, file_id=file_id)
-    # (2) A string base64: a blob, or the data URL rules when it is one.
-    if isinstance(base64, str):
+    # (2) A usable base64: a blob, or the data URL rules when it is one.
+    if _usable(base64):
         if _is_data_scheme(base64):
             return _data_url_part(data, base64, mime, kind_modality)
         return _part(
@@ -1281,7 +1297,7 @@ def langchain_v1_part(data: dict, block: dict) -> dict | None:
     if _usable(file_id):
         return _part("file", modality or "document", mime_type=mime, file_id=file_id)
     # (4) A usable url: a uri, or a blob when it is a data URL.
-    if _usable(url):
+    if _usable_url(raw, url):
         if _is_data_scheme(url):
             return _data_url_part(data, url, mime, kind_modality)
         modality = modality or _extension_modality(data, url)
@@ -1290,8 +1306,9 @@ def langchain_v1_part(data: dict, block: dict) -> dict | None:
     # reference: a native file part, its file_id kept as written.
     if kind == "file" and isinstance(file_id, str):
         return _part("file", native or "document", mime_type=mime, file_id=file_id)
-    # (6) A url or file_id that is a string, none usable: dropped upstream.
-    if isinstance(url, str) or isinstance(file_id, str):
+    # (6) A base64, url or file_id that is a string, none usable: dropped
+    # upstream.
+    if any(isinstance(ref, str) for ref in (base64, url, file_id)):
         return _part(
             "blob", modality or "document", mime_type=mime, stripped_reason="redacted_upstream"
         )
