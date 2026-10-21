@@ -1303,3 +1303,81 @@ def test_no_payload_survives_a_url_key(base_data, template, value):
     out = media_parts.strip_raw_payload(raw, template % value)
     for fragment in ("Rw0KGgo", "iVBO", "%89PNG"):
         assert fragment not in out, out
+
+
+# --- the v1 part examples and message examples, through the reference ----------
+
+PART_EXAMPLES = Registry.load().media_parts["part_shapes"]["examples"]
+V1_PART_EXAMPLES = [e for e in PART_EXAMPLES if e["name"].startswith("langchain_v1_")]
+REQUIRED_PART_EXAMPLES = {
+    "langchain_v1_image_by_url",
+    "langchain_v1_image_by_url_kind_before_extension",
+    "langchain_v1_file_by_url_with_only_an_extension",
+    "langchain_v1_file_by_url_with_no_extension",
+    "langchain_v1_audio_by_data_url",
+    "langchain_v1_image_by_redacted_url",
+    "langchain_v1_file_by_empty_url",
+    "langchain_v1_image_by_file_id",
+    "langchain_v1_video_by_empty_file_id",
+    "langchain_v1_image_by_redacted_url_and_a_file_id",
+    "langchain_v1_file_by_file_id",
+    "langchain_v1_file_by_empty_file_id_is_a_native_file_part",
+    "langchain_v1_file_by_empty_file_id_and_a_url",
+    "langchain_v1_file_by_file_id_keeps_its_modality",
+    "langchain_v1_file_by_redacted_file_id_and_base64",
+    "langchain_v1_file_by_redacted_file_id_and_an_empty_url",
+    "langchain_v1_file_with_a_file_id_that_is_not_a_string_and_a_url",
+}
+
+
+def test_part_examples_cover_the_required_cases():
+    assert {e["name"] for e in PART_EXAMPLES} >= REQUIRED_PART_EXAMPLES
+
+
+@pytest.mark.parametrize("example", V1_PART_EXAMPLES, ids=[e["name"] for e in V1_PART_EXAMPLES])
+def test_v1_part_examples_are_what_the_reference_makes(base_data, example):
+    """Each v1 example names its block, and the reference makes exactly its
+    part, byte for byte."""
+    assert "block" in example, f"{example['name']} needs a block"
+    part = media_parts.langchain_v1_part(base_data["media_parts"], json.loads(example["block"]))
+    assert part is not None
+    assert media_parts.part_text(part) == example["part"]
+
+
+@pytest.mark.parametrize(
+    "block",
+    [
+        '{"type":"file","file_id":5}',
+        '{"type":"image","id":"x","source_type":"id"}',
+        '{"type":"image","source_type":"base64","data":"QUFB"}',
+        '{"type":"text-plain","url":"https://example.com/a.txt"}',
+        '{"type":"text","text":"hi"}',
+    ],
+)
+def test_v1_blocks_with_no_reference_make_no_part(base_data, block):
+    assert media_parts.langchain_v1_part(base_data["media_parts"], json.loads(block)) is None
+
+
+def test_a_v1_example_block_must_be_an_object(data):
+    (example,) = [
+        e
+        for e in data["media_parts"]["part_shapes"]["examples"]
+        if e["name"] == "langchain_v1_image_by_url"
+    ]
+    example["block"] = "[1]"
+    assert_flags(media_parts.lint(data["media_parts"]), "block must be a JSON object")
+
+
+@pytest.mark.parametrize(
+    ("block", "modality"),
+    [
+        ('{"type":"file","file_id":"x","modality":"image"}', "image"),
+        ('{"type":"file","file_id":"","modality":"audio"}', "audio"),
+        ('{"type":"file","file_id":"x","modality":"picture","mime_type":"video/mp4"}', "video"),
+        ('{"type":"image","file_id":"x","modality":"audio"}', "image"),
+        ('{"type":"file","url":"https://example.com/a.wav","modality":"image"}', "audio"),
+    ],
+)
+def test_only_a_native_file_part_reads_its_modality_member(base_data, block, modality):
+    part = media_parts.langchain_v1_part(base_data["media_parts"], json.loads(block))
+    assert part["modality"] == modality

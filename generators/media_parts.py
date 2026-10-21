@@ -23,6 +23,7 @@ from __future__ import annotations
 import json
 import pathlib
 import re
+import string
 from dataclasses import dataclass
 from typing import Any
 
@@ -273,6 +274,13 @@ def lint_part_shapes(data: dict) -> list[str]:
         if isinstance(part, dict):
             seen_types.add(part.get("type"))
         errors += [f"{where} example {name} {e}" for e in part_order_errors(data, part)]
+        if "block" in example:
+            try:
+                block = json.loads(str(example["block"]))
+            except ValueError:
+                block = None
+            if not isinstance(block, dict):
+                errors.append(f"{where} example {name} block must be a JSON object")
     for example in shapes.get("in_place_examples") or []:
         name = example.get("name")
         try:
@@ -1142,6 +1150,132 @@ def media_tokens(raw: dict, value: Any) -> list[Token]:
     else as JSON."""
     text = value if isinstance(value, str) else json.dumps(value)
     return strip(raw, text).tokens
+
+
+# --- LangChain v1 blocks -------------------------------------------------------
+#
+# langchain_v1_part is the reference for the part_shapes rule on a LangChain v1
+# standard content block: the part one block makes, by the rule's numbered
+# order, with its modality and MIME type. The v1 part examples are its tests.
+
+#: The block types the rule maps, and the modality each names (None: none).
+LANGCHAIN_V1_TYPES = {"image": "image", "audio": "audio", "video": "video", "file": None}
+#: The marker an instrumentor writes in place of a dropped reference.
+REDACTED = "__REDACTED__"
+
+
+def _usable(value: Any) -> bool:
+    """A usable reference: a string that is neither empty nor __REDACTED__."""
+    return isinstance(value, str) and value not in ("", REDACTED)
+
+
+def _is_data_scheme(value: str) -> bool:
+    """A value that is a data URL: it starts with data:, in any ASCII case."""
+    return value[:5].lower() == "data:"
+
+
+def _mime_modality(mime: str | None) -> str | None:
+    """The modality a valid MIME type's prefix names, case-insensitively;
+    document for any other valid type, None when there is none."""
+    if mime is None:
+        return None
+    prefix = mime.split("/", 1)[0].lower()
+    return prefix if prefix in ("image", "audio", "video") else "document"
+
+
+def _extension_modality(data: dict, uri: str) -> str:
+    """The modality a URI path's extension names (part_shapes extensions):
+    query and fragment cut, the file name after the last '/', the extension
+    after its last '.', ASCII case folded; document for any other."""
+    path = re.split("[?#]", uri, maxsplit=1)[0]
+    name = path.rsplit("/", 1)[-1]
+    extension = name.rsplit(".", 1)[1] if "." in name else ""
+    folded = extension.translate(str.maketrans(string.ascii_uppercase, string.ascii_lowercase))
+    for modality, extensions in data["part_shapes"]["extensions"].items():
+        if folded in extensions:
+            return modality
+    return "document"
+
+
+def _part(kind: str, modality: str, **members: Any) -> dict:
+    """A part with its members in the pinned order, unknown ones omitted."""
+    part = {"type": kind, "modality": modality, **members}
+    return {m: part[m] for m in PART_MEMBERS[kind] if part.get(m) is not None}
+
+
+def _data_url_part(data: dict, url: str, hint: str | None, kind_modality: str | None) -> dict:
+    """A data URL as a blob: rule (b)'s pattern matching the whole URL is
+    base64, with its run's size; any other is not base64, with no size, and
+    redacted_upstream when its payload is empty or None. The mime type is the
+    URL's when valid, else the hint."""
+    raw = data["raw_payloads"]
+    match = re.fullmatch(_rules(raw)["b"]["pattern"], url)
+    if match:
+        mime = _mime_or_unknown(raw, match.group(1)) or hint
+        size, reason = base64_size(match.group(3)), "not_captured"
+    else:
+        rest = url.split(":", 1)[1]
+        mime = _mime_or_unknown(raw, re.split("[;,]", rest, maxsplit=1)[0]) or hint
+        payload = rest.split(",", 1)[1] if "," in rest else ""
+        size, reason = None, "redacted_upstream" if payload in ("", "None") else "not_captured"
+    modality = _mime_modality(mime) or kind_modality or "document"
+    return _part("blob", modality, mime_type=mime, byte_size=size, stripped_reason=reason)
+
+
+def langchain_v1_part(data: dict, block: dict) -> dict | None:
+    """The part a LangChain v1 block of type image, audio, video or file
+    makes, by the first case that applies; None when it makes none and stays
+    as it came. Only type, base64, url, file_id and mime_type are read, but
+    for a native file part ((1) and (5)), which keeps a valid modality
+    member first."""
+    raw = data["raw_payloads"]
+    kind = block.get("type")
+    if kind not in LANGCHAIN_V1_TYPES:
+        return None
+    kind_modality = LANGCHAIN_V1_TYPES[kind]
+    mime = _mime_or_unknown(raw, block.get("mime_type"))
+    modality = _mime_modality(mime) or kind_modality
+    base64, url, file_id = block.get("base64"), block.get("url"), block.get("file_id")
+    own = block.get("modality")
+    native = own if own in data["modalities"] else modality
+    # (1) A file block by a usable file_id: a native file part.
+    if kind == "file" and _usable(file_id):
+        return _part("file", native or "document", mime_type=mime, file_id=file_id)
+    # (2) A string base64: a blob, or the data URL rules when it is one.
+    if isinstance(base64, str):
+        if _is_data_scheme(base64):
+            return _data_url_part(data, base64, mime, kind_modality)
+        return _part(
+            "blob",
+            modality or "document",
+            mime_type=mime,
+            byte_size=base64_size(base64),
+            stripped_reason="not_captured",
+        )
+    # (3) A usable file_id: a file part.
+    if _usable(file_id):
+        return _part("file", modality or "document", mime_type=mime, file_id=file_id)
+    # (4) A usable url: a uri, or a blob when it is a data URL.
+    if _usable(url):
+        if _is_data_scheme(url):
+            return _data_url_part(data, url, mime, kind_modality)
+        modality = modality or _extension_modality(data, url)
+        return _part("uri", modality, mime_type=mime, uri=url)
+    # (5) A file block whose file_id is a string and has no other usable
+    # reference: a native file part, its file_id kept as written.
+    if kind == "file" and isinstance(file_id, str):
+        return _part("file", native or "document", mime_type=mime, file_id=file_id)
+    # (6) A url or file_id that is a string, none usable: dropped upstream.
+    if isinstance(url, str) or isinstance(file_id, str):
+        return _part(
+            "blob", modality or "document", mime_type=mime, stripped_reason="redacted_upstream"
+        )
+    return None
+
+
+def part_text(part: dict) -> str:
+    """A part as a message key holds it: compact JSON, members in order."""
+    return json.dumps(part, separators=(",", ":"), ensure_ascii=False)
 
 
 # --- byte objects ----------------------------------------------------------------
