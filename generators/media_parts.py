@@ -35,7 +35,7 @@ NORMALIZED = {"blob", "uri", "file", "text", "generic", NONE}
 STRIPPED_REASONS = {"not_captured", "redacted_upstream"}
 #: The detection rules raw_payloads must define, and the fields each needs.
 DETECTION_FIELDS = {
-    "b": ("pattern", "escaped_pattern"),
+    "b": ("pattern", "escaped_pattern", "percent_scheme", "percent_pattern"),
     "d": ("type", "array_key", "mime_keys"),
     "e": (
         "keys",
@@ -332,6 +332,7 @@ def lint_part_shapes(data: dict) -> list[str]:
 RULE_B_PATTERNS = (
     ("pattern", 4, "mime, parameters, base64, continuation"),
     ("escaped_pattern", 5, "mime, parameters, base64, continuation, escaped continuation"),
+    ("percent_pattern", 5, "header, header escape, base64, base64 escape, padding"),
 )
 
 
@@ -640,22 +641,55 @@ def _mime_or_unknown(raw: dict, mime: str | None) -> str | None:
 _DATA_ANYWHERE = re.compile("[dD][aA][tT][aA]:")
 
 
+#: A percent escape, as a percent-encoded data URL holds one: %XX in any case.
+_PERCENT_ESCAPE = re.compile("%([0-9A-Fa-f]{2})")
+#: Where a percent-encoded data URL's media type ends: its first %3B.
+_PERCENT_SEMICOLON = re.compile("%3[bB]")
+
+
+def _percent_decode(text: str) -> str:
+    """Each %XX escape as the character it encodes."""
+    return _PERCENT_ESCAPE.sub(lambda m: chr(int(m.group(1), 16)), text)
+
+
+def _is_percent(raw: dict, value: str, start: int = 0) -> bool:
+    """Whether a percent-encoded data URL's scheme (percent_scheme, data%3A in
+    any ASCII case) starts at `start`."""
+    return re.compile(_rules(raw)["b"]["percent_scheme"]).match(value, start) is not None
+
+
+def _match_token(raw: dict, m: re.Match) -> tuple[str | None, int | None]:
+    """The mime type and size of one rule b match. A percent-encoded one's
+    mime type is its header up to its first %3B, percent-decoded, and its run
+    is percent-decoded (%2B, %2F and %3D) before it is sized."""
+    if m.group(0)[4] == ":":
+        return _mime_or_unknown(raw, m.group(1)), run_size(m.group(3))
+    head = _PERCENT_SEMICOLON.split(m.group(1), maxsplit=1)[0]
+    return _mime_or_unknown(raw, _percent_decode(head)), run_size(_percent_decode(m.group(3)))
+
+
 def data_url_spans(raw: dict, value: str, escaped: bool = False) -> list[Span]:
     """Rule b: every data URL token in a string, wherever it sits. The string
-    is cut before each data: (in any ASCII case), and the pattern is tried at
-    the start of each piece and never past its end, so a run that continues
-    over a line break never takes the start of the next data URL. A media type
+    is cut before each data: and each data%3A (in any ASCII case), and the
+    pattern is tried at the start of each piece and never past its end, so a
+    run that continues over a line break never takes the start of the next
+    data URL: pattern at a data:, percent_pattern at a data%3A. A media type
     that is not token/token is unknown. `escaped`, for the text of a JSON
-    candidate that does not parse, tries escaped_pattern instead, whose run
-    also goes on over a line break written as a JSON escape."""
-    pattern = re.compile(_rules(raw)["b"]["escaped_pattern" if escaped else "pattern"])
-    starts = [m.start() for m in _DATA_ANYWHERE.finditer(value)]
+    candidate that does not parse, tries escaped_pattern instead of pattern,
+    whose run also goes on over a line break written as a JSON escape."""
+    rule = _rules(raw)["b"]
+    plain = re.compile(rule["escaped_pattern" if escaped else "pattern"])
+    percent = re.compile(rule["percent_pattern"])
+    starts = sorted(
+        [m.start() for m in _DATA_ANYWHERE.finditer(value)]
+        + [m.start() for m in re.finditer(rule["percent_scheme"], value)]
+    )
     spans = []
     for start, end in zip(starts, [*starts[1:], len(value)], strict=False):
+        pattern = plain if value[start + 4] == ":" else percent
         m = pattern.match(value, start, end)
         if m:
-            mime = _mime_or_unknown(raw, m.group(1))
-            spans.append(Span(m.start(), m.end(), mime, run_size(m.group(3))))
+            spans.append(Span(m.start(), m.end(), *_match_token(raw, m)))
     return spans
 
 
@@ -666,12 +700,14 @@ FINAL_LINE_BREAKS = ("\n", "\r\n")
 
 def whole_data_url(raw: dict, value: str, line_break: bool = False) -> re.Match | None:
     """Rule b's match when it is the whole string: the pattern anchored at the
-    start, its match ending at the end. The same as fullmatch, since the run's
-    greedy match reaches furthest, but fast when a long value fails. With
-    `line_break`, as a key that keeps URLs reads it, the match may also end
-    one final line break (a newline, or a carriage return and newline) before
-    the end."""
-    m = re.compile(_rules(raw)["b"]["pattern"]).match(value)
+    start (percent_pattern for a value that starts with data%3A), its match
+    ending at the end. The same as fullmatch, since the run's greedy match
+    reaches furthest, but fast when a long value fails. With `line_break`, as
+    a key that keeps URLs reads it, the match may also end one final line
+    break (a newline, or a carriage return and newline) before the end."""
+    rule = _rules(raw)["b"]
+    field = "percent_pattern" if _is_percent(raw, value) else "pattern"
+    m = re.compile(rule[field]).match(value)
     if m is None:
         return None
     rest = value[m.end() :]
@@ -805,8 +841,12 @@ def kept_url(raw: dict, value: Any) -> bool:
     starts with a URL scheme, and either it holds no data: (in any ASCII case)
     or the whole string is one rule b token, or one rule b token and one final
     line break, so rule b replaces all of it (see url_line_break_token). Any
-    other string holding data: (a percent-encoded data URL, a broken run, a
-    link with a data URL after it) stays a rule e token and is replaced whole."""
+    other string holding data: (a data URL whose payload is percent-encoded,
+    a broken run, a link with a data URL after it) stays a rule e token and is
+    replaced whole. A value that starts with data%3A has no URL scheme, but it is left to rule
+    b when it is one whole percent-encoded data URL too."""
+    if isinstance(value, str) and _is_percent(raw, value):
+        return whole_data_url(raw, value, line_break=True) is not None
     if not is_url(raw, value):
         return False
     if _DATA_ANYWHERE.search(value) is None:
@@ -1236,7 +1276,7 @@ def url_line_break_token(raw: dict, node: _Value, tokens: list[Token], edits: li
     m = whole_data_url(raw, node.value, line_break=True)
     if m is None or m.end() == len(node.value):
         return False
-    mime, size = _mime_or_unknown(raw, m.group(1)), run_size(m.group(3))
+    mime, size = _match_token(raw, m)
     tokens.append(Token("b", mime, size))
     edits.append((node.chars[0][0], node.chars[-1][1], json_escape(replacement(raw, mime, size))))
     return True

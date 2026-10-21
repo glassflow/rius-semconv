@@ -549,6 +549,74 @@ def test_only_json_that_does_not_parse_takes_an_escaped_line_break(base_data, te
     assert token.byte_size == 3
 
 
+@pytest.mark.parametrize(
+    ("text", "mime", "size"),
+    [
+        ("data%3Aimage%2Fpng%3Bbase64%2CiVBORw0KGgo%3D", "image/png", 8),
+        ("DATA%3aimage%2fpng%3bbase64%2civBORw0KGgo%3d", "image/png", 8),
+        ("data%3Aimage/png%3Bbase64%2C%2B%2B%2B%2B////AA%3D%3D", "image/png", 7),
+        ("data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CQUFB", "image/svg+xml", 3),
+        ("data%3Aimage%2Fpng%3Bname%3Da.png%3Bbase64%2CQUFB", "image/png", 3),
+        ("data%3A%3Bbase64%2CQUFB", None, 3),
+        ("data%3Aimage%3Bbase64%2CQUFB", None, 3),
+        ("data%3Aa%2Fb%2Fc%3Bbase64%2CQUFB", None, 3),
+        ("data%3Aa%2Fb%3Bbase64%2CQUFB%3D%3D%3D", "a/b", None),
+        ("data%3Aa%2Fb%3Bbase64%2C", "a/b", 0),
+    ],
+)
+def test_a_percent_encoded_data_url_is_one_token(base_data, text, mime, size):
+    raw = base_data["media_parts"]["raw_payloads"]
+    (span,) = media_parts.data_url_spans(raw, text)
+    end = len(text) - 3 if text.endswith("%3D%3D%3D") else len(text)
+    assert (span.start, span.end, span.mime, span.byte_size) == (0, end, mime, size)
+
+
+@pytest.mark.parametrize(
+    ("text", "token"),
+    [
+        ("x data%3Aa%2Fb%3Bbase64%2CQUFB%0AQkJD", "data%3Aa%2Fb%3Bbase64%2CQUFB"),
+        ("data%3Aa%2Fb%3Bbase64%2CQUFB%2C", "data%3Aa%2Fb%3Bbase64%2CQUFB"),
+        ("data%3Aa%2Fb%3Bbase64%2CQUFB&w=1", "data%3Aa%2Fb%3Bbase64%2CQUFB"),
+        (
+            "data%3Aa%2Fb%3Bbase64%2CQUFBdata%3Aa%2Fb%3Bbase64%2CQkJD",
+            "data%3Aa%2Fb%3Bbase64%2CQUFB",
+        ),
+        ("data%3Aa%2Fb%3Bbase64%2CQUFBdata:a/b;base64,QkJD", "data%3Aa%2Fb%3Bbase64%2CQUFB"),
+        ("data%3Aa%2Cb%3Bbase64%2CQUFB", None),
+        ("data%3Aa b%3Bbase64%2CQUFB", None),
+        ("data%253Aa%3Bbase64%2CQUFB", None),
+        ("data%3Aa%3Bbase64%2cQUFB", "data%3Aa%3Bbase64%2cQUFB"),
+        ("data%3Aa%3BBASE64%2CQUFB", None),
+    ],
+)
+def test_a_percent_encoded_data_url_ends_where_its_run_does(base_data, text, token):
+    raw = base_data["media_parts"]["raw_payloads"]
+    spans = media_parts.data_url_spans(raw, text)
+    assert [text[s.start : s.end] for s in spans][:1] == ([token] if token else [])
+
+
+@pytest.mark.parametrize(
+    ("value", "kept"),
+    [
+        ("data%3Aimage%2Fpng%3Bbase64%2CiVBORw0KGgo%3D", True),
+        ("data%3Aimage%2Fpng%3Bbase64%2CiVBORw0KGgo%3D\n", True),
+        ("data%3Aimage%2Fpng%3Bbase64%2CiVBORw0KGgo%3D ", False),
+        ("data%3Aimage%2Fpng%3Bbase64%2CiVBORw0KGgo%3D%0A", False),
+        ("https://x/?u=data%3Aimage%2Fpng%3Bbase64%2CiVBORw0KGgo%3D", True),
+        (" data%3Aimage%2Fpng%3Bbase64%2CiVBORw0KGgo%3D", False),
+    ],
+)
+def test_a_url_key_keeps_a_whole_percent_encoded_data_url_for_rule_b(base_data, value, kept):
+    raw = base_data["media_parts"]["raw_payloads"]
+    assert media_parts.kept_url(raw, value) == kept
+
+
+def test_data_url_percent_pattern_needs_its_five_groups(data):
+    (rule,) = [r for r in data["media_parts"]["raw_payloads"]["detection"] if r["id"] == "b"]
+    rule["percent_pattern"] = rule["pattern"]
+    assert_flags(media_parts.lint(data["media_parts"]), "percent_pattern needs 5 groups")
+
+
 def test_data_url_escaped_pattern_needs_its_five_groups(data):
     (rule,) = [r for r in data["media_parts"]["raw_payloads"]["detection"] if r["id"] == "b"]
     rule["escaped_pattern"] = rule["pattern"]
@@ -589,12 +657,16 @@ NEAR_MATCHES = {
     "escaped_one_character_lines": '{"a":"data:a/b;base64,' + "A\\n" * 20_000 + "!",
     "escaped_lines_at_the_cap": '{"a":"data:a/b;base64,' + ("A" * 76 + "\\r\\n") * 500 + "!",
     "escaped_backslashes": '{"a":"data:a/b;base64,A' + "\\" * 40_000,
+    "percent_schemes": "data%3A" * 6_000,
+    "percent_headers_with_no_comma": "data%3A" + "%3Bbase64" * 4_000,
+    "percent_tokens": "data%3Aa%3Bbase64%2C" * 2_000,
+    "percent_escaped_run": "data%3Aa%2Fb%3Bbase64%2C" + "%2B" * 13_000 + "!",
 }
 TIME_BOUND = 0.5
 
 
 #: The near matches that hold no token; the others are all tokens.
-NO_TOKENS = {"data_colon", "data_a_semicolon"}
+NO_TOKENS = {"data_colon", "data_a_semicolon", "percent_schemes", "percent_headers_with_no_comma"}
 
 
 @pytest.mark.parametrize("name", NEAR_MATCHES)
@@ -689,6 +761,9 @@ GOLDEN = Registry.load().media_parts["raw_payloads"]["golden"]
 
 #: The cases the contract must pin, by golden name.
 REQUIRED_GOLDEN = {
+    "a_percent_encoded_data_url_in_prose",
+    "a_percent_encoded_data_url_in_json_and_under_keys",
+    "a_percent_encoded_run_ends_at_any_other_escape",
     "a_wrapped_data_url_in_json_that_does_not_parse",
     "an_escaped_line_break_outside_json_ends_the_run",
     "a_base64_data_url_that_ends_in_one_line_break_under_a_url_key",
@@ -1217,7 +1292,12 @@ def test_data_url_pattern_is_portable(base_data):
     raw = base_data["media_parts"]["raw_payloads"]
     (rule,) = [r for r in raw["detection"] if r["id"] == "b"]
     (keyed,) = [r for r in raw["detection"] if r["id"] == "e"]
-    patterns = (rule["pattern"], rule["escaped_pattern"])
+    patterns = (
+        rule["pattern"],
+        rule["escaped_pattern"],
+        rule["percent_scheme"],
+        rule["percent_pattern"],
+    )
     for pattern in (*patterns, raw["replacement"]["mime_pattern"], keyed["url_scheme"]):
         assert "(?" not in pattern, "no lookaround, named group or inline flag"
         for match in re.finditer(r"\\(.)", pattern):
@@ -1234,6 +1314,12 @@ def test_data_url_pattern_is_portable(base_data):
     escaped = "(\\\\r{0,1}\\\\{0,1}n[ \\t>]*[A-Za-z0-9+/_-]+)*"
     assert rule["escaped_pattern"] == rule["pattern"].replace(continuation, continuation + escaped)
     assert "?" not in rule["escaped_pattern"] and "|" not in rule["escaped_pattern"]
+    # percent_pattern starts with percent_scheme; its header escapes never end
+    # in C, so %2C ends the header.
+    assert rule["percent_pattern"].startswith(rule["percent_scheme"])
+    assert '(%[0-9A-Fa-f][0-9ABD-Fabd-f][^%;,:\\t\\n\\f\\r "]*)*)' in rule["percent_pattern"]
+    assert "([A-Za-z0-9+/_-]*(%2[BbFf][A-Za-z0-9+/_-]*)*(%3[dD]){0,2})" in rule["percent_pattern"]
+    assert "?" not in rule["percent_pattern"] and "|" not in rule["percent_pattern"]
 
 
 def test_portability_check_bites():
