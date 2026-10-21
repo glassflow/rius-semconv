@@ -38,7 +38,7 @@ A normalized part in a message key is written with exactly these members, in ord
 - A Vercel file part whose data, or image part whose image, is neither a string nor v7 tagged data holding one makes no part: it is dropped from its message's parts, never written as a bare {"type":"file"} or {"type":"image"}, and any raw payload holding its bytes is stripped per raw_payloads. So is a v7 {"type":"text"} whose text is not a string. A v7 tag no rule here names becomes a blob with the stripped_reason not_captured and no byte_size, keeping the part's mediaType: its size was never measured.
 - A LangChain v1 standard content block of type image, audio, video or file, or of type text-plain, makes one part, by the first of these that applies. A usable url or file_id is a string that is neither empty nor \_\_REDACTED\_\_. (1) A block of type file whose file_id is usable, a string that is neither empty nor \_\_REDACTED\_\_, is a native file part, whatever else it holds (a url, a base64, even an OpenAI-style file member): it is rebuilt as one (above), its mime_type kept when valid, and its modality by the native order: its own modality member when that is one of modalities, else from the MIME type, else document. (2) A base64 that is a string is a blob (the bare base64 rule below): an empty one is 0 bytes, and \_\_REDACTED\_\_, which is valid base64, is 9, as for any bare base64 payload. The one exception is a block of type file whose file_id is a string: there an empty or \_\_REDACTED\_\_ base64 is no usable reference, and the block reads on, so it never beats an empty file_id. (3) A usable file_id is a file part. (4) A usable url that is a data URL is a blob under the data URL rules, the block's mime_type the hint: a data URL that rule (b)'s pattern does not match in full (a trailing space, a percent-encoded payload) is a blob with no byte_size, while a base64 run wrapped at a line break is a full match, sized. A usable url that holds data: anywhere else, in any ASCII case (one led by whitespace, or a link with a data URL after it), is a blob with the stripped_reason not_captured and no byte_size, so no byte of it is kept. Any other usable url is a uri, its value kept as it came, whatever its scheme and relative or not: {"type":"image","url":"/img/a.png"} is a uri. (5) A block of type file whose file_id is a string, and that reached here with no other usable reference, has a native file part's shape and is one, rebuilt as in (1): its file_id is kept as written, empty or \_\_REDACTED\_\_ included. (6) When url or file_id is a string but none is usable, the block becomes a blob with the stripped_reason redacted_upstream and no byte_size (above). So a usable reference wins over an empty or \_\_REDACTED\_\_ file_id for every block type: {"type":"file","file_id":"","url":"https://example.com/a.pdf"} is a uri, and {"type":"file","file_id":""} alone is a file part. Nor does an empty or \_\_REDACTED\_\_ base64 beside one: {"type":"file","file_id":"","base64":""} is a file part by (5), while {"type":"image","base64":""} is a 0-byte blob by (2). A text-plain block is read by its base64 alone, in (2), and is document unless its mime_type names another modality; by url or file_id it makes no part and stays as it came. Every one keeps the block's mime_type when it is valid and takes its modality by the rule above. A block with no base64, url or file_id that is a string makes no part this way and stays as it came. In every case but a native file part ((1) and (5)), only type, base64, url, file_id and mime_type are read, a modality member included in none; a native file part is read as one, so its valid modality member comes first. So a LangChain v0 block by url ({"type":"image","source_type":"url","url":...}) is read the same way, and a v0 block by base64 or by id holds none of them and stays as it came, its data stripped per raw_payloads. generators/media_parts.py langchain_v1_part(data, block) is the reference, and each v1 example's block is its test. A block is read the same way on every path that delivers it: passthrough, and the provider blocks OpenLLMetry and Laminar write as gen_ai.prompt.N.content.
 - When a part has duplicate `type` members, the last one wins, as in a standard JSON decoder. The strip is different: there, a condition on `type` holds when any member qualifies.
-- A base64 data URL (rule (b)'s pattern matching the whole string) becomes a blob with the stripped_reason not_captured. Its mime type is the URL's when that is a valid token/token MIME type, else the hint (a native part's mime_type). Its byte_size is that of the base64 run under the size rule of the strip: an empty run is 0 bytes, and an invalid run has no byte_size.
+- A base64 data URL (rule (b)'s pattern matching the whole string, or all of it but one final line break, a newline or a carriage return and newline, as base64.encodebytes ends its output and as a key that keeps URLs reads it in the strip) becomes a blob with the stripped_reason not_captured. Its mime type is the URL's when that is a valid token/token MIME type, else the hint (a native part's mime_type). Its byte_size is that of the base64 run under the size rule of the strip: an empty run is 0 bytes, and an invalid run has no byte_size.
 - A provider item's bare base64 payload (an input_audio data, a Mistral input_audio or inputAudio string, an Anthropic base64 source's data, a LangChain v1 block's base64 (but an empty or \_\_REDACTED\_\_ one beside a file block's string file_id, below), a Bedrock Converse source's bytes, an image_generation_call result, a Gemini inline_data data, a Vercel file part's data or image part's image, a non-empty OpenAI file_data) becomes a blob with the stripped_reason not_captured, its byte_size under the size rule of the strip: an empty string is 0 bytes, never redacted_upstream. A payload that is itself a data URL follows the data URL rules. An OpenAI file or input_file with no usable file_id, file_data or file_url was dropped upstream (above).
 - A data URL that is not base64 (`data:<mime>,<payload>`) becomes a blob with the stripped_reason not_captured and no byte_size. Its mime type is the text after `data:` up to the first `;` or `,`, when that is a valid token/token MIME type, else the hint; its payload is everything after the first comma. This rule also covers a URL that names base64 but whose run does not match rule (b), such as `data:image/png;base64,@@`. When its payload is empty or `None`, it becomes a blob with the stripped_reason redacted_upstream.
 - When a normalizer rebuilds a native part inside an existing message-key value, it edits in place: only that part object token is replaced by its canonical compact serialization (no spaces, the minimal escaping of the strip), and every other byte of the value stays as it came. A value with nothing to rebuild stays byte for byte. Messages a normalizer builds itself are serialized compactly.
@@ -564,6 +564,14 @@ A native uri part {"type":"uri","modality":"image","uri":" data:image/png;base64
 {"type":"blob","modality":"image","stripped_reason":"not_captured"}
 ```
 
+#### `uri_that_is_a_data_url_and_one_final_line_break`
+
+A native uri part whose uri is a base64 data URL and one final newline: a sized blob under the data URL rules.
+
+```json
+{"type":"blob","modality":"audio","mime_type":"audio/wav","byte_size":4,"stripped_reason":"not_captured"}
+```
+
 #### `image_url_by_a_link_followed_by_a_data_url`
 
 An OpenAI image_url item whose url is an https link with a wrapped data URL on the next line: it holds data: but is no data URL, so it is a blob with no byte_size, image by the item's kind, and no byte of the link or the data URL is kept.
@@ -610,6 +618,30 @@ An OpenAI image_url item whose url is a base64 data URL rule (b) matches whole: 
 
 ```json
 {"type":"blob","modality":"image","mime_type":"image/jpeg","byte_size":10,"stripped_reason":"not_captured"}
+```
+
+#### `image_url_by_a_data_url_that_ends_in_one_line_break`
+
+An OpenAI image_url item whose url is a base64 data URL and one final newline, as base64.encodebytes writes it: rule (b)'s pattern matches all of it but that line break, so it is a sized blob, as the strip sizes it.
+
+```json
+{"type":"blob","modality":"image","mime_type":"image/png","byte_size":8,"stripped_reason":"not_captured"}
+```
+
+#### `vercel_image_by_a_wrapped_data_url_that_ends_in_one_line_break`
+
+A Vercel image part whose image is a base64 data URL wrapped at a carriage return and newline, with one final carriage return and newline: a sized blob.
+
+```json
+{"type":"blob","modality":"image","mime_type":"image/png","byte_size":8,"stripped_reason":"not_captured"}
+```
+
+#### `image_url_by_a_data_url_that_ends_in_two_line_breaks`
+
+An OpenAI image_url item whose url is a base64 data URL and two final newlines: no whole match, so it is a blob with no byte_size, its mime type read up to the first ; as for a data URL that is not base64.
+
+```json
+{"type":"blob","modality":"image","mime_type":"image/png","stripped_reason":"not_captured"}
 ```
 
 #### `input_image_by_a_link_followed_by_a_percent_encoded_data_url`

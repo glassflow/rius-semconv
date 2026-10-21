@@ -1655,6 +1655,9 @@ REQUIRED_PROVIDER_EXAMPLES = {
     "image_url_by_a_plain_link",
     "image_url_by_a_link_with_data_colon_in_its_path",
     "image_url_by_a_whole_data_url",
+    "image_url_by_a_data_url_that_ends_in_one_line_break",
+    "vercel_image_by_a_wrapped_data_url_that_ends_in_one_line_break",
+    "image_url_by_a_data_url_that_ends_in_two_line_breaks",
     "input_image_by_a_link_followed_by_a_percent_encoded_data_url",
     "anthropic_url_source_by_a_link_followed_by_a_data_url",
     "anthropic_document_url_source_by_a_link_followed_by_a_data_url",
@@ -1721,7 +1724,10 @@ NATIVE_PART_EXAMPLES = [e for e in PART_EXAMPLES if "native" in e]
 
 
 def test_native_part_examples_cover_the_native_uri_holding_a_data_url():
-    assert "uri_led_by_whitespace_holding_a_data_url" in {e["name"] for e in NATIVE_PART_EXAMPLES}
+    assert {e["name"] for e in NATIVE_PART_EXAMPLES} >= {
+        "uri_led_by_whitespace_holding_a_data_url",
+        "uri_that_is_a_data_url_and_one_final_line_break",
+    }
 
 
 @pytest.mark.parametrize(

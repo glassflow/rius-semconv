@@ -1378,12 +1378,12 @@ def _part(kind: str, modality: str, **members: Any) -> dict:
 
 
 def _data_url_part(data: dict, url: str, hint: str | None, kind_modality: str | None) -> dict:
-    """A data URL as a blob: rule (b)'s pattern matching the whole URL is
-    base64, with its run's size; any other is not base64, with no size, and
-    redacted_upstream when its payload is empty or None. The mime type is the
-    URL's when valid, else the hint."""
+    """A data URL as a blob: rule (b)'s pattern matching the whole URL, or all
+    of it but one final line break, is base64, with its run's size; any other
+    is not base64, with no size, and redacted_upstream when its payload is
+    empty or None. The mime type is the URL's when valid, else the hint."""
     raw = data["raw_payloads"]
-    match = whole_data_url(raw, url)
+    match = whole_data_url(raw, url, line_break=True)
     if match:
         mime = _mime_or_unknown(raw, match.group(1)) or hint
         size, reason = run_size(match.group(3)), "not_captured"
