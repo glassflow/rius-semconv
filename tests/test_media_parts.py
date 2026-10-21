@@ -775,6 +775,7 @@ REQUIRED_GOLDEN = {
     "a_percent_encoded_data_url_in_json_and_under_keys",
     "a_percent_encoded_run_ends_at_any_other_escape",
     "a_percent_encoded_data_url_wrapped_before_it_was_encoded",
+    "an_escaped_run_ends_at_a_unicode_escape",
     "a_wrapped_data_url_in_json_that_does_not_parse",
     "an_escaped_line_break_outside_json_ends_the_run",
     "a_base64_data_url_that_ends_in_one_line_break_under_a_url_key",
