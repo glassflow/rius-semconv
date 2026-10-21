@@ -373,9 +373,10 @@ def lint_raw_payloads(raw: Any) -> list[str]:
         except re.error as exc:
             errors.append(f"{where} detection rule b pattern does not compile ({exc})")
         else:
-            if groups != 3:
+            if groups != 4:
                 errors.append(
-                    f"{where} detection rule b pattern needs 3 groups (mime, parameters, base64)"
+                    f"{where} detection rule b pattern needs 4 groups"
+                    " (mime, parameters, base64, continuation)"
                 )
     for marker in rules.get("e", {}).get("base64_markers") or []:
         if (
@@ -617,13 +618,25 @@ def _mime_or_unknown(raw: dict, mime: str | None) -> str | None:
     return mime if is_mime(raw, mime) else None
 
 
+#: data: anywhere in a value, in any ASCII case: where a rule b token can start.
+_DATA_ANYWHERE = re.compile("[dD][aA][tT][aA]:")
+
+
 def data_url_spans(raw: dict, value: str) -> list[Span]:
-    """Rule b: every data URL token in a string, wherever it sits. A media type
+    """Rule b: every data URL token in a string, wherever it sits. The string
+    is cut before each data: (in any ASCII case), and the pattern is tried at
+    the start of each piece and never past its end, so a run that continues
+    over a line break never takes the start of the next data URL. A media type
     that is not token/token is unknown."""
-    return [
-        Span(m.start(), m.end(), _mime_or_unknown(raw, m.group(1)), base64_size(m.group(3)))
-        for m in re.finditer(_rules(raw)["b"]["pattern"], value)
-    ]
+    pattern = re.compile(_rules(raw)["b"]["pattern"])
+    starts = [m.start() for m in _DATA_ANYWHERE.finditer(value)]
+    spans = []
+    for start, end in zip(starts, [*starts[1:], len(value)], strict=False):
+        m = pattern.match(value, start, end)
+        if m:
+            mime = _mime_or_unknown(raw, m.group(1))
+            spans.append(Span(m.start(), m.end(), mime, base64_size(m.group(3))))
+    return spans
 
 
 def is_data_url(raw: dict, value: str) -> bool:
@@ -750,13 +763,13 @@ def is_url(raw: dict, value: Any) -> bool:
 
 def kept_url(raw: dict, value: Any) -> bool:
     """Whether a typed key that keeps URLs leaves a string alone for rule b: it
-    starts with a URL scheme, and either the scheme is not data (in any ASCII
-    case) or the whole string is one rule b token, so rule b replaces all of
-    it. Any other data: string (wrapped, percent-encoded, or with a broken
-    run) stays a rule e token and is replaced whole."""
+    starts with a URL scheme, and either it holds no data: (in any ASCII case)
+    or the whole string is one rule b token, so rule b replaces all of it. Any
+    other string holding data: (a percent-encoded data URL, a broken run, a
+    link with a data URL after it) stays a rule e token and is replaced whole."""
     if not is_url(raw, value):
         return False
-    if value.split(":", 1)[0].lower() != "data":
+    if _DATA_ANYWHERE.search(value) is None:
         return True
     return re.fullmatch(_rules(raw)["b"]["pattern"], value) is not None
 
@@ -1228,10 +1241,6 @@ REDACTED = "__REDACTED__"
 def _usable(value: Any) -> bool:
     """A usable reference: a string that is neither empty nor __REDACTED__."""
     return isinstance(value, str) and value not in ("", REDACTED)
-
-
-#: data: anywhere in a value, in any ASCII case.
-_DATA_ANYWHERE = re.compile("[dD][aA][tT][aA]:")
 
 
 def _is_data_scheme(value: str) -> bool:
