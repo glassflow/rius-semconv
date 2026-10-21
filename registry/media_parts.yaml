@@ -959,17 +959,20 @@ raw_payloads:
         kept, its elements walked. The SDK then sets the walked value in the
         form its OpenTelemetry attribute API holds. OpenTelemetry Python holds a
         mapping and a nested array, so it sets them as they are. OpenTelemetry
-        JS holds neither, so a walked value that held a byte object and is
-        then a mapping or an array holding an array or a mapping is set as one
-        string: the JSON the SDK serializes the value to under the rule above,
-        every byte object a quoted marker and every array an array, so
-        `{k: [1, bytes]}` is `{"k":[1,"[stripped unknown 2 bytes]"]}`, encoded
-        once, never holding a mixed array's own JSON as a string. The sink does the same with an OTLP
-        AnyValue: a bytes_value, alone or at any depth of array_value and
-        kvlist_value, is the marker, N the number of bytes it holds, and an
-        array_value that mixes a bytes_value with a value that is then no
-        string is its compact JSON, an int_value written as a JSON number and
-        a kvlist_value as an object. In OTLP JSON a bytes_value is base64:
+        JS holds neither, nor an array whose elements, null aside, are not
+        all strings, all numbers or all booleans. So a walked value that held
+        a byte object and is then a mapping, or an array OpenTelemetry JS
+        cannot hold, is set as one string: the JSON the SDK serializes the
+        whole value to under the rule above, every byte object a quoted marker
+        and every array an array. `{k: [1, bytes]}` is
+        `{"k":[1,"[stripped unknown 2 bytes]"]}` and `[1, [1, bytes]]` is
+        `[1,[1,"[stripped unknown 1 bytes]"]]`, each encoded once, never
+        holding a mixed array's own JSON as a string. The sink does the same
+        with an OTLP AnyValue: a bytes_value, alone or at any depth of
+        array_value and kvlist_value, is the marker, N the number of bytes it
+        holds, and an array_value that mixes a bytes_value with a value that
+        is then no string is its compact JSON, an int_value written as a JSON
+        number and a kvlist_value as an object. In OTLP JSON a bytes_value is base64:
         the proto3 JSON mapping writes it in the standard alphabet with
         padding, and a parser accepts the standard or the URL-safe alphabet,
         padded or not, so N is the length it decodes to (`_-__` is 3 bytes,
@@ -1054,6 +1057,11 @@ raw_payloads:
           note: The inner array is its JSON, so the outer one is an array of strings, which OpenTelemetry JS holds.
           value: '[[1, new Uint8Array(1)]]'
           output: ['[1,"[stripped unknown 1 bytes]"]']
+        - name: typescript_byte_object_beside_a_number_in_an_array_beside_a_number
+          language: typescript
+          note: The inner array is its JSON, which leaves the outer one a number beside a string. OpenTelemetry JS cannot hold that array, so the whole value is its JSON, encoded once.
+          value: '[1, [1, new Uint8Array(1)]]'
+          output: '[1,[1,"[stripped unknown 1 bytes]"]]'
         - name: otlp_bytes_value
           language: otlp
           note: An OTLP JSON AnyValue; the protobuf bytes_value is the same 8 bytes.

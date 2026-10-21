@@ -1404,7 +1404,8 @@ def attribute_value(raw: dict, value: Any) -> Any:
     homogeneous, so it is the SDK's JSON of the array (serialize_value), one
     string. Anything else is kept. This is the form the Python SDK sets, as
     OpenTelemetry Python holds a mapping and a nested array; the TypeScript
-    SDK sets a walked mapping or nested array as the JSON of the value."""
+    SDK sets a walked mapping, or an array OpenTelemetry JS cannot hold, as
+    the JSON of the value."""
     if isinstance(value, BYTE_OBJECT_TYPES):
         return replacement(raw, None, byte_object_size(value))
     if isinstance(value, dict):

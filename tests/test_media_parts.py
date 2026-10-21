@@ -1511,7 +1511,8 @@ def test_attribute_value_examples_are_what_the_reference_makes(base_data, exampl
 # The TypeScript SDK's attribute value rule: a byte object at any depth is the
 # bare marker, and an array that cannot stay homogeneous is its JSON, written
 # with the byte object replacer. OpenTelemetry JS holds no mapping and no
-# nested array, so a walked value that is one is the JSON of the value.
+# nested array, nor an array that is not homogeneous, so a walked value that
+# is one is the JSON of the value.
 ATTRIBUTE_VALUE_SCRIPT = (
     BYTE_OBJECT_SCRIPT.split("const examples")[0]
     + r"""
@@ -1531,9 +1532,15 @@ const attributeValue = (v) => {
 const holdsBytes = (v) =>
   isBytes(v) || (v !== null && typeof v === "object" && Object.values(v).some(holdsBytes));
 const primitive = (v) => v === null || typeof v !== "object";
+// As @opentelemetry/core's isHomogeneousAttributeValueArray: null aside, all
+// strings, all numbers or all booleans.
+const homogeneous = (a) => {
+  const types = new Set(a.filter((e) => e != null).map((e) => typeof e));
+  return types.size <= 1 && [...types].every((t) => ["string", "number", "boolean"].includes(t));
+};
 const setValue = (v) => {
   const out = attributeValue(v);
-  const held = Array.isArray(out) ? out.every(primitive) : primitive(out);
+  const held = Array.isArray(out) ? homogeneous(out) : primitive(out);
   return held || !holdsBytes(v) ? out : JSON.stringify(v, replacer);
 };
 const examples = JSON.parse(process.argv[1]);
@@ -1568,6 +1575,7 @@ def test_attribute_values_cover_every_language():
         ([1, [b"c"]], [1, ["[stripped unknown 1 bytes]"]]),
         ((b"ab", "x"), ["[stripped unknown 2 bytes]", "x"]),
         ([[1, b"c"]], ['[1,"[stripped unknown 1 bytes]"]']),
+        ([1, [1, b"c"]], [1, '[1,"[stripped unknown 1 bytes]"]']),
         ({"k": [1, b"c"]}, {"k": '[1,"[stripped unknown 1 bytes]"]'}),
         ([1, "x"], [1, "x"]),
     ],
