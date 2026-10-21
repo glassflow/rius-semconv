@@ -33,7 +33,7 @@ def test_committed_file_is_clean(base_data):
 
 def test_every_row_has_a_source_shape_and_direction(base_data):
     rows = base_data["media_parts"]["rows"]
-    assert len(rows) == 33
+    assert len(rows) == 36
     assert {r["direction"] for r in rows} == {"input", "output"}
 
 
@@ -206,6 +206,8 @@ def test_raw_payload_rows(base_data):
             "media present only in output.value (audio output)",
         ): ["output.value"],
         ("vercel.ai", "file part with Buffer data in ai.prompt"): ["ai.prompt"],
+        ("vercel.ai", "image part with base64 image in ai.prompt"): ["ai.prompt"],
+        ("vercel.ai", "file / image part with v7 tagged data in ai.prompt"): ["ai.prompt"],
     }
     (oo,) = [r for r in rows if r["source"] == "openllmetry.openai"]
     assert "raw_payload" not in oo
@@ -589,6 +591,19 @@ REQUIRED_GOLDEN = {
     "mistral_typescript_input_audio_string",
     "input_audio_string_with_no_type_is_left_alone",
     "the_new_shapes_stripped_twice_change_nothing",
+    "vercel_image_part_base64_in_ai_prompt",
+    "vercel_image_part_base64_without_a_media_type",
+    "vercel_image_string_that_is_not_base64",
+    "vercel_image_url_is_left_alone",
+    "vercel_image_data_url_keeps_its_own_mime",
+    "vercel_tagged_file_data_in_ai_prompt",
+    "vercel_tagged_image_data",
+    "vercel_tagged_data_url_and_link",
+    "image_and_tagged_data_outside_their_parts_are_left_alone",
+    "langchain_v0_base64_block_without_a_mime_type",
+    "langchain_v0_base64_blocks_with_a_mime_type",
+    "langchain_v0_blocks_with_no_base64_marker_are_left_alone",
+    "the_vercel_and_langchain_v0_shapes_stripped_twice_change_nothing",
 }
 
 
@@ -1029,7 +1044,8 @@ PORTABLE_ESCAPES = set("tnfr") | set("\\/.-[]()+*?{}|^$")
 def test_data_url_pattern_is_portable(base_data):
     raw = base_data["media_parts"]["raw_payloads"]
     (rule,) = [r for r in raw["detection"] if r["id"] == "b"]
-    for pattern in (rule["pattern"], raw["replacement"]["mime_pattern"]):
+    (keyed,) = [r for r in raw["detection"] if r["id"] == "e"]
+    for pattern in (rule["pattern"], raw["replacement"]["mime_pattern"], keyed["url_scheme"]):
         assert "(?" not in pattern, "no lookaround, named group or inline flag"
         for match in re.finditer(r"\\(.)", pattern):
             assert match.group(1) in PORTABLE_ESCAPES, f"\\{match.group(1)} is not portable"
@@ -1067,3 +1083,66 @@ def test_portability_check_bites():
 def test_complete_replacement(base_data, value, complete):
     raw = base_data["media_parts"]["raw_payloads"]
     assert media_parts.is_replacement(raw, value) is complete
+
+
+# --- URLs under a typed key that keeps them ------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("value", "url"),
+    [
+        ("https://example.com/a.png", True),
+        ("gs://bucket/a.png", True),
+        ("data:image/png;base64,QUFB", True),
+        ("svn+ssh://host/x", True),
+        ("iVBORw0KGgo=", False),
+        ("1http://x", False),
+        (" https://example.com", False),
+        ("[stripped unknown 3 bytes]", False),
+        ("", False),
+    ],
+)
+def test_a_url_starts_with_a_scheme(base_data, value, url):
+    raw = base_data["media_parts"]["raw_payloads"]
+    assert media_parts.is_url(raw, value) is url
+
+
+def test_a_url_in_an_array_under_image_is_left_to_rule_b(base_data):
+    raw = base_data["media_parts"]["raw_payloads"]
+    text = '{"type":"image","image":["https://example.com/a.png","QUFB"]}'
+    assert media_parts.strip_raw_payload(raw, text) == (
+        '{"type":"image","image":["https://example.com/a.png","[stripped unknown 3 bytes]"]}'
+    )
+
+
+def test_keeps_urls_wins_over_a_sibling(base_data):
+    """Tagged data beside its own mediaType qualifies through the sibling too,
+    but its key keeps URLs, so the link stays."""
+    raw = base_data["media_parts"]["raw_payloads"]
+    text = (
+        '{"data":{"type":"data","data":"https://example.com/a.pdf","mediaType":"application/pdf"}}'
+    )
+    assert media_parts.strip_raw_payload(raw, text) == text
+
+
+def test_a_tagged_data_reads_its_own_mime_first(base_data):
+    raw = base_data["media_parts"]["raw_payloads"]
+    text = '{"mediaType":"image/png","data":{"type":"data","data":"QUFB","mediaType":"image/gif"}}'
+    tokens = [t.as_dict() for t in media_parts.strip(raw, text).tokens]
+    assert tokens == [{"rule": "e", "mime": "image/gif", "byte_size": 3}]
+
+
+def test_a_base64_marker_needs_its_exact_value(base_data):
+    raw = base_data["media_parts"]["raw_payloads"]
+    for marker in ('"Base64"', '"base64 "', "true", '["base64"]'):
+        text = '{"source_type":' + marker + ',"data":"QUFB"}'
+        assert media_parts.strip_raw_payload(raw, text) == text, marker
+
+
+def test_a_rule_e_without_its_new_fields_fails_lint(data):
+    (rule,) = [r for r in data["media_parts"]["raw_payloads"]["detection"] if r["id"] == "e"]
+    del rule["url_scheme"]
+    del rule["base64_markers"]
+    errors = media_parts.lint(data["media_parts"])
+    assert_flags(errors, "detection rule e needs url_scheme")
+    assert_flags(errors, "detection rule e needs base64_markers")

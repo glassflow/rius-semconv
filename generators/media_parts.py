@@ -44,7 +44,9 @@ DETECTION_FIELDS = {
         "blob_type",
         "blob_key",
         "typed_keys",
+        "url_scheme",
         "source_bytes_keys",
+        "base64_markers",
         "mime_keys",
         "mime_formats",
     ),
@@ -151,7 +153,7 @@ def lint(data: dict) -> list[str]:
                 errors.append(f"{label} raw_payload {key} is not one of raw_payloads.raw_keys")
         modality = row.get("modality")
         if modality is None:
-            if normalized not in (["text"], [NONE]):
+            if normalized not in (["text"], [NONE], ["generic"]):
                 errors.append(f"{label} needs a modality")
         elif modality != FROM_MIME and modality not in modalities:
             errors.append(f"{label} modality must be one of {[*sorted(modalities), FROM_MIME]}")
@@ -594,17 +596,59 @@ def _keyed_string(raw: dict, value: Any) -> bool:
     return _non_empty_string(value) and not is_replacement(raw, value)
 
 
+def _typed_keys(rule: dict, members: Members, parent_key: str | None) -> list[dict]:
+    """The typed keys that hold in an object: one of its types is a type
+    member's value, and the parent key is one of its parent keys, if it names
+    any."""
+    out = []
+    for typed in rule["typed_keys"]:
+        if "parent_keys" in typed and parent_key not in typed["parent_keys"]:
+            continue
+        types = typed["types"]
+        if _first(members, "type", lambda v, types=types: v in types) is not None:
+            out.append(typed)
+    return out
+
+
+def is_url(raw: dict, value: Any) -> bool:
+    """Whether a string starts with a URL scheme (rule e's url_scheme): an ASCII
+    letter, then letters, digits, `+`, `-` or `.`, then a colon. Base64 holds no
+    colon, so a base64 string never does."""
+    pattern = str(_rules(raw)["e"]["url_scheme"])
+    return isinstance(value, str) and re.match(pattern, value) is not None
+
+
+def url_keys(raw: dict, value: dict | Members, parent_key: str | None) -> set[str]:
+    """The keys of an object whose URL strings rule e leaves to rule b: those
+    of a typed key that keeps URLs and holds in the object."""
+    rule = _rules(raw)["e"]
+    typed = _typed_keys(rule, _members(value), parent_key)
+    return {t["key"] for t in typed if t.get("keeps_urls")}
+
+
+def keyed_token(raw: dict, key: str, value: Any, urls: set[str]) -> bool:
+    """A string rule e replaces under `key`: a keyed string, unless the key
+    keeps URLs and the string starts with a URL scheme."""
+    return _keyed_string(raw, value) and not (key in urls and is_url(raw, value))
+
+
 def keyed_base64(raw: dict, value: dict | Members, parent_key: str | None) -> list[int]:
     """Rule e: the positions of the members of `value` that hold base64 media,
     duplicates included: a keyed string, or an array holding one directly.
     Every member counts for the context: a sibling key with a non-empty string
-    value that is not a complete replacement, the parent key, or a base64
-    source. A blob's content, a typed key under one of its types and a source's
-    bytes need no other context."""
+    value that is not a complete replacement, a base64 marker, the parent key,
+    or a base64 source. A blob's content, a typed key under one of its types
+    and a source's bytes need no other context. A typed key that keeps URLs
+    leaves a string that starts with a URL scheme to rule b."""
     rule = _rules(raw)["e"]
     members = _members(value)
     context = (
         any(k in rule["sibling_keys"] and _sibling_string(raw, v) for k, v in members)
+        or any(
+            k == marker["key"] and v == marker["value"]
+            for marker in rule["base64_markers"]
+            for k, v in members
+        )
         or parent_key in rule["parent_keys"]
         or (
             parent_key == rule["source_key"]
@@ -614,28 +658,33 @@ def keyed_base64(raw: dict, value: dict | Members, parent_key: str | None) -> li
     keys = set(rule["keys"]) if context else set()
     if _first(members, "type", lambda v: v == rule["blob_type"]) is not None:
         keys.add(rule["blob_key"])
-    for typed in rule["typed_keys"]:
-        types = typed["types"]
-        if _first(members, "type", lambda v, types=types: v in types) is not None:
-            keys.add(typed["key"])
+    keys.update(t["key"] for t in _typed_keys(rule, members, parent_key))
     if parent_key == rule["source_key"]:
         keys.update(rule["source_bytes_keys"])
+    urls = url_keys(raw, members, parent_key)
     return [
         i
         for i, (k, v) in enumerate(members)
         if k in keys
         and (
-            _keyed_string(raw, v)
-            or (isinstance(v, list) and any(_keyed_string(raw, item) for item in v))
+            keyed_token(raw, k, v, urls)
+            or (isinstance(v, list) and any(keyed_token(raw, k, item, urls) for item in v))
         )
     ]
 
 
-def keyed_mime(raw: dict, value: dict | Members, parent_key: str | None) -> str | None:
+def keyed_mime(
+    raw: dict,
+    value: dict | Members,
+    parent_key: str | None,
+    holder: dict | Members | None = None,
+) -> str | None:
     """Rule e's mime type: the first mime key with a valid mime, else the first
     mime_formats entry whose sibling is a non-empty string and not a complete
     replacement (and whose parent keys, if any, include the parent) and whose
-    mime is valid."""
+    mime is valid. Else, when a typed key that reads the holder's mime holds in
+    the object, the first mime key of `holder` (the nearest enclosing object,
+    as for rule d) with a valid mime."""
     rule = _rules(raw)["e"]
     members = _members(value)
     mime = _mime_key(raw, rule, members)
@@ -650,6 +699,9 @@ def keyed_mime(raw: dict, value: dict | Members, parent_key: str | None) -> str 
         mime = str(entry["mime"]).replace("<value>", sibling)
         if is_mime(raw, mime):
             return mime
+    typed = _typed_keys(rule, members, parent_key)
+    if holder is not None and any(t.get("holder_mime") for t in typed):
+        return _mime_key(raw, rule, holder)
     return None
 
 
@@ -934,7 +986,8 @@ def _walk(
             edits.append((node.start, node.end, _literal(raw, mime, len(data))))
             return
         keyed = set(keyed_base64(raw, members, parent_key))
-        mime = keyed_mime(raw, members, parent_key) if keyed else None
+        mime = keyed_mime(raw, members, parent_key, holder) if keyed else None
+        urls = url_keys(raw, members, parent_key) if keyed else set()
         for i, (key, child) in enumerate(node.members):
             if i not in keyed:
                 _walk(raw, child, key, members, depth + 1, tokens, edits)
@@ -943,7 +996,7 @@ def _walk(
             else:
                 # A string array under the key: each string element is a token.
                 for item in child.items:
-                    if _keyed_string(raw, item.value):
+                    if keyed_token(raw, key, item.value, urls):
                         _keyed_token(raw, item, mime, tokens, edits)
                     else:
                         _walk(raw, item, key, members, depth + 2, tokens, edits)
@@ -1152,7 +1205,16 @@ def _render_raw_payloads(raw: dict) -> list[str]:
 def _param(value: Any) -> str:
     """A detection rule parameter, for the table."""
     if isinstance(value, list) and all(isinstance(v, dict) and "types" in v for v in value):
-        return ", ".join(f"`{v['key']}` under type " + _code_list(v["types"]) for v in value)
+        return ", ".join(
+            f"`{v['key']}` under type "
+            + _code_list(v["types"])
+            + (" and parent key " + _code_list(v["parent_keys"]) if v.get("parent_keys") else "")
+            + (" (keeps URLs)" if v.get("keeps_urls") else "")
+            + (" (the holder's mime)" if v.get("holder_mime") else "")
+            for v in value
+        )
+    if isinstance(value, list) and all(isinstance(v, dict) and "value" in v for v in value):
+        return ", ".join(f"`{v['key']}` = `{v['value']}`" for v in value)
     if isinstance(value, list) and all(isinstance(v, dict) for v in value):
         return ", ".join(
             "`"
