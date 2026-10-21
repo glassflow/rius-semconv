@@ -1163,7 +1163,8 @@ def render_table(data: dict) -> str:
         + ", ".join(f"`{m}`" for m in data["modalities"])
         + ",",
         "taken from the MIME type when known (`from_mime`), else from the provider's",
-        "part kind. A `blob` carries a `stripped_reason`:",
+        "item kind, a filename or a URI path's extension (see the part rules).",
+        "A `blob` carries a `stripped_reason`:",
         "",
     ]
     for reason, meaning in data["stripped_reasons"].items():
