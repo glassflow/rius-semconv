@@ -14,7 +14,9 @@ name). Every difference must be listed in fixtures/control_differences.json
 with the reason it is a language difference and not a disagreement between the
 SDKs. An entry matches a difference on `where` and `key`, and, when it has
 them, on `scenarios` and on the exact `python` and `typescript` values (OTLP
-JSON `AnyValue`s, `null` for absent). A difference no entry matches fails, and
+JSON `AnyValue`s, `null` for absent). A side the entry gives no value for must
+be present on both recordings: such an entry lets the values differ, never
+lets one go missing. A difference no entry matches fails, and
 so does an entry that matches nothing, so fixing a difference means deleting
 its entry in the same change.
 
@@ -164,9 +166,15 @@ def matches(entry: dict[str, Any], diff: Difference) -> bool:
         return False
     if "scenarios" in entry and diff.scenario not in entry["scenarios"]:
         return False
-    if "python" in entry and entry["python"] != diff.python:
-        return False
-    return not ("typescript" in entry and entry["typescript"] != diff.typescript)
+    # A side the entry gives no value for must still be present: an entry
+    # that lets a value differ never lets it go missing.
+    for side, value in (("python", diff.python), ("typescript", diff.typescript)):
+        if side in entry:
+            if entry[side] != value:
+                return False
+        elif value is None:
+            return False
+    return True
 
 
 def check(fixtures: Path) -> list[str]:

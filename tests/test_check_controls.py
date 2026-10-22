@@ -126,3 +126,30 @@ def test_a_missing_scenario_fails(fixtures: Path):
 
     edit(newest_recording(fixtures, TYPESCRIPT), change)
     assert any("chain" in p and "scenario recorded" in p for p in check(fixtures))
+
+
+def test_an_entry_without_values_does_not_allow_a_missing_attribute(fixtures: Path):
+    """telemetry.sdk.version may differ between the SDKs, but it must be
+    there: an entry without values never covers a key one side lost."""
+
+    def change(data):
+        resource = data["recordings"][0]["resource"]
+        resource["attributes"] = [
+            a for a in resource["attributes"] if a["key"] != "telemetry.sdk.version"
+        ]
+
+    edit(newest_recording(fixtures, TYPESCRIPT), change)
+    problems = check(fixtures)
+    assert len(problems) == 1
+    assert "not listed" in problems[0] and "telemetry.sdk.version" in problems[0]
+    assert "typescript null" in problems[0]
+
+
+def test_an_entry_without_values_does_not_allow_a_missing_scope_version(fixtures: Path):
+    def change(data):
+        for scenario in data["recordings"]:
+            for entry in scenario["spans"]:
+                entry["scope"].pop("version", None)
+
+    edit(newest_recording(fixtures, PYTHON), change)
+    assert any("scope version" in p and "python null" in p for p in check(fixtures))
