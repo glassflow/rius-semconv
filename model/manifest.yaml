@@ -7,7 +7,7 @@ description: >
   share, the upstream keys they use, and the third-party keys they normalize.
 # The last path segment is this registry's version; release-please keeps it
 # equal to version.txt.
-schema_url: https://docs.glassflow.ai/rius/schemas/1.8.0 # x-release-please-version
+schema_url: https://docs.glassflow.ai/rius/schemas/1.8.1 # x-release-please-version
 stability: development
 # Pinned in versions.env too; tools/check_weaver_pins.py keeps the two equal.
 dependencies:

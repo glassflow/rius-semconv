@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.8.1](https://github.com/glassflow/rius-semconv/compare/v1.8.0...v1.8.1) (2026-10-22)
+
+
+### Bug Fixes
+
+* keep a plain data URL whose header holds data%3A one token ([#88](https://github.com/glassflow/rius-semconv/issues/88)) ([118e2d1](https://github.com/glassflow/rius-semconv/commit/118e2d19c165fd33ed861d809d9b845fcdda73ed))
+* size a newline-terminated data URL, strip percent-encoded and escaped-wrapped data URLs, read the OpenInference image media_type ([#85](https://github.com/glassflow/rius-semconv/issues/85)) ([e733c7a](https://github.com/glassflow/rius-semconv/commit/e733c7ac0548b9a7c251d24a02b37608b302ad0e))
+
 ## [1.8.0](https://github.com/glassflow/rius-semconv/compare/v1.7.0...v1.8.0) (2026-10-21)
 
 
