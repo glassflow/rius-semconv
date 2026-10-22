@@ -41,6 +41,9 @@ jobs:
       - name: Fixtures are complete
         run: python tools/check_fixtures.py
 
+      - name: The two SDKs' controls agree
+        run: python tools/check_controls.py
+
       - name: Every usage key is decided
         run: python tools/check_usage_keys.py
 
