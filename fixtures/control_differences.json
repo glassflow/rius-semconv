@@ -1,0 +1,83 @@
+{
+  "about": "Where the Python SDK's control recording (rius-python) and the TypeScript SDK's (rius-typescript) differ, and why each difference is a difference of language or of the libraries each recorder drives, not a disagreement between the SDKs. tools/check_controls.py compares the newest recording of each family, scenario by scenario and span by span, and fails on any difference not listed here and on an entry that matches nothing. An entry matches on `where` (resource, scope, span, attribute, event <name>, events or scenario) and `key`, and, when given, on `scenarios` and on the exact `python` and `typescript` values (OTLP JSON values, null for absent). A real disagreement is never listed: it is fixed in the SDK that is wrong, and both controls are re-recorded.",
+  "differences": [
+    {
+      "where": "resource",
+      "key": "telemetry.sdk.language",
+      "python": {"stringValue": "python"},
+      "typescript": {"stringValue": "nodejs"},
+      "reason": "Each OpenTelemetry SDK names its own language."
+    },
+    {
+      "where": "resource",
+      "key": "telemetry.sdk.version",
+      "reason": "The version of each language's OpenTelemetry SDK, pinned per recording (opentelemetry-sdk for Python, @opentelemetry/sdk-trace-base for Node). The two are versioned independently."
+    },
+    {
+      "where": "resource",
+      "key": "telemetry.distro.version",
+      "reason": "Each Rius SDK's own version. The two SDKs are released independently."
+    },
+    {
+      "where": "scope",
+      "key": "version",
+      "reason": "The tracer scope's version is the Rius SDK's own version, as telemetry.distro.version."
+    },
+    {
+      "where": "attribute",
+      "key": "error.type",
+      "scenarios": ["generation_error"],
+      "python": {"stringValue": "RuntimeError"},
+      "typescript": {"stringValue": "Error"},
+      "reason": "The scenario raises the language's own generic exception (RuntimeError in Python, Error in JavaScript), and both SDKs write the exception's class name."
+    },
+    {
+      "where": "event exception",
+      "key": "exception.type",
+      "scenarios": ["generation_error"],
+      "python": {"stringValue": "RuntimeError"},
+      "typescript": {"stringValue": "Error"},
+      "reason": "As error.type: the class name of each language's generic exception."
+    },
+    {
+      "where": "event exception",
+      "key": "exception.escaped",
+      "scenarios": ["generation_error"],
+      "python": {"stringValue": "False"},
+      "typescript": null,
+      "reason": "OpenTelemetry Python's Span.record_exception writes exception.escaped (a string, deprecated in the conventions); OpenTelemetry JS's recordException does not write it. Both SDKs record the exception through their OpenTelemetry SDK, which owns the event's attributes."
+    },
+    {
+      "where": "attribute",
+      "key": "gen_ai.response.time_to_first_chunk",
+      "scenarios": ["generation_stream"],
+      "python": {"doubleValue": 0.001},
+      "typescript": {"doubleValue": 0.003},
+      "reason": "A measured value. Each recorder pins its runtime's clock to advance one millisecond per reading, so the value counts the clock readings between the span's start and its first token, which depends on how each runtime's OpenTelemetry SDK reads the clock, not on what the SDKs measure."
+    },
+    {
+      "where": "attribute",
+      "key": "mcp.protocol.version",
+      "scenarios": ["mcp_tool_call", "mcp_tool_error", "mcp_in_agent"],
+      "python": {"stringValue": "2026-07-28"},
+      "typescript": {"stringValue": "2025-11-25"},
+      "reason": "The protocol version the client and the in-process server negotiate: each recorder pins its language's MCP library (mcp for Python, @modelcontextprotocol/sdk for TypeScript), and their latest protocol versions differ. Both SDKs record the negotiated version."
+    },
+    {
+      "where": "attribute",
+      "key": "output.value",
+      "scenarios": ["mcp_tool_call", "mcp_in_agent"],
+      "python": {"stringValue": "{\"result\":\"Paris: sunny, 24C\"}"},
+      "typescript": {"stringValue": "Paris: sunny, 24C"},
+      "reason": "The tool results differ, not the SDKs: the Python MCP server answers a str-returning tool with structured content ({\"result\": ...}) beside the text, the TypeScript server (no output schema) with text only. Both SDKs record structured content when the result has it, otherwise the text."
+    },
+    {
+      "where": "attribute",
+      "key": "output.value",
+      "scenarios": ["mcp_tool_error"],
+      "python": {"stringValue": "Error executing tool broken"},
+      "typescript": {"stringValue": "forecast service unavailable"},
+      "reason": "The error results differ, not the SDKs: the Python MCP server replaces a raised exception's message with \"Error executing tool <name>\", the TypeScript server returns the thrown message. Both SDKs record the error result's text."
+    }
+  ]
+}

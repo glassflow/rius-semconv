@@ -7,7 +7,7 @@
       "package-name": "rius-semconv",
       "include-component-in-tag": false,
       "bump-minor-pre-major": true,
-      "exclude-paths": [".github", "fixtures", "tests", "tools"],
+      "exclude-paths": [".github", "fixtures", "sdk_cases", "tests", "tools"],
       "changelog-sections": [
         { "type": "feat", "scope": "deprecate", "section": "Deprecations" },
         { "type": "feat", "section": "Features" },

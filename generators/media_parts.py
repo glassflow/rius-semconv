@@ -1742,10 +1742,11 @@ def attribute_value(raw: dict, value: Any) -> Any:
     the bare marker, at any depth of arrays and mappings. An array that holds
     a byte object beside an element that is then no string cannot stay
     homogeneous, so it is the SDK's JSON of the array (serialize_value), one
-    string. Anything else is kept. This is the form the Python SDK sets, as
-    OpenTelemetry Python holds a mapping and a nested array; the TypeScript
-    SDK sets a walked mapping, or an array OpenTelemetry JS cannot hold, as
-    the JSON of the value."""
+    string. Anything else is kept. This is the form a raw OpenTelemetry
+    Python span holds, a mapping and a nested array included; a walked
+    mapping, or an array OpenTelemetry JS cannot hold, is the JSON of the
+    value in TypeScript. Both SDKs' own setters write a mapping, or an array
+    holding one, as one JSON encoding, byte objects as markers."""
     if isinstance(value, BYTE_OBJECT_TYPES):
         return replacement(raw, None, byte_object_size(value))
     if isinstance(value, KvList):

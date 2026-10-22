@@ -216,8 +216,8 @@ The step comes from the commit type, so label changes accordingly:
 | Recordings, expected results, tests, tooling | `test:` or `chore:` |
 | Documentation only | `docs:` |
 
-Commits that touch nothing but `fixtures/`, `tests/`, `tools/` or `.github/`
-never cause a release, whatever their type. Each release's notes list
+Commits that touch nothing but `fixtures/`, `sdk_cases/`, `tests/`, `tools/`
+or `.github/` never cause a release, whatever their type. Each release's notes list
 breaking changes first, then deprecations under their own **Deprecations**
 heading, then features and fixes.
 
@@ -267,6 +267,13 @@ CI also checks every expected result against this registry with Weaver's
 wrong type, fails the build, so what the normalizers produce and what the
 registry promises cannot drift apart.
 
+The two control families record the Rius SDKs' own output for the same
+scenarios, and `tools/check_controls.py` diffs one SDK's against the other's
+in CI: every difference must be a reviewed language difference listed in
+`fixtures/control_differences.json`. Behaviour the SDKs share that no
+recording exercises (value encoding, masking, environment parsing, the
+resource) is in [`sdk_cases/`](sdk_cases/README.md), cases both SDKs run.
+
 Consumers pin the recordings by exact commit, not by registry version: they
 change with every normalizer fix, and only exact equality matters to a
 conformance test.
@@ -290,12 +297,15 @@ docs/registry/             the attribute reference, one page per namespace (gene
 fixtures/                  recorded spans and the result every normalizer must
                            produce from them (see fixtures/README.md)
   passthrough.yaml         third-party keys live-check allows unmodelled, each with its reason
+  control_differences.json the reviewed language differences between the two SDK controls
+sdk_cases/                 cases both SDKs run: value encoding, masking, env, resource
 tools/
   check_registry.py        lint the registry
   check_parity.py          compare out/ with what each consumer ships
   check_fixtures.py        every recording has a manifest entry and an expected result,
                            and no media content leaks into a normalized part or message key
   check_usage_keys.py      every usage key in a recording has a decision, and it holds
+  check_controls.py        the two SDKs' control recordings differ only as listed
   expect_python.py         write a recording's expected result with the Python SDK
   expect_typescript.mts    write one with the TypeScript SDK (Vercel families), under tsx
   review_expected.py       what a normalizer did to each span, for the hand review
@@ -335,6 +345,7 @@ python tools/check_registry.py            # lint
 python -m generators.generate             # regenerate out/
 python -m generators.generate --check     # exit 1 if out/ is stale
 python tools/check_fixtures.py            # every recording is complete
+python tools/check_controls.py            # the SDK controls agree
 python tools/check_usage_keys.py          # every recorded usage key is decided
 python -m pytest
 ```
