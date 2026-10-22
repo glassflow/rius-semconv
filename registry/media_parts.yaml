@@ -334,8 +334,9 @@ raw_payloads:
     so each character is read by at most one plain attempt, its one retry,
     and one percent attempt; the mime type and parameters split in exactly one
     way, and once `;base64,` is read the rest of the pattern cannot fail, so
-    the run is taken greedily with no backtracking into it. The run's first line is capped by `{0,76}`, so line
-    breaks are crossed only after a first line of at most 76; a longer first
+    the run is taken greedily with no backtracking into it. The run's first
+    line is capped by `{0,76}`, so line breaks are crossed only after a first
+    line of at most 76; a longer first
     line goes on in the last `[A-Za-z0-9+/_-]*` and ends the run at its line
     break. Continuation lines are not capped: a capped quantifier inside the
     repeated group makes V8 keep backtracking state for each character, and
