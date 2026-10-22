@@ -369,9 +369,25 @@ class Registry:
         for ref in al["pending_identity_prefixes"]["refs"]:
             if ref not in self._by_const:
                 errors.append(f"pending_identity_prefixes: unknown const {ref}")
-        for ref in al["content"].get("derived", {}).get("prefixes", []):
+        derived = al["content"].get("derived", {})
+        for ref in derived.get("prefixes", []):
             if ref not in self._by_const:
                 errors.append(f"content.derived: unknown const {ref}")
+        if "members" in derived:
+            by_const = {v.get("const"): v for v in al.values() if isinstance(v, dict)}
+            members = by_const.get(derived["members"])
+            if members is None or "values" not in members:
+                errors.append(f"content.derived: unknown members {derived['members']}")
+            else:
+                # The normalizers pull tool definitions out of the request
+                # bag by the narrower list; each of those names must still be
+                # content when it arrives as a request attribute instead.
+                for m in al["invocation_parameters_content_members"]["values"]:
+                    if m not in members["values"]:
+                        errors.append(
+                            f"invocation_parameters_content_members: {m} is not in "
+                            f"{derived['members']}, so gen_ai.request.{m} is not content"
+                        )
 
         pending_refs = {m["ref"] for m in al["pending_identity"]["attributes"] if "ref" in m}
         content_refs = {m["ref"] for m in al["content"]["attributes"] if "ref" in m}

@@ -92,6 +92,9 @@ const (
 {{ "\n" }}{{ comment(prefixes.doc, "//", "") }}var {{ prefixes.go }} = []string{ {%- for r in prefixes.refs %}{{ name_of(r) }}{% if not loop.last %}, {% endif %}{% endfor %}}
 
 {{ comment(ipc.doc, "//", "") }}var {{ ipc.go }} = []string{ {%- for v in ipc["values"] %}{{ lit(v) }}{% if not loop.last %}, {% endif %}{% endfor %}}
+{% set rpc = al.request_parameters_content_members %}
+
+{{ comment(rpc.doc, "//", "") }}var {{ rpc.go }} = []string{ {%- for v in rpc["values"] %}{{ lit(v) }}{% if not loop.last %}, {% endif %}{% endfor %}}
 {#- Go has no package-level comprehension, so the derived content keys are
     expanded here, and a map literal cannot fold another map in, so each
     included allowlist is emitted on its own and its members expanded into the
@@ -99,7 +102,7 @@ const (
 {% set derived = al.content.derived %}
 {% set extra %}
 {% if derived %}
-{{ comment(derived.note, "//", "\t") }}{% for prefix in derived.prefixes %}{% for m in ipc["values"] %}
+{{ comment(derived.note, "//", "\t") }}{% for prefix in derived.prefixes %}{% for m in rpc["values"] %}
 	{{ name_of(prefix) }} + {{ lit(m) }}: {},
 {% endfor %}{% endfor %}
 {% endif %}

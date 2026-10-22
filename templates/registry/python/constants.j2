@@ -70,7 +70,9 @@ from enum import Enum
 {% set ipc = al.invocation_parameters_content_members %}
 
 {{ comment(ipc.doc, "#", "") }}{{ ipc.const }} = ({% for v in ipc["values"] %}{{ lit(v) }}{% if not loop.last %}, {% endif %}{% endfor %}{% if ipc["values"] | length == 1 %},{% endif %})
-{% set ns.public = ns.public + [mp.const, al.pending_identity.const, al.pending_identity_prefixes.const, ipc.const] %}
+{% set rpc = al.request_parameters_content_members %}
+{{ string_tuple("request_parameters_content_members") -}}
+{% set ns.public = ns.public + [mp.const, al.pending_identity.const, al.pending_identity_prefixes.const, ipc.const, rpc.const] %}
 {% for section in ctx.included %}
 {{ member_set(section) }}
 {%- set ns.public = ns.public + [al[section].const] %}

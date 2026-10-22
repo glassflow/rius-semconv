@@ -81,6 +81,19 @@ def test_a_prefix_identity_key_outside_every_content_prefix_is_flagged(data):
     assert any("plain.key is under no content prefix" in e for e in lint(data))
 
 
+def test_a_tool_definition_member_the_content_rule_misses_is_flagged(data):
+    # The normalizers pull tool definitions out of the request bag by the
+    # narrower list; each of those names must still be content as
+    # gen_ai.request.<name> and rius.request.<name>.
+    data["allowlists"]["invocation_parameters_content_members"]["values"].append("schemas")
+    assert any("schemas is not in REQUEST_PARAMETERS_CONTENT_MEMBERS" in e for e in lint(data))
+
+
+def test_derived_content_members_must_name_an_allowlist(data):
+    data["allowlists"]["content"]["derived"]["members"] = "NO_SUCH_MEMBERS"
+    assert any("content.derived: unknown members NO_SUCH_MEMBERS" in e for e in lint(data))
+
+
 def test_table_shipped_in_limits_a_table(registry):
     assert registry.table("otel_kind_by_kind", "python") is not None
     assert registry.table("otel_kind_by_kind", "go") is None

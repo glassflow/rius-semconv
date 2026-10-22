@@ -863,17 +863,36 @@ var PendingIdentityAttributes = map[string]struct{}{
 // is rius.request.* (the caller parameters the conventions do not define):
 // both are chosen before the call runs, so a live view of a still-running
 // generation must already show them. The two namespaces are deliberately
-// treated alike here as well as in CONTENT_ATTRIBUTES.
+// treated alike here as well as in CONTENT_ATTRIBUTES. A key under either
+// prefix that the content rules match (gen_ai.request.messages,
+// rius.request.tools, ...) is content first: a consumer must not let the
+// prefix admit it onto a pending snapshot.
 var PendingIdentityPrefixes = []string{GenAIRequestPrefix, RiusRequestPrefix}
 
 // Parameter names that carry TOOL DEFINITIONS rather than a sampling knob.
 // Named once and consumed by every route to the same definitions, so the
 // routes cannot drift apart: as gen_ai.request.<member> and
-// rius.request.<member> (derived into CONTENT_ATTRIBUTES), and as JSON
+// rius.request.<member> (derived into CONTENT_ATTRIBUTES through
+// REQUEST_PARAMETERS_CONTENT_MEMBERS), and as JSON
 // members of llm.invocation_parameters. Tool definitions are content in the
 // same sense messages are, and which route they arrived by cannot be what
 // decides whether they are protected.
 var InvocationParametersContentMembers = []string{"tools", "functions"}
+
+// Parameter names whose VALUE is content rather than a sampling knob, so
+// gen_ai.request.<member> and rius.request.<member> are content (derived
+// into CONTENT_ATTRIBUTES). A caller passing the system prompt, the
+// messages or the tool definitions through model parameters would
+// otherwise export them verbatim with content capture off, and on every
+// pending snapshot of a still-running generation. rius.request.<key> keeps
+// the caller's spelling, so each provider's name for the same content is
+// listed (Gemini contents and system_instruction, Bedrock toolConfig,
+// Cohere preamble, chat_history, message and documents), and so is a
+// structured-output schema (response_format, json_schema), as ai.schema is
+// content. A superset of
+// INVOCATION_PARAMETERS_CONTENT_MEMBERS: the linter keeps every
+// tool-definition member here too.
+var RequestParametersContentMembers = []string{"system", "messages", "prompt", "input", "instructions", "tools", "functions", "contents", "system_instruction", "systemInstruction", "system_prompt", "systemPrompt", "toolConfig", "preamble", "chat_history", "message", "documents", "response_format", "json_schema"}
 
 // Content keys of other OTel-based SDKs a customer runs next to rius. Their
 // spans reach rius's exporter through the foreign-provider bridge, or
@@ -1037,6 +1056,19 @@ var ContentAttributes = map[string]struct{}{
 	"ai.documents":          {},
 	"ai.schema":             {},
 	"ai.schema.description": {},
+	// Added from @ai-sdk/otel 1.0.141 (2026-10-22), where an e2e run with
+	// content capture off exported all of these: the text generateSpeech
+	// speaks, the human-in-the-loop decision's questions, state and
+	// answers, and the provider's raw response metadata, which can echo
+	// the request. The runtime context is the caller's arbitrary payload,
+	// flattened one key per member like Langfuse's metadata (see the
+	// prefixes); the bare key is listed per the bare-key rule.
+	"ai.request.text":              {},
+	"ai.decision.questions":        {},
+	"ai.decision.state":            {},
+	"ai.decision.answers":          {},
+	"ai.response.providerMetadata": {},
+	"ai.settings.context":          {},
 	// The OpenInference request-parameters bag, whole. Its membership is
 	// open and provider-defined (litellm and langchain put the request's
 	// tools array in it, and providers are free to add anything else),
@@ -1052,15 +1084,49 @@ var ContentAttributes = map[string]struct{}{
 	// survives masking.
 	RiusCompactionSummaryText: {},
 	// The NAMED EXCEPTION to the rule that request parameters export in clear.
-	// That rule is right for scalar knobs, but a caller passing tools through
-	// model parameters would otherwise export proprietary prompt engineering
-	// verbatim with content capture off. Per KEY, not per namespace: both
+	// That rule is right for scalar knobs, but a caller passing the prompt or
+	// the tools through model parameters would otherwise export it verbatim
+	// with content capture off. Per KEY, not per namespace: both
 	// namespaces stay non-content wholesale, which is what keeps their tie
 	// intact.
-	GenAIRequestPrefix + "tools":     {},
-	GenAIRequestPrefix + "functions": {},
-	RiusRequestPrefix + "tools":      {},
-	RiusRequestPrefix + "functions":  {},
+	GenAIRequestPrefix + "system":             {},
+	GenAIRequestPrefix + "messages":           {},
+	GenAIRequestPrefix + "prompt":             {},
+	GenAIRequestPrefix + "input":              {},
+	GenAIRequestPrefix + "instructions":       {},
+	GenAIRequestPrefix + "tools":              {},
+	GenAIRequestPrefix + "functions":          {},
+	GenAIRequestPrefix + "contents":           {},
+	GenAIRequestPrefix + "system_instruction": {},
+	GenAIRequestPrefix + "systemInstruction":  {},
+	GenAIRequestPrefix + "system_prompt":      {},
+	GenAIRequestPrefix + "systemPrompt":       {},
+	GenAIRequestPrefix + "toolConfig":         {},
+	GenAIRequestPrefix + "preamble":           {},
+	GenAIRequestPrefix + "chat_history":       {},
+	GenAIRequestPrefix + "message":            {},
+	GenAIRequestPrefix + "documents":          {},
+	GenAIRequestPrefix + "response_format":    {},
+	GenAIRequestPrefix + "json_schema":        {},
+	RiusRequestPrefix + "system":              {},
+	RiusRequestPrefix + "messages":            {},
+	RiusRequestPrefix + "prompt":              {},
+	RiusRequestPrefix + "input":               {},
+	RiusRequestPrefix + "instructions":        {},
+	RiusRequestPrefix + "tools":               {},
+	RiusRequestPrefix + "functions":           {},
+	RiusRequestPrefix + "contents":            {},
+	RiusRequestPrefix + "system_instruction":  {},
+	RiusRequestPrefix + "systemInstruction":   {},
+	RiusRequestPrefix + "system_prompt":       {},
+	RiusRequestPrefix + "systemPrompt":        {},
+	RiusRequestPrefix + "toolConfig":          {},
+	RiusRequestPrefix + "preamble":            {},
+	RiusRequestPrefix + "chat_history":        {},
+	RiusRequestPrefix + "message":             {},
+	RiusRequestPrefix + "documents":           {},
+	RiusRequestPrefix + "response_format":     {},
+	RiusRequestPrefix + "json_schema":         {},
 	// Every member of ThirdPartyContentAttributes.
 	"langfuse.observation.input":               {},
 	"langfuse.observation.output":              {},
@@ -1141,6 +1207,7 @@ var ContentAttributePrefixes = []string{
 	"llm.prompt_template.",
 	"llm.tools.",
 	"ai.prompt.",
+	"ai.settings.context.",
 	"langfuse.observation.metadata.",
 	"langfuse.trace.metadata.",
 	"traceloop.prompt.template_variables.",
