@@ -21,10 +21,12 @@ tools/check_fixtures.py refuses in an expected result. No input raises out of
 from __future__ import annotations
 
 import base64
+import bisect
 import json
 import pathlib
 import re
 import string
+from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Any
 
@@ -669,29 +671,52 @@ def _match_token(raw: dict, m: re.Match) -> tuple[str | None, int | None]:
     return _mime_or_unknown(raw, _percent_decode(head)), run_size(_percent_decode(m.group(3)))
 
 
-def data_url_spans(raw: dict, value: str, escaped: bool = False) -> list[Span]:
-    """Rule b: every data URL token in a string, wherever it sits. The string
-    is cut before each data: and each data%3A (in any ASCII case), and the
-    pattern is tried at the start of each piece and never past its end, so a
-    run that continues over a line break never takes the start of the next
-    data URL: pattern at a data:, percent_pattern at a data%3A. A media type
-    that is not token/token is unknown. `escaped`, for the text of a JSON
-    candidate that does not parse, tries escaped_pattern instead of pattern,
-    whose run also goes on over a line break written as a JSON escape."""
+def _next_start(starts: list[int], after: int, end: int) -> int:
+    """The first of the sorted `starts` past `after`, else `end`."""
+    i = bisect.bisect_right(starts, after)
+    return starts[i] if i < len(starts) else end
+
+
+def _matches(raw: dict, value: str, escaped: bool = False) -> Iterator[re.Match]:
+    """Rule b's matches in a string, in order. pattern is tried at each data:
+    (in any ASCII case) and never past the next data:, so a run that goes on
+    over a line break never takes the start of the next data URL; its run
+    (group 3), but not its header, also stops before the next data%3A, so a
+    percent-encoded data URL glued after it is a token of its own.
+    percent_pattern is tried at each data%3A and never past the next data: or
+    data%3A, except at a data%3A inside a plain match, which can only be in
+    its header: a plain data URL whose header holds data%3A is one token.
+    `escaped` tries escaped_pattern instead of pattern."""
     rule = _rules(raw)["b"]
     plain = re.compile(rule["escaped_pattern" if escaped else "pattern"])
     percent = re.compile(rule["percent_pattern"])
-    starts = sorted(
-        [m.start() for m in _DATA_ANYWHERE.finditer(value)]
-        + [m.start() for m in re.finditer(rule["percent_scheme"], value)]
-    )
-    spans = []
-    for start, end in zip(starts, [*starts[1:], len(value)], strict=False):
-        pattern = plain if value[start + 4] == ":" else percent
-        m = pattern.match(value, start, end)
+    plains = [m.start() for m in _DATA_ANYWHERE.finditer(value)]
+    percents = [m.start() for m in re.finditer(rule["percent_scheme"], value)]
+    starts = sorted(plains + percents)
+    covered = 0
+    for start in starts:
+        if value[start + 4] == ":":
+            m = plain.match(value, start, _next_start(plains, start, len(value)))
+            if m:
+                # The first data%3A at or after the run's start.
+                cut = _next_start(percents, m.start(3) - 1, len(value))
+                m = plain.match(value, start, cut) if cut < m.end() else m
+                covered = m.end()
+        elif start < covered:
+            continue
+        else:
+            m = percent.match(value, start, _next_start(starts, start, len(value)))
         if m:
-            spans.append(Span(m.start(), m.end(), *_match_token(raw, m)))
-    return spans
+            yield m
+
+
+def data_url_spans(raw: dict, value: str, escaped: bool = False) -> list[Span]:
+    """Rule b: every data URL token in a string, wherever it sits, as _matches
+    finds them. A media type that is not token/token is unknown. `escaped`,
+    for the text of a JSON candidate that does not parse, tries
+    escaped_pattern instead of pattern, whose run also goes on over a line
+    break written as a JSON escape."""
+    return [Span(m.start(), m.end(), *_match_token(raw, m)) for m in _matches(raw, value, escaped)]
 
 
 #: The one final line break a key that keeps URLs lets follow a whole data
@@ -703,20 +728,19 @@ PERCENT_FINAL_LINE_BREAKS = ("%0A", "%0D%0A")
 
 
 def whole_data_url(raw: dict, value: str, line_break: bool = False) -> re.Match | None:
-    """Rule b's match when it is the whole string: the pattern anchored at the
-    start (percent_pattern for a value that starts with data%3A), its match
-    ending at the end. The same as fullmatch, since the run's greedy match
-    reaches furthest, but fast when a long value fails. With `line_break`, as
-    a key that keeps URLs reads it, the match may also end one final line
-    break (a newline, or a carriage return and newline) before the end, and
-    a percent-encoded one also one final %0A or %0D%0A."""
-    rule = _rules(raw)["b"]
-    percent = _is_percent(raw, value)
-    m = re.compile(rule["percent_pattern" if percent else "pattern"]).match(value)
-    if m is None:
+    """Rule b's match when it is the whole string: the first match _matches
+    finds, when it starts at the start and ends at the end, so with the same
+    cuts as everywhere rule b runs, and a whole value is one rule b replaces
+    whole. The same as fullmatch, since the run's greedy match reaches
+    furthest, but fast when a long value fails. With `line_break`, as a key
+    that keeps URLs reads it, the match may also end one final line break (a
+    newline, or a carriage return and newline) before the end, and a
+    percent-encoded one also one final %0A or %0D%0A."""
+    m = next(_matches(raw, value), None) if _is_data_scheme(value) else None
+    if m is None or m.start() != 0:
         return None
     rest = value[m.end() :]
-    breaks = FINAL_LINE_BREAKS + (PERCENT_FINAL_LINE_BREAKS if percent else ())
+    breaks = FINAL_LINE_BREAKS + (PERCENT_FINAL_LINE_BREAKS if m.group(0)[4] != ":" else ())
     return m if rest == "" or (line_break and rest.upper() in breaks) else None
 
 
