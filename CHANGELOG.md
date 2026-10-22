@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.2](https://github.com/glassflow/rius-semconv/compare/v1.8.1...v1.8.2) (2026-10-22)
+
+
+### Bug Fixes
+
+* treat prompt-bearing request parameters and @ai-sdk/otel speech/decision keys as content ([#89](https://github.com/glassflow/rius-semconv/issues/89)) ([fec916d](https://github.com/glassflow/rius-semconv/commit/fec916d71f5b72faab51c9150a07aa5c1f7792ee))
+
 ## [1.8.1](https://github.com/glassflow/rius-semconv/compare/v1.8.0...v1.8.1) (2026-10-22)
 
 
