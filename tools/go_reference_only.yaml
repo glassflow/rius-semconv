@@ -74,21 +74,6 @@ names:
     class: normalizer_input
     family: openinference
     reason: OpenInference's executed-tool name on TOOL spans; mapped to gen_ai.tool.name.
-  GenAISystemInstructions:
-    class: normalizer_input
-    family: otel-genai
-    reason: >-
-      The system prompt as OTel-native instrumentations (@ai-sdk/otel) send it;
-      the sink folds it into the input messages. The SDKs list it only as a
-      content key, so the registry has no constant for it.
-  GenAIToolCallArguments:
-    class: normalizer_input
-    family: otel-genai
-    reason: The spec's execute_tool arguments; mapped onto InputValue for spans that carry only this spelling.
-  GenAIToolCallResult:
-    class: normalizer_input
-    family: otel-genai
-    reason: The spec's execute_tool result; mapped onto OutputValue for spans that carry only this spelling.
   LLMToolsPrefix:
     class: normalizer_input
     family: openinference

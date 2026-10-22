@@ -21,14 +21,13 @@ attribute_groups:
         type: string
         fill:
         - native
-        shipped_in:
-        - go
-        divergence: |
-          Both SDKs set service.name through the OpenTelemetry SDK's own resource
-          handling and name no constant for it; the sink reads it by this constant.
+        ts_alias:
+          name: ATTR_SERVICE_NAME
+          from: '@opentelemetry/semantic-conventions'
         rationale: |
-          OTel standard logical service name. The backend falls back to it when a
-          process names no agent.
+          OTel standard logical service name. The SDKs write it into the resource
+          they build at init, from the configured service name. The backend falls
+          back to it when a process names no agent.
   - ref: service.instance.id
     requirement_level: required
     annotations:
@@ -1126,12 +1125,12 @@ attribute_groups:
         type: json
         fill:
         - vercel
-        status: planned
         rationale: |
           The system prompt, apart from the input messages. The TypeScript SDK
-          writes it when it normalizes a Vercel AI SDK span, as an inline literal
-          with no semconv constant, which is why the row is planned rather than
-          shipped. Content, listed in CONTENT_ATTRIBUTES by key.
+          writes it when it normalizes a Vercel AI SDK span; the Python SDK reads
+          it from instrumentations that already speak the conventions
+          (pydantic-ai, @ai-sdk/otel) to make its media parts conformant. Content,
+          listed in CONTENT_ATTRIBUTES.
   - ref: gen_ai.response.finish_reasons
     requirement_level: recommended
     annotations:
@@ -1247,12 +1246,10 @@ attribute_groups:
         type: json
         fill:
         - vercel
-        status: planned
         rationale: |
           The arguments the model passed to the tool. The TypeScript SDK writes it
-          from the Vercel AI SDK's ai.toolCall.args, as an inline literal with no
-          semconv constant, which is why the row is planned rather than shipped.
-          Content, listed in CONTENT_ATTRIBUTES by key.
+          from the Vercel AI SDK's ai.toolCall.args. Content, listed in
+          CONTENT_ATTRIBUTES.
   - ref: gen_ai.tool.call.result
     requirement_level: opt_in
     annotations:
@@ -1268,11 +1265,9 @@ attribute_groups:
         type: string
         fill:
         - vercel
-        status: planned
         rationale: |
           What the tool returned. Written as gen_ai.tool.call.arguments is, from
-          ai.toolCall.result; planned for the same reason. Content, listed in
-          CONTENT_ATTRIBUTES by key.
+          ai.toolCall.result. Content, listed in CONTENT_ATTRIBUTES.
   - ref: gen_ai.data_source.id
     requirement_level:
       conditionally_required: when the retrieval has a single identifiable data source
@@ -1414,7 +1409,53 @@ attribute_groups:
         fill:
         - openinference
         - vercel
+        event: EXCEPTION_EVENT
         note: an attribute of the exception EVENT, not of the span
+  - ref: exception.message
+    annotations:
+      rius:
+        const: EXCEPTION_MESSAGE
+        key: exception.message
+        symbol: attribute
+        origin: otel
+        direction: read
+        kinds: all
+        category: content
+        type: string
+        fill:
+        - native
+        - openinference
+        - vercel
+        event: EXCEPTION_EVENT
+        rationale: |
+          The exception's message, on the exception event record_exception()
+          writes. Read, never written by us directly: the SDKs strip it, with
+          EXCEPTION_STACKTRACE, when content capture is off, because providers
+          echo the rejected request into their error strings. Content, but not
+          in CONTENT_ATTRIBUTES: that list is matched against span attributes,
+          and the SDKs mask the exception event's attributes in a pass of their
+          own. exception.type stays, so a failure remains visible and
+          classifiable with capture off.
+  - ref: exception.stacktrace
+    annotations:
+      rius:
+        const: EXCEPTION_STACKTRACE
+        key: exception.stacktrace
+        symbol: attribute
+        origin: otel
+        direction: read
+        kinds: all
+        category: content
+        type: string
+        fill:
+        - native
+        - openinference
+        - vercel
+        event: EXCEPTION_EVENT
+        rationale: |
+          The exception's stack trace, on the same event. Stripped with
+          EXCEPTION_MESSAGE, for the same reason: a trace's frames can quote the
+          provider's error string.
   - ref: process.exit.code
     requirement_level: recommended
     annotations:

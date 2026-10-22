@@ -9,6 +9,7 @@ checks that generation is deterministic.
 """
 
 import ast
+import copy
 import pathlib
 import re
 import shutil
@@ -85,8 +86,14 @@ def test_python_constants(py_module):
     assert py_module["RIUS_MAIN_AGENT_NAME"] == "rius.main_agent.name"
     assert py_module["EXCEPTION_EVENT"] == "exception"
     assert py_module["RIUS_REQUEST_PREFIX"] == "rius.request."
-    assert "SERVICE_NAME" not in py_module  # Go-only
-    assert "GEN_AI_SYSTEM_INSTRUCTIONS" not in py_module  # planned
+    assert py_module["SERVICE_NAME"] == "service.name"
+    assert py_module["GEN_AI_SYSTEM_INSTRUCTIONS"] == "gen_ai.system_instructions"
+    assert py_module["EXCEPTION_MESSAGE"] == "exception.message"
+    # A source spelling: generated for the normalizers, never emitted.
+    assert py_module["LLM_TOKEN_COUNT_PROMPT"] == "llm.token_count.prompt"
+    assert py_module["GEN_AI_USAGE_DETAILS_THOUGHTS_TOKENS"] == (
+        "gen_ai.usage.details.thoughts_tokens"
+    )
 
 
 def test_python_allowlists(py_module):
@@ -270,9 +277,16 @@ def test_python_all_lists_exactly_the_public_names(base_data):
 
 @requires_weaver
 def test_python_include_planned_adds_planned_rows(base_data):
-    reg = Registry(base_data, include_planned=True)
+    data = copy.deepcopy(base_data)
+    planned = next(
+        r for r in data["attributes"]["attributes"] if r["const"] == "EXCEPTION_STACKTRACE"
+    )
+    planned["status"] = "planned"
+    default = python_surface(generate.render(Registry(data), ["python"])["python"])
+    assert "EXCEPTION_STACKTRACE" not in default
+    reg = Registry(data, include_planned=True)
     surface = python_surface(generate.render(reg, ["python"])["python"])
-    assert surface["GEN_AI_SYSTEM_INSTRUCTIONS"] == "gen_ai.system_instructions"
+    assert surface["EXCEPTION_STACKTRACE"] == "exception.stacktrace"
 
 
 # --- TypeScript --------------------------------------------------------------
@@ -303,7 +317,9 @@ def test_typescript_values(base_data):
 
 def test_typescript_aliases_upstream_constant(base_data):
     source = committed(Registry(base_data), "typescript")
-    assert 'import { ATTR_SERVICE_VERSION } from "@opentelemetry/semantic-conventions";' in source
+    names = "ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION"
+    assert f'import {{ {names} }} from "@opentelemetry/semantic-conventions";' in source
+    assert "export const SERVICE_NAME = ATTR_SERVICE_NAME;" in source
     assert "export const SERVICE_VERSION = ATTR_SERVICE_VERSION;" in source
 
 
@@ -355,6 +371,10 @@ def test_go_header_and_names(base_data):
     assert consts["OpenInferenceSpanKind"] == "openinference.span.kind"
     assert consts["SpanKindLLM"] == "LLM"
     assert "TracerName" not in consts
+    assert consts["GenAIToolCallArguments"] == "gen_ai.tool.call.arguments"
+    # Source spellings stay in the backend's hand-written semconv.go.
+    assert "LLMSystem" not in consts
+    assert "LLMTokenCountPrompt" not in consts
 
 
 @requires_go

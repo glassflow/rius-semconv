@@ -7,8 +7,9 @@ package semconv
 
 const (
 	// --- Resource attribute keys ---
-	// OTel standard logical service name. The backend falls back to it when a
-	// process names no agent.
+	// OTel standard logical service name. The SDKs write it into the resource
+	// they build at init, from the configured service name. The backend falls
+	// back to it when a process names no agent.
 	ServiceName = "service.name"
 
 	// OTel standard identity of one process lifetime (one uuid per client, minted
@@ -302,8 +303,15 @@ const (
 	GenAIUsageAudioCacheReadInputTokens = "gen_ai.usage.audio.cache_read.input_tokens"
 	GenAIInputMessages                  = "gen_ai.input.messages"
 	GenAIOutputMessages                 = "gen_ai.output.messages"
-	GenAIResponseFinishReason           = "gen_ai.response.finish_reasons"
-	GenAIToolName                       = "gen_ai.tool.name"
+
+	// The system prompt, apart from the input messages. The TypeScript SDK
+	// writes it when it normalizes a Vercel AI SDK span; the Python SDK reads
+	// it from instrumentations that already speak the conventions
+	// (pydantic-ai, @ai-sdk/otel) to make its media parts conformant. Content,
+	// listed in CONTENT_ATTRIBUTES.
+	GenAISystemInstructions   = "gen_ai.system_instructions"
+	GenAIResponseFinishReason = "gen_ai.response.finish_reasons"
+	GenAIToolName             = "gen_ai.tool.name"
 
 	// The identifier of the tool call this execution answers: the id the MODEL
 	// minted on its tool-call message, which is what joins a tool span back to the
@@ -323,6 +331,15 @@ const (
 	// shapes differ; the backend reads names and sizes from either). Content,
 	// not identity, so it is listed in CONTENT_ATTRIBUTES.
 	GenAIToolDefinitions = "gen_ai.tool.definitions"
+
+	// The arguments the model passed to the tool. The TypeScript SDK writes it
+	// from the Vercel AI SDK's ai.toolCall.args. Content, listed in
+	// CONTENT_ATTRIBUTES.
+	GenAIToolCallArguments = "gen_ai.tool.call.arguments"
+
+	// What the tool returned. Written as gen_ai.tool.call.arguments is, from
+	// ai.toolCall.result. Content, listed in CONTENT_ATTRIBUTES.
+	GenAIToolCallResult = "gen_ai.tool.call.result"
 
 	// The index, collection or knowledge base a retrieval ran against. Identity,
 	// set at span creation: it is what a retriever span is named after and the
@@ -364,6 +381,21 @@ const (
 	// derives error.type from EXCEPTION_TYPE.
 	ExceptionEvent = "exception"
 	ExceptionType  = "exception.type"
+
+	// The exception's message, on the exception event record_exception()
+	// writes. Read, never written by us directly: the SDKs strip it, with
+	// EXCEPTION_STACKTRACE, when content capture is off, because providers
+	// echo the rejected request into their error strings. Content, but not
+	// in CONTENT_ATTRIBUTES: that list is matched against span attributes,
+	// and the SDKs mask the exception event's attributes in a pass of their
+	// own. exception.type stays, so a failure remains visible and
+	// classifiable with capture off.
+	ExceptionMessage = "exception.message"
+
+	// The exception's stack trace, on the same event. Stripped with
+	// EXCEPTION_MESSAGE, for the same reason: a trace's frames can quote the
+	// provider's error string.
+	ExceptionStacktrace = "exception.stacktrace"
 
 	// MCP spec 2026-07-28: a tools/call round can end with an interim
 	// "input_required" result (MRTR) instead of a final one. Early Rius SDKs
@@ -1013,9 +1045,9 @@ var ContentAttributes = map[string]struct{}{
 	// Vercel AI SDK's @ai-sdk/otel among them, pinned 2026-09-14): the
 	// system prompt and each tool call's input and output are content in
 	// the same sense messages are. gen_ai.tool.call.id stays: identity.
-	"gen_ai.system_instructions": {},
-	"gen_ai.tool.call.arguments": {},
-	"gen_ai.tool.call.result":    {},
+	GenAISystemInstructions: {},
+	GenAIToolCallArguments:  {},
+	GenAIToolCallResult:     {},
 	// OpenInference TOOL-kind spans carry the definition under these two
 	// bare keys, sensitive for the reason gen_ai.tool.description is.
 	"tool.description": {},

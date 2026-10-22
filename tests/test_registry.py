@@ -28,6 +28,65 @@ def test_committed_registry_is_clean(data):
     assert lint(data) == []
 
 
+# --- source spellings and event attributes ----------------------------------
+
+
+def test_source_spellings_are_not_generated_for_go(registry):
+    assert "LLM_SYSTEM" in [r["const"] for r in registry.rows("python")]
+    assert "LLM_SYSTEM" not in [r["const"] for r in registry.rows("go")]
+
+
+@pytest.mark.parametrize("languages", [None, ["python", "go"]])
+def test_a_source_spelling_is_never_generated_for_go(data, languages):
+    # The backend declares its input spellings by hand in semconv.go; a
+    # generated copy would declare the constant twice and fail to compile.
+    source = row(data, "LLM_PROVIDER")
+    if languages is None:
+        del source["shipped_in"], source["divergence"]
+    else:
+        source["shipped_in"] = languages
+    assert_flags(data, "LLM_PROVIDER: a source spelling is never generated for go")
+
+
+@pytest.mark.parametrize("column", ["direction", "kinds", "category", "level"])
+def test_a_source_spelling_takes_no_attribute_column(data, column):
+    row(data, "LLM_PROVIDER")[column] = "read" if column == "direction" else "all"
+    assert_flags(data, f"LLM_PROVIDER: a source spelling takes no {column}")
+
+
+def test_a_source_spelling_that_is_not_a_usage_key_needs_a_rationale(data):
+    del row(data, "LLM_PROVIDER")["rationale"]
+    assert_flags(data, "LLM_PROVIDER: source spelling needs a rationale")
+
+
+def test_a_usage_source_spelling_needs_a_decision(data):
+    keys = data["usage_keys"]["keys"]
+    data["usage_keys"]["keys"] = [e for e in keys if e.get("key") != "llm.token_count.total"]
+    assert_flags(data, "LLM_TOKEN_COUNT_TOTAL: usage key llm.token_count.total has no decision")
+
+
+def test_a_canonical_usage_key_is_not_a_source_spelling(data):
+    entry = next(e for e in data["usage_keys"]["keys"] if e.get("key") == "llm.token_count.total")
+    entry["decision"] = "canonical"
+    assert_flags(data, "usage_keys.yaml decides llm.token_count.total is canonical")
+
+
+def test_a_source_spelling_and_an_attribute_share_no_key(data):
+    row(data, "TOOL_NAME")["key"] = "gen_ai.tool.name"
+    assert_flags(data, "duplicate key gen_ai.tool.name (GEN_AI_TOOL_NAME, TOOL_NAME)")
+
+
+def test_an_event_attribute_names_an_event_row(data):
+    row(data, "EXCEPTION_MESSAGE")["event"] = "EXCEPTION_TYPE"
+    assert_flags(data, "EXCEPTION_MESSAGE: event EXCEPTION_TYPE is not an event row")
+
+
+def test_an_event_attribute_is_exempt_from_the_span_content_allowlist(data):
+    assert row(data, "EXCEPTION_MESSAGE")["category"] == "content"
+    del row(data, "EXCEPTION_MESSAGE")["event"]
+    assert_flags(data, "EXCEPTION_MESSAGE: content but not on the content allowlist")
+
+
 # --- filtering ---------------------------------------------------------------
 
 
@@ -39,14 +98,15 @@ def test_rows_default_to_every_language(registry):
 def test_shipped_in_limits_a_row_to_its_languages(registry):
     assert "TRACER_NAME" in [r["const"] for r in registry.rows("python")]
     assert "TRACER_NAME" not in [r["const"] for r in registry.rows("go")]
-    assert "SERVICE_NAME" in [r["const"] for r in registry.rows("go")]
-    assert "SERVICE_NAME" not in [r["const"] for r in registry.rows("python")]
+    assert "LLM_INPUT_MESSAGES_PREFIX" in [r["const"] for r in registry.rows("typescript")]
+    assert "LLM_INPUT_MESSAGES_PREFIX" not in [r["const"] for r in registry.rows("python")]
 
 
 def test_planned_rows_are_skipped_unless_asked_for(data):
-    assert "GEN_AI_SYSTEM_INSTRUCTIONS" not in [r["const"] for r in Registry(data).rows("python")]
+    row(data, "EXCEPTION_STACKTRACE")["status"] = "planned"
+    assert "EXCEPTION_STACKTRACE" not in [r["const"] for r in Registry(data).rows("python")]
     planned = Registry(data, include_planned=True).rows("python")
-    assert "GEN_AI_SYSTEM_INSTRUCTIONS" in [r["const"] for r in planned]
+    assert "EXCEPTION_STACKTRACE" in [r["const"] for r in planned]
 
 
 def test_allowlist_members_honour_shipped_in(data):
@@ -216,8 +276,8 @@ def test_unknown_ref_is_flagged(data):
 
 
 def test_member_cannot_ship_where_its_row_does_not(data):
-    data["allowlists"]["pending_identity"]["attributes"].append({"ref": "SERVICE_NAME"})
-    assert_flags(data, "SERVICE_NAME is not generated for python")
+    data["allowlists"]["pending_identity"]["attributes"].append({"ref": "TRACER_NAME"})
+    assert_flags(data, "TRACER_NAME is not generated for go")
 
 
 def test_every_kind_is_mapped_or_explicitly_unmapped(data):

@@ -91,6 +91,15 @@ def test_upstream_keys_link_to_their_definitions_instead_of_restating_them():
         assert re.search(rf"\[`{re.escape(key)}`\]\(https://github\.com/open-telemetry/", upstream)
 
 
+def test_upstream_page_says_a_read_key_is_read_not_emitted():
+    for text in (pages()["upstream.md"], site_pages()["upstream"]):
+        (row,) = [line for line in text.splitlines() if "`exception.type`](" in line]
+        assert "Read, never written." in row, row
+        assert "Emitted." not in row, row
+        (emitted,) = [line for line in text.splitlines() if "`gen_ai.tool.name`](" in line]
+        assert "Emitted." in emitted, emitted
+
+
 def test_namespace_pages_hold_only_keys_defined_here():
     defined = {key for key, here, _ in model_entries() if here}
     for name, text in pages().items():

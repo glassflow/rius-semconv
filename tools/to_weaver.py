@@ -311,7 +311,10 @@ def render(data: dict) -> dict[pathlib.Path, str]:
     # Usage keys no convention defines, by producer; the gen_ai.* ones stay
     # out of the Weaver registry.
     uk = data["usage_keys"]
-    registry_keys = {r["key"] for r in rows}
+    # A row the model defines or references describes its key itself. A
+    # source spelling has no definition there, so its usage key is described
+    # from its decision, as if the row were not there.
+    registry_keys = {r["key"] for r in rows if r["const"] in in_model}
     inputs: dict[str, list[dict]] = {p: [] for p in uk.get("producers") or {}}
     sidecar_inputs = []
     for entry in uk["keys"]:

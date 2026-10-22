@@ -17,7 +17,7 @@ Rius uses it.
 | Key | Type | Requirement level | Defined in | How Rius uses it |
 | -- | -- | -- | -- | -- |
 {% for a in g.attributes %}
-| <a id="{{ m.anchor(a.key) }}"></a>[`{{ a.key }}`]({{ a.url }}) | {{ a.type }} | {{ a.level }} | {{ a.registry }} | {% if a.passthrough %}Stored, not emitted.{% elif a.planned %}Planned, not emitted yet.{% else %}Emitted.{% endif %}{% if a.footnote %} [{{ a.footnote }}]{% endif %} |
+| <a id="{{ m.anchor(a.key) }}"></a>[`{{ a.key }}`]({{ a.url }}) | {{ a.type }} | {{ a.level }} | {{ a.registry }} | {% if a.passthrough %}Stored, not emitted.{% elif a.planned %}Planned, not emitted yet.{% elif a.read %}Read, never written.{% else %}Emitted.{% endif %}{% if a.footnote %} [{{ a.footnote }}]{% endif %} |
 {% endfor %}
 {% endfor %}
 {% for g in ctx.groups %}{% for a in g.attributes if a.footnote %}

@@ -369,13 +369,22 @@ matter most (the file's header lists them all):
   `GenAIToolName`) unless `go:` overrides them.
 - **`symbol`**: an `attribute` key, a key `prefix`, an `event` name, an
   enumerated `value` of another attribute, the instrumentation `scope` name,
-  a span `name`, or a key `fragment` read relative to a prefix (the fields of
-  OpenInference's flattened messages, such as `message.role`).
+  a span `name`, a key `fragment` read relative to a prefix (the fields of
+  OpenInference's flattened messages, such as `message.role`), or a `source`
+  spelling: a key only other producers write, which the normalizers read and
+  rewrite into a canonical key (`llm.provider`, `gen_ai.usage.details.*`).
+  A source spelling has a constant so the normalizers need not type it, but
+  no Weaver definition, and a usage key among them is decided in
+  `registry/usage_keys.yaml`. Its constant is never a key to emit.
 - **`origin`**: `otel` (an OpenTelemetry convention, including GenAI and MCP),
   `openinference`, or `rius` (ours).
 - **`direction`**: `emitted` (the default) or `read`, for keys the SDKs only
   read from other producers' spans, such as the OTel `exception` event.
 - **`kinds`**: `resource`, or the span kinds the attribute belongs on.
+- **`event`**: for an attribute of a span event rather than of the span
+  (`exception.message` on the `exception` event), the event's row. The span
+  allowlists do not apply to it: the SDKs mask an event's attributes in a
+  pass of their own.
 - **`level`**: the OpenTelemetry requirement level (`required`,
   `conditionally_required`, `recommended`, `opt_in`), or `vendor` for a
   Rius key.
@@ -476,8 +485,10 @@ table to those languages, and `divergence:` (required) says why;
 
 - `TRACER_NAME` is not generated for Go: the backend deliberately names no
   instrumentation scope.
-- `SERVICE_NAME` is generated only for Go: the SDKs set `service.name`
-  through the OpenTelemetry SDK and name no constant for it.
+- The normalizer source spellings (`symbol: source`, and the
+  `llm.token_count.` prefix) are not generated for Go: the backend declares
+  its own input spellings in its hand-written `semconv.go`, classified in
+  `tools/go_reference_only.yaml` or `registry/usage_keys.yaml`.
 - `GEN_AI_USAGE_PREFIX` and `RIUS_AGGREGATED_USAGE_PREFIX` are not generated
   for Go: the SDKs move a run's aggregate usage by prefix, and the backend
   names each usage key on its own.

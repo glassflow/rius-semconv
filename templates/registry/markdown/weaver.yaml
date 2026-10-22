@@ -118,6 +118,7 @@ templates:
         | .id as $group | .attributes[]
         | prose | . + link + {level: level, passthrough: ($group == "rius.passthrough"),
                       planned: (.annotations.rius.status == "planned"),
+                      read: (.annotations.rius.direction == "read"),
                       rationale: .annotations.rius.rationale,
                       type: (if (.type | type) == "object" then
                                (.type.members[0].value | if type == "number" then "int"

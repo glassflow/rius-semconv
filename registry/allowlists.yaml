@@ -171,14 +171,14 @@ content:
         sometimes credentials or internal URLs in parameter defaults.
         gen_ai.tool.name stays: it is identity, not content.
     - ref: GEN_AI_TOOL_DEFINITIONS
-    - key: gen_ai.system_instructions
+    - ref: GEN_AI_SYSTEM_INSTRUCTIONS
       note: |
         GenAI semconv keys emitted by OTel-native instrumentations (the
         Vercel AI SDK's @ai-sdk/otel among them, pinned 2026-09-14): the
         system prompt and each tool call's input and output are content in
         the same sense messages are. gen_ai.tool.call.id stays: identity.
-    - key: gen_ai.tool.call.arguments
-    - key: gen_ai.tool.call.result
+    - ref: GEN_AI_TOOL_CALL_ARGUMENTS
+    - ref: GEN_AI_TOOL_CALL_RESULT
     - key: tool.description
       note: |
         OpenInference TOOL-kind spans carry the definition under these two
