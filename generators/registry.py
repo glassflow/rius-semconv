@@ -274,6 +274,13 @@ class Registry:
             for column in ATTRIBUTE_ONLY
             if column in r
         ]
+        if "go" in self.languages(r):
+            # The backend declares its input spellings by hand in semconv.go,
+            # so a generated Go copy would declare the constant twice.
+            errors.append(
+                f"{const}: a source spelling is never generated for go; "
+                "list its languages in shipped_in without go"
+            )
         if usage_keys.is_usage_key(self.usage_keys, key):
             entry = usage_keys.decision_for(self.usage_keys, key)
             if entry is None:

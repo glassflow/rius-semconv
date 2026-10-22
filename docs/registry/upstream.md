@@ -20,9 +20,9 @@ Rius uses it.
 
 | Key | Type | Requirement level | Defined in | How Rius uses it |
 | -- | -- | -- | -- | -- |
-| <a id="exception-message"></a>[`exception.message`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/exception.md#exception-message) | string | recommended | OpenTelemetry v1.44.0 | Emitted. [2] |
-| <a id="exception-stacktrace"></a>[`exception.stacktrace`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/exception.md#exception-stacktrace) | string | recommended | OpenTelemetry v1.44.0 | Emitted. [3] |
-| <a id="exception-type"></a>[`exception.type`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/exception.md#exception-type) | string | recommended | OpenTelemetry v1.44.0 | Emitted. |
+| <a id="exception-message"></a>[`exception.message`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/exception.md#exception-message) | string | recommended | OpenTelemetry v1.44.0 | Read, never written. [2] |
+| <a id="exception-stacktrace"></a>[`exception.stacktrace`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/exception.md#exception-stacktrace) | string | recommended | OpenTelemetry v1.44.0 | Read, never written. [3] |
+| <a id="exception-type"></a>[`exception.type`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/exception.md#exception-type) | string | recommended | OpenTelemetry v1.44.0 | Read, never written. |
 
 ## `gen_ai`
 

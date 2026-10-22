@@ -36,6 +36,18 @@ def test_source_spellings_are_not_generated_for_go(registry):
     assert "LLM_SYSTEM" not in [r["const"] for r in registry.rows("go")]
 
 
+@pytest.mark.parametrize("languages", [None, ["python", "go"]])
+def test_a_source_spelling_is_never_generated_for_go(data, languages):
+    # The backend declares its input spellings by hand in semconv.go; a
+    # generated copy would declare the constant twice and fail to compile.
+    source = row(data, "LLM_PROVIDER")
+    if languages is None:
+        del source["shipped_in"], source["divergence"]
+    else:
+        source["shipped_in"] = languages
+    assert_flags(data, "LLM_PROVIDER: a source spelling is never generated for go")
+
+
 @pytest.mark.parametrize("column", ["direction", "kinds", "category", "level"])
 def test_a_source_spelling_takes_no_attribute_column(data, column):
     row(data, "LLM_PROVIDER")[column] = "read" if column == "direction" else "all"
