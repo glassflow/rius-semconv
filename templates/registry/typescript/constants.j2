@@ -101,6 +101,9 @@ import { {{ imp.names | join(", ") }} } from {{ lit(imp.from) }};
 {%- set ipc = al.invocation_parameters_content_members %}
 
 {{ comment(ipc.doc, "//", "") }}{{ array("export const " ~ ipc.const ~ ": readonly string[] = ", literals(ipc["values"]).split("\x1f")) }}
+{%- set rpc = al.request_parameters_content_members %}
+
+{{ comment(rpc.doc, "//", "") }}{{ array("export const " ~ rpc.const ~ ": readonly string[] = ", literals(rpc["values"]).split("\x1f")) }}
 {%- for section in ctx.included %}
 {{ member_set(section) }}
 {%- endfor %}

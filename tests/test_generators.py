@@ -99,6 +99,32 @@ def test_python_allowlists(py_module):
     content = py_module["CONTENT_ATTRIBUTES"]["__set__"]
     assert "llm.invocation_parameters" in content
     assert {"gen_ai.request.tools", "rius.request.functions"} <= set(content)
+    # A model parameter that carries the prompt itself is content under
+    # either request namespace, or a caller passing it through model
+    # parameters exports it verbatim with content capture off.
+    for member in ("system", "messages", "prompt", "input", "instructions"):
+        assert {f"gen_ai.request.{member}", f"rius.request.{member}"} <= set(content)
+    assert py_module["REQUEST_PARAMETERS_CONTENT_MEMBERS"] == {
+        "__tuple__": ["system", "messages", "prompt", "input", "instructions", "tools", "functions"]
+    }
+    # The tool-definition members stay what the normalizers pull out of the bag.
+    assert py_module["INVOCATION_PARAMETERS_CONTENT_MEMBERS"] == {
+        "__tuple__": ["tools", "functions"]
+    }
+    # Scalar knobs stay identity.
+    assert "gen_ai.request.model" not in content
+    assert "rius.request.reasoning_effort" not in content
+    # The Vercel AI SDK's speech input, human-in-the-loop decisions and
+    # provider metadata carry content too.
+    assert {
+        "ai.request.text",
+        "ai.decision.questions",
+        "ai.decision.state",
+        "ai.decision.answers",
+        "ai.response.providerMetadata",
+        "ai.settings.context",
+    } <= set(content)
+    assert "ai.settings.context." in py_module["CONTENT_ATTRIBUTE_PREFIXES"]["__tuple__"]
     # A summary restates the conversation; its size does not.
     assert "rius.compaction.summary.text" in content
     assert "rius.compaction.summary.bytes" not in content
@@ -166,6 +192,8 @@ def test_typescript_values(base_data):
     content = values["CONTENT_ATTRIBUTES"]["__set__"]
     assert "llm.invocation_parameters" in content
     assert "rius.request.tools" in content
+    assert {"gen_ai.request.system", "rius.request.messages", "ai.decision.state"} <= set(content)
+    assert values["REQUEST_PARAMETERS_CONTENT_MEMBERS"][0] == "system"
     assert "langfuse.trace.input" in content  # folded in from the third-party list
     assert values["CONTENT_ATTRIBUTE_PREFIXED_SUFFIXES"] == [
         ["llm.request.functions.", [".description", ".parameters", ".arguments"]]
@@ -243,7 +271,8 @@ def test_go_compiles_and_holds_the_tables(base_data, tmp_path):
         "func main() {\n"
         "\t_, pending := semconv.PendingIdentityAttributes[semconv.RiusSpanPending]\n"
         "\t_, bag := semconv.ContentAttributes[semconv.LLMInvocationParameters]\n"
-        "\tfmt.Println(len(semconv.PendingIdentityAttributes), pending, bag,\n"
+        '\t_, system := semconv.ContentAttributes[semconv.RiusRequestPrefix+"system"]\n'
+        "\tfmt.Println(len(semconv.PendingIdentityAttributes), pending, bag, system,\n"
         '\t\tsemconv.KindByOperation["plan"], semconv.OperationByKind[semconv.SpanKindRetriever],\n'
         '\t\tsemconv.GenAIRequestParameters["n"])\n'
         "}\n"
@@ -251,7 +280,7 @@ def test_go_compiles_and_holds_the_tables(base_data, tmp_path):
     out = subprocess.run(
         ["go", "run", "."], cwd=tmp_path, capture_output=True, text=True, check=True
     ).stdout
-    expected = ["17", "false", "true", "CHAIN", "retrieval", "gen_ai.request.choice.count"]
+    expected = ["17", "false", "true", "true", "CHAIN", "retrieval", "gen_ai.request.choice.count"]
     assert out.split() == expected
 
 
