@@ -794,7 +794,12 @@ export const INVOCATION_PARAMETERS_CONTENT_MEMBERS: readonly string[] = ["tools"
 // into CONTENT_ATTRIBUTES). A caller passing the system prompt, the
 // messages or the tool definitions through model parameters would
 // otherwise export them verbatim with content capture off, and on every
-// pending snapshot of a still-running generation. A superset of
+// pending snapshot of a still-running generation. rius.request.<key> keeps
+// the caller's spelling, so each provider's name for the same content is
+// listed (Gemini contents and system_instruction, Bedrock toolConfig,
+// Cohere preamble, chat_history, message and documents), and so is a
+// structured-output schema (response_format, json_schema), as ai.schema is
+// content. A superset of
 // INVOCATION_PARAMETERS_CONTENT_MEMBERS: the linter keeps every
 // tool-definition member here too.
 export const REQUEST_PARAMETERS_CONTENT_MEMBERS: readonly string[] = [
@@ -805,6 +810,18 @@ export const REQUEST_PARAMETERS_CONTENT_MEMBERS: readonly string[] = [
   "instructions",
   "tools",
   "functions",
+  "contents",
+  "system_instruction",
+  "systemInstruction",
+  "system_prompt",
+  "systemPrompt",
+  "toolConfig",
+  "preamble",
+  "chat_history",
+  "message",
+  "documents",
+  "response_format",
+  "json_schema",
 ];
 
 // Content keys of other OTel-based SDKs a customer runs next to rius. Their

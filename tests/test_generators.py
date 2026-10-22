@@ -102,10 +102,52 @@ def test_python_allowlists(py_module):
     # A model parameter that carries the prompt itself is content under
     # either request namespace, or a caller passing it through model
     # parameters exports it verbatim with content capture off.
-    for member in ("system", "messages", "prompt", "input", "instructions"):
+    # The provider spellings (Gemini, Bedrock, Cohere, wrapper libraries) and
+    # structured-output schemas count too: rius.request.<key> keeps the
+    # caller's spelling, so each spelling must be listed.
+    prompt_members = [
+        "system",
+        "messages",
+        "prompt",
+        "input",
+        "instructions",
+        "contents",
+        "system_instruction",
+        "systemInstruction",
+        "system_prompt",
+        "systemPrompt",
+        "toolConfig",
+        "preamble",
+        "chat_history",
+        "message",
+        "documents",
+        "response_format",
+        "json_schema",
+    ]
+    for member in prompt_members:
         assert {f"gen_ai.request.{member}", f"rius.request.{member}"} <= set(content)
     assert py_module["REQUEST_PARAMETERS_CONTENT_MEMBERS"] == {
-        "__tuple__": ["system", "messages", "prompt", "input", "instructions", "tools", "functions"]
+        "__tuple__": [
+            "system",
+            "messages",
+            "prompt",
+            "input",
+            "instructions",
+            "tools",
+            "functions",
+            "contents",
+            "system_instruction",
+            "systemInstruction",
+            "system_prompt",
+            "systemPrompt",
+            "toolConfig",
+            "preamble",
+            "chat_history",
+            "message",
+            "documents",
+            "response_format",
+            "json_schema",
+        ]
     }
     # The tool-definition members stay what the normalizers pull out of the bag.
     assert py_module["INVOCATION_PARAMETERS_CONTENT_MEMBERS"] == {

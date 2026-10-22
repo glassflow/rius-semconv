@@ -884,10 +884,15 @@ var InvocationParametersContentMembers = []string{"tools", "functions"}
 // into CONTENT_ATTRIBUTES). A caller passing the system prompt, the
 // messages or the tool definitions through model parameters would
 // otherwise export them verbatim with content capture off, and on every
-// pending snapshot of a still-running generation. A superset of
+// pending snapshot of a still-running generation. rius.request.<key> keeps
+// the caller's spelling, so each provider's name for the same content is
+// listed (Gemini contents and system_instruction, Bedrock toolConfig,
+// Cohere preamble, chat_history, message and documents), and so is a
+// structured-output schema (response_format, json_schema), as ai.schema is
+// content. A superset of
 // INVOCATION_PARAMETERS_CONTENT_MEMBERS: the linter keeps every
 // tool-definition member here too.
-var RequestParametersContentMembers = []string{"system", "messages", "prompt", "input", "instructions", "tools", "functions"}
+var RequestParametersContentMembers = []string{"system", "messages", "prompt", "input", "instructions", "tools", "functions", "contents", "system_instruction", "systemInstruction", "system_prompt", "systemPrompt", "toolConfig", "preamble", "chat_history", "message", "documents", "response_format", "json_schema"}
 
 // Content keys of other OTel-based SDKs a customer runs next to rius. Their
 // spans reach rius's exporter through the foreign-provider bridge, or
@@ -1084,20 +1089,44 @@ var ContentAttributes = map[string]struct{}{
 	// with content capture off. Per KEY, not per namespace: both
 	// namespaces stay non-content wholesale, which is what keeps their tie
 	// intact.
-	GenAIRequestPrefix + "system":       {},
-	GenAIRequestPrefix + "messages":     {},
-	GenAIRequestPrefix + "prompt":       {},
-	GenAIRequestPrefix + "input":        {},
-	GenAIRequestPrefix + "instructions": {},
-	GenAIRequestPrefix + "tools":        {},
-	GenAIRequestPrefix + "functions":    {},
-	RiusRequestPrefix + "system":        {},
-	RiusRequestPrefix + "messages":      {},
-	RiusRequestPrefix + "prompt":        {},
-	RiusRequestPrefix + "input":         {},
-	RiusRequestPrefix + "instructions":  {},
-	RiusRequestPrefix + "tools":         {},
-	RiusRequestPrefix + "functions":     {},
+	GenAIRequestPrefix + "system":             {},
+	GenAIRequestPrefix + "messages":           {},
+	GenAIRequestPrefix + "prompt":             {},
+	GenAIRequestPrefix + "input":              {},
+	GenAIRequestPrefix + "instructions":       {},
+	GenAIRequestPrefix + "tools":              {},
+	GenAIRequestPrefix + "functions":          {},
+	GenAIRequestPrefix + "contents":           {},
+	GenAIRequestPrefix + "system_instruction": {},
+	GenAIRequestPrefix + "systemInstruction":  {},
+	GenAIRequestPrefix + "system_prompt":      {},
+	GenAIRequestPrefix + "systemPrompt":       {},
+	GenAIRequestPrefix + "toolConfig":         {},
+	GenAIRequestPrefix + "preamble":           {},
+	GenAIRequestPrefix + "chat_history":       {},
+	GenAIRequestPrefix + "message":            {},
+	GenAIRequestPrefix + "documents":          {},
+	GenAIRequestPrefix + "response_format":    {},
+	GenAIRequestPrefix + "json_schema":        {},
+	RiusRequestPrefix + "system":              {},
+	RiusRequestPrefix + "messages":            {},
+	RiusRequestPrefix + "prompt":              {},
+	RiusRequestPrefix + "input":               {},
+	RiusRequestPrefix + "instructions":        {},
+	RiusRequestPrefix + "tools":               {},
+	RiusRequestPrefix + "functions":           {},
+	RiusRequestPrefix + "contents":            {},
+	RiusRequestPrefix + "system_instruction":  {},
+	RiusRequestPrefix + "systemInstruction":   {},
+	RiusRequestPrefix + "system_prompt":       {},
+	RiusRequestPrefix + "systemPrompt":        {},
+	RiusRequestPrefix + "toolConfig":          {},
+	RiusRequestPrefix + "preamble":            {},
+	RiusRequestPrefix + "chat_history":        {},
+	RiusRequestPrefix + "message":             {},
+	RiusRequestPrefix + "documents":           {},
+	RiusRequestPrefix + "response_format":     {},
+	RiusRequestPrefix + "json_schema":         {},
 	// Every member of ThirdPartyContentAttributes.
 	"langfuse.observation.input":               {},
 	"langfuse.observation.output":              {},

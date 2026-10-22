@@ -125,7 +125,12 @@ request_parameters_content_members:
     into CONTENT_ATTRIBUTES). A caller passing the system prompt, the
     messages or the tool definitions through model parameters would
     otherwise export them verbatim with content capture off, and on every
-    pending snapshot of a still-running generation. A superset of
+    pending snapshot of a still-running generation. rius.request.<key> keeps
+    the caller's spelling, so each provider's name for the same content is
+    listed (Gemini contents and system_instruction, Bedrock toolConfig,
+    Cohere preamble, chat_history, message and documents), and so is a
+    structured-output schema (response_format, json_schema), as ai.schema is
+    content. A superset of
     INVOCATION_PARAMETERS_CONTENT_MEMBERS: the linter keeps every
     tool-definition member here too.
   values:
@@ -136,6 +141,18 @@ request_parameters_content_members:
     - instructions
     - tools
     - functions
+    - contents
+    - system_instruction
+    - systemInstruction
+    - system_prompt
+    - systemPrompt
+    - toolConfig
+    - preamble
+    - chat_history
+    - message
+    - documents
+    - response_format
+    - json_schema
 
 content:
   const: CONTENT_ATTRIBUTES
