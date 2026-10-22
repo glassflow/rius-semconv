@@ -256,6 +256,16 @@ def test_a_usage_key_written_as_json_is_a_string(files):
     assert usage["type"] == "string"
 
 
+def test_a_usage_source_spelling_keeps_its_decision_in_the_model(files, params):
+    # A source row has no Weaver definition; its usage key is still described
+    # from usage_keys.yaml, decision and all.
+    doc = files["model/inputs/openinference.yaml"]
+    prompt = next(a for a in doc["attributes"] if a["key"] == "llm.token_count.prompt")
+    assert prompt["annotations"]["rius"]["normalizer_input"]["decision"] == "mapped"
+    layout = {r.get("const"): r for r in params["layout"]}
+    assert layout["LLM_TOKEN_COUNT_PROMPT"]["symbol"] == "source"
+
+
 def test_gen_ai_usage_inputs_stay_in_the_sidecar(params):
     names = {e.get("key") or e.get("prefix") for e in params["normalizer_inputs"]}
     assert "gen_ai.usage.prompt_tokens" in names

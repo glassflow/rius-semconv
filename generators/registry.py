@@ -32,7 +32,10 @@ FILES = {
     "media_parts": "media_parts.yaml",
 }
 
-SYMBOLS = {"attribute", "prefix", "event", "value", "scope", "name", "fragment"}
+SYMBOLS = {"attribute", "prefix", "event", "value", "scope", "name", "fragment", "source"}
+# Columns that describe an emitted span or resource attribute, which a source
+# spelling (a key only other producers write) never is.
+ATTRIBUTE_ONLY = ("direction", "kinds", "category", "level", "placements")
 ORIGINS = {"otel", "openinference", "rius"}
 DIRECTIONS = {"emitted", "read"}
 CATEGORIES = {"identity", "content", "metadata", "process_local"}
@@ -231,10 +234,12 @@ class Registry:
             if const in seen_const:
                 errors.append(f"duplicate const {const}")
             seen_const.add(const)
-            if symbol in {"attribute", "prefix", "event"}:
-                if (symbol, key) in seen_key:
-                    errors.append(f"duplicate key {key} ({seen_key[(symbol, key)]}, {const})")
-                seen_key[(symbol, key)] = const
+            if symbol in {"attribute", "prefix", "event", "source"}:
+                # A source spelling is an attribute key too: one key, one row.
+                kind = "attribute" if symbol == "source" else symbol
+                if (kind, key) in seen_key:
+                    errors.append(f"duplicate key {key} ({seen_key[(kind, key)]}, {const})")
+                seen_key[(kind, key)] = const
             errors += self._lint_languages(r, const)
             errors += _enum(r, "symbol", SYMBOLS, const)
             errors += _enum(r, "status", STATUSES, const)
@@ -255,6 +260,33 @@ class Registry:
                     )
             if symbol == "attribute":
                 errors += self._lint_attribute(r)
+            if symbol == "source":
+                errors += self._lint_source(r)
+        return errors
+
+    def _lint_source(self, r: dict) -> list[str]:
+        """A source spelling: never emitted, and decided somewhere a reader can
+        find. A usage key's decision is its usage_keys.yaml entry; any other
+        source spelling says in its rationale who writes it and what it becomes."""
+        const, key = r["const"], r["key"]
+        errors = [
+            f"{const}: a source spelling takes no {column}; the SDKs never emit it"
+            for column in ATTRIBUTE_ONLY
+            if column in r
+        ]
+        if usage_keys.is_usage_key(self.usage_keys, key):
+            entry = usage_keys.decision_for(self.usage_keys, key)
+            if entry is None:
+                errors.append(f"{const}: usage key {key} has no decision in usage_keys.yaml")
+            elif entry["decision"] == "canonical":
+                errors.append(
+                    f"{const}: usage_keys.yaml decides {key} is canonical, so it is "
+                    "an attribute the normalizers produce, not a source spelling"
+                )
+        elif not str(r.get("rationale", "")).strip():
+            errors.append(
+                f"{const}: source spelling needs a rationale: who writes it, what it becomes"
+            )
         return errors
 
     def _lint_weaver_fields(self) -> list[str]:
@@ -306,6 +338,10 @@ class Registry:
             errors += self._lint_kinds(kinds, const)
         if r.get("direction", "emitted") == "emitted" and "level" not in r:
             errors.append(f"{const}: emitted attribute needs a level")
+        if "event" in r:
+            event = self._by_const.get(r["event"])
+            if event is None or event.get("symbol") != "event":
+                errors.append(f"{const}: event {r['event']} is not an event row")
         errors += _enum(r, "level", LEVELS, const)
         errors += _enum(r, "type", TYPES, const)
         for fill in r.get("fill", []):
@@ -442,6 +478,10 @@ class Registry:
             if "const" not in r or "key" not in r:
                 continue
             const, key = r["const"], r["key"]
+            if "event" in r:
+                # An event's attributes are masked in the SDKs' event pass; the
+                # span allowlists are matched against span attributes only.
+                continue
             if r.get("category") == "identity" and r.get("direction", "emitted") == "emitted":
                 covered = const in pending_refs or any(key.startswith(p) for p in pending_prefixes)
                 if not covered and not str(r.get("not_pending", "")).strip():
