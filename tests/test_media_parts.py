@@ -510,6 +510,128 @@ def test_a_run_goes_on_over_a_line_break_but_never_into_the_next_data_url(base_d
 
 
 @pytest.mark.parametrize(
+    ("text", "run"),
+    [
+        ("data:a/b;base64,QUFB\\nQkJD", "QUFB\\nQkJD"),
+        ("data:a/b;base64,QUFB\\r\\nQkJD", "QUFB\\r\\nQkJD"),
+        ("data:a/b;base64,QUFB\\n> QkJD=", "QUFB\\n> QkJD="),
+        ("data:a/b;base64,QUFB\\n\\nQkJD", "QUFB"),
+        ("data:a/b;base64,QUFB\\rQkJD", "QUFB"),
+        ("data:a/b;base64,QUFB\\tQkJD", "QUFB"),
+        ("data:a/b;base64,QUE=\\nQkJD", "QUE="),
+        ("data:a/b;base64,QUFB\\n", "QUFB"),
+        ("data:a/b;base64,QUFB\nQkJD\\nQ0ND", "QUFB\nQkJD\\nQ0ND"),
+        ("data:a/b;base64,QUFB\\nQkJD\nQ0ND", "QUFB\\nQkJD"),
+        ("data:a/b;base64," + "A" * 77 + "\\nQkJD", "A" * 77),
+        ("data:a/b;base64,QUFB\\ndata:a/b;base64,QkJD", "QUFB"),
+    ],
+)
+def test_an_escaped_run_goes_on_over_an_escaped_line_break(base_data, text, run):
+    raw = base_data["media_parts"]["raw_payloads"]
+    span = media_parts.data_url_spans(raw, text, escaped=True)[0]
+    assert text[span.start : span.end] == "data:a/b;base64," + run
+
+
+@pytest.mark.parametrize(
+    ("text", "size"),
+    [
+        ('{"u":"data:a/b;base64,QUFB\\nQkJD', 6),
+        ('{"u":"data:a/b;base64,QUFB\\r\\n> QkJD', 6),
+        ('{"u":"data:a/b;base64,QUFB\\nQkJD"}', 6),
+    ],
+)
+def test_only_json_that_does_not_parse_takes_an_escaped_line_break(base_data, text, size):
+    raw = base_data["media_parts"]["raw_payloads"]
+    (token,) = media_parts.strip(raw, text).tokens
+    assert token.byte_size == size
+    # The same text outside a candidate keeps to the raw pattern.
+    (token,) = media_parts.strip(raw, "x " + text).tokens
+    assert token.byte_size == 3
+
+
+@pytest.mark.parametrize(
+    ("text", "mime", "size"),
+    [
+        ("data%3Aimage%2Fpng%3Bbase64%2CiVBORw0KGgo%3D", "image/png", 8),
+        ("DATA%3aimage%2fpng%3bbase64%2civBORw0KGgo%3d", "image/png", 8),
+        ("data%3Aimage/png%3Bbase64%2C%2B%2B%2B%2B////AA%3D%3D", "image/png", 7),
+        ("data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CQUFB", "image/svg+xml", 3),
+        ("data%3Aimage%2Fpng%3Bname%3Da.png%3Bbase64%2CQUFB", "image/png", 3),
+        ("data%3A%3Bbase64%2CQUFB", None, 3),
+        ("data%3Aimage%3Bbase64%2CQUFB", None, 3),
+        ("data%3Aa%2Fb%2Fc%3Bbase64%2CQUFB", None, 3),
+        ("data%3Aa%2Fb%3Bbase64%2CQUFB%3D%3D%3D", "a/b", None),
+        ("data%3Aa%2Fb%3Bbase64%2C", "a/b", 0),
+    ],
+)
+def test_a_percent_encoded_data_url_is_one_token(base_data, text, mime, size):
+    raw = base_data["media_parts"]["raw_payloads"]
+    (span,) = media_parts.data_url_spans(raw, text)
+    end = len(text) - 3 if text.endswith("%3D%3D%3D") else len(text)
+    assert (span.start, span.end, span.mime, span.byte_size) == (0, end, mime, size)
+
+
+@pytest.mark.parametrize(
+    ("text", "token"),
+    [
+        ("x data%3Aa%2Fb%3Bbase64%2CQUFB%0AQkJD", "data%3Aa%2Fb%3Bbase64%2CQUFB%0AQkJD"),
+        ("data%3Aa%2Fb%3Bbase64%2CQUFB%0d%0aQkJD%0A ", "data%3Aa%2Fb%3Bbase64%2CQUFB%0d%0aQkJD%0A"),
+        ("data%3Aa%2Fb%3Bbase64%2CQUFB%3D%0AQkJD", "data%3Aa%2Fb%3Bbase64%2CQUFB%3D"),
+        ("data%3Aa%2Fb%3Bbase64%2CQUFB%20QkJD", "data%3Aa%2Fb%3Bbase64%2CQUFB"),
+        ("data%3Aa%2Fb%3Bbase64%2CQUFB%0CQkJD", "data%3Aa%2Fb%3Bbase64%2CQUFB"),
+        ("data%3Aa%2Fb%3Bbase64%2CQUFB%2C", "data%3Aa%2Fb%3Bbase64%2CQUFB"),
+        ("data%3Aa%2Fb%3Bbase64%2CQUFB&w=1", "data%3Aa%2Fb%3Bbase64%2CQUFB"),
+        (
+            "data%3Aa%2Fb%3Bbase64%2CQUFBdata%3Aa%2Fb%3Bbase64%2CQkJD",
+            "data%3Aa%2Fb%3Bbase64%2CQUFB",
+        ),
+        ("data%3Aa%2Fb%3Bbase64%2CQUFBdata:a/b;base64,QkJD", "data%3Aa%2Fb%3Bbase64%2CQUFB"),
+        ("data%3Aa%2Cb%3Bbase64%2CQUFB", None),
+        ("data%3Aa b%3Bbase64%2CQUFB", None),
+        ("data%253Aa%3Bbase64%2CQUFB", None),
+        ("data%3Aa%3Bbase64%2cQUFB", "data%3Aa%3Bbase64%2cQUFB"),
+        ("data%3Aa%3BBASE64%2CQUFB", None),
+    ],
+)
+def test_a_percent_encoded_data_url_ends_where_its_run_does(base_data, text, token):
+    raw = base_data["media_parts"]["raw_payloads"]
+    spans = media_parts.data_url_spans(raw, text)
+    assert [text[s.start : s.end] for s in spans][:1] == ([token] if token else [])
+
+
+@pytest.mark.parametrize(
+    ("value", "kept"),
+    [
+        ("data%3Aimage%2Fpng%3Bbase64%2CiVBORw0KGgo%3D", True),
+        ("data%3Aimage%2Fpng%3Bbase64%2CiVBORw0KGgo%3D\n", True),
+        ("data%3Aimage%2Fpng%3Bbase64%2CiVBORw0KGgo%3D ", False),
+        ("data%3Aimage%2Fpng%3Bbase64%2CiVBORw0KGgo%3D%0A", True),
+        ("data%3Aimage%2Fpng%3Bbase64%2CiVBORw0KGgo%3D%0d%0A", True),
+        ("data%3Aimage%2Fpng%3Bbase64%2CiVBORw0KGgo%3D%0A%0A", False),
+        ("data%3Aimage%2Fpng%3Bbase64%2CiVBORw0KGgo%3D%0A\n", False),
+        ("data:image/png;base64,iVBORw0KGgo=%0A", False),
+        ("https://x/?u=data%3Aimage%2Fpng%3Bbase64%2CiVBORw0KGgo%3D", True),
+        (" data%3Aimage%2Fpng%3Bbase64%2CiVBORw0KGgo%3D", False),
+    ],
+)
+def test_a_url_key_keeps_a_whole_percent_encoded_data_url_for_rule_b(base_data, value, kept):
+    raw = base_data["media_parts"]["raw_payloads"]
+    assert media_parts.kept_url(raw, value) == kept
+
+
+def test_data_url_percent_pattern_needs_its_five_groups(data):
+    (rule,) = [r for r in data["media_parts"]["raw_payloads"]["detection"] if r["id"] == "b"]
+    rule["percent_pattern"] = rule["pattern"]
+    assert_flags(media_parts.lint(data["media_parts"]), "percent_pattern needs 5 groups")
+
+
+def test_data_url_escaped_pattern_needs_its_five_groups(data):
+    (rule,) = [r for r in data["media_parts"]["raw_payloads"]["detection"] if r["id"] == "b"]
+    rule["escaped_pattern"] = rule["pattern"]
+    assert_flags(media_parts.lint(data["media_parts"]), "escaped_pattern needs 5 groups")
+
+
+@pytest.mark.parametrize(
     ("text", "mime"),
     [
         ("data:image/png;base64,AAAA", "image/png"),
@@ -538,12 +660,23 @@ NEAR_MATCHES = {
     "quoted_continuations": "data:a/b;base64,A" + "\n>" * 20_000 + "!",
     "lines_at_the_cap": "data:a/b;base64," + ("A" * 76 + "\n") * 500 + "!",
     "lines_past_the_cap": ("data:a/b;base64," + "A" * 77 + "\n") * 400 + "!",
+    # JSON that does not parse, so escaped_pattern is tried.
+    "escaped_blank_continuations": '{"a":"data:a/b;base64,A' + "\\n " * 20_000 + "!",
+    "escaped_one_character_lines": '{"a":"data:a/b;base64,' + "A\\n" * 20_000 + "!",
+    "escaped_lines_at_the_cap": '{"a":"data:a/b;base64,' + ("A" * 76 + "\\r\\n") * 500 + "!",
+    "escaped_backslashes": '{"a":"data:a/b;base64,A' + "\\" * 40_000,
+    "percent_schemes": "data%3A" * 6_000,
+    "percent_headers_with_no_comma": "data%3A" + "%3Bbase64" * 4_000,
+    "percent_tokens": "data%3Aa%3Bbase64%2C" * 2_000,
+    "percent_escaped_run": "data%3Aa%2Fb%3Bbase64%2C" + "%2B" * 13_000 + "!",
+    "percent_line_breaks": "data%3Aa%2Fb%3Bbase64%2C" + "A%0D%0A" * 6_000 + "!",
+    "percent_wrapped_tokens": "data%3Aa%2Fb%3Bbase64%2CQUFB%0A" * 1_500,
 }
 TIME_BOUND = 0.5
 
 
 #: The near matches that hold no token; the others are all tokens.
-NO_TOKENS = {"data_colon", "data_a_semicolon"}
+NO_TOKENS = {"data_colon", "data_a_semicolon", "percent_schemes", "percent_headers_with_no_comma"}
 
 
 @pytest.mark.parametrize("name", NEAR_MATCHES)
@@ -605,6 +738,27 @@ def test_a_whole_value_is_what_fullmatch_says(base_data, value):
     assert (media_parts.whole_data_url(raw, value) is not None) == expected
 
 
+@pytest.mark.parametrize(
+    ("tail", "kept"),
+    [
+        ("", True),
+        ("\n", True),
+        ("\r\n", True),
+        ("\n\n", False),
+        ("\r", False),
+        (" \n", False),
+        ("\n ", False),
+        ("\n\r\n", False),
+    ],
+)
+def test_a_url_key_takes_one_final_line_break(base_data, tail, kept):
+    raw = base_data["media_parts"]["raw_payloads"]
+    value = "data:image/png;base64,iVBORw0KGgo=" + tail
+    assert (media_parts.whole_data_url(raw, value, line_break=True) is not None) == kept
+    assert media_parts.kept_url(raw, value) == kept
+    assert (media_parts.whole_data_url(raw, value) is not None) == (tail == "")
+
+
 def test_in_text_example_is_what_the_rule_does(base_data):
     raw = base_data["media_parts"]["raw_payloads"]
     example = raw["replacement"]["in_text"]
@@ -617,6 +771,14 @@ GOLDEN = Registry.load().media_parts["raw_payloads"]["golden"]
 
 #: The cases the contract must pin, by golden name.
 REQUIRED_GOLDEN = {
+    "a_percent_encoded_data_url_in_prose",
+    "a_percent_encoded_data_url_in_json_and_under_keys",
+    "a_percent_encoded_run_ends_at_any_other_escape",
+    "a_percent_encoded_data_url_wrapped_before_it_was_encoded",
+    "an_escaped_run_ends_at_a_unicode_escape",
+    "a_wrapped_data_url_in_json_that_does_not_parse",
+    "an_escaped_line_break_outside_json_ends_the_run",
+    "a_base64_data_url_that_ends_in_one_line_break_under_a_url_key",
     "anthropic_base64_image_pretty_printed",
     "openai_input_audio_wav",
     "vercel_buffer_in_ai_prompt",
@@ -1142,7 +1304,13 @@ def test_data_url_pattern_is_portable(base_data):
     raw = base_data["media_parts"]["raw_payloads"]
     (rule,) = [r for r in raw["detection"] if r["id"] == "b"]
     (keyed,) = [r for r in raw["detection"] if r["id"] == "e"]
-    for pattern in (rule["pattern"], raw["replacement"]["mime_pattern"], keyed["url_scheme"]):
+    patterns = (
+        rule["pattern"],
+        rule["escaped_pattern"],
+        rule["percent_scheme"],
+        rule["percent_pattern"],
+    )
+    for pattern in (*patterns, raw["replacement"]["mime_pattern"], keyed["url_scheme"]):
         assert "(?" not in pattern, "no lookaround, named group or inline flag"
         for match in re.finditer(r"\\(.)", pattern):
             assert match.group(1) in PORTABLE_ESCAPES, f"\\{match.group(1)} is not portable"
@@ -1152,6 +1320,21 @@ def test_data_url_pattern_is_portable(base_data):
     assert "([A-Za-z0-9+/_-]{0,76}(\\r{0,1}\\n[ \\t>]*[A-Za-z0-9+/_-]+)*" in rule["pattern"]
     assert "[A-Za-z0-9+/_-]*={0,2})" in rule["pattern"]
     assert "?" not in rule["pattern"] and "|" not in rule["pattern"]
+    # escaped_pattern is pattern with one more continuation group, its escaped
+    # break holding no group (a group there lowers V8's stack limit).
+    continuation = "(\\r{0,1}\\n[ \\t>]*[A-Za-z0-9+/_-]+)*"
+    escaped = "(\\\\r{0,1}\\\\{0,1}n[ \\t>]*[A-Za-z0-9+/_-]+)*"
+    assert rule["escaped_pattern"] == rule["pattern"].replace(continuation, continuation + escaped)
+    assert "?" not in rule["escaped_pattern"] and "|" not in rule["escaped_pattern"]
+    # percent_pattern starts with percent_scheme; its header escapes never end
+    # in C, so %2C ends the header.
+    assert rule["percent_pattern"].startswith(rule["percent_scheme"])
+    assert '(%[0-9A-Fa-f][0-9ABD-Fabd-f][^%;,:\\t\\n\\f\\r "]*)*)' in rule["percent_pattern"]
+    assert (
+        "([A-Za-z0-9+/_-]*(%[02][ABDFabdf][A-Za-z0-9+/_-]*)*(%3[dD]){0,2})"
+        in rule["percent_pattern"]
+    )
+    assert "?" not in rule["percent_pattern"] and "|" not in rule["percent_pattern"]
 
 
 def test_portability_check_bites():
@@ -1372,6 +1555,8 @@ def test_a_base64_marker_without_its_keys_fails_lint(data):
         "data:image/png;base64,iVBO\\r\\nRw0KGgo=",
         "data:image/png;base64,iVBO Rw0KGgo=",
         "data:image/png;base64,iVBORw0KGgo=\\n",
+        "data:image/png;base64,iVBORw0KGgo=\\r\\n",
+        "data:image/png;base64,iVBORw0KGgo=\\n\\n",
         "data:image/png,%89PNG%0D%0A",
         "Data:image/png;charset=x,iVBORw0KGgo=",
         "data:image/png;base64,@@@iVBORw0KGgo=",
@@ -1485,6 +1670,13 @@ REQUIRED_PROVIDER_EXAMPLES = {
     "image_url_by_a_plain_link",
     "image_url_by_a_link_with_data_colon_in_its_path",
     "image_url_by_a_whole_data_url",
+    "image_url_by_a_data_url_that_ends_in_one_line_break",
+    "vercel_image_by_a_wrapped_data_url_that_ends_in_one_line_break",
+    "image_url_by_a_data_url_that_ends_in_two_line_breaks",
+    "image_url_by_a_whole_percent_encoded_data_url",
+    "vercel_image_by_a_percent_encoded_data_url_that_ends_in_one_line_break",
+    "image_url_by_a_partly_percent_encoded_data_url",
+    "image_url_by_a_link_holding_a_percent_encoded_data_url",
     "input_image_by_a_link_followed_by_a_percent_encoded_data_url",
     "anthropic_url_source_by_a_link_followed_by_a_data_url",
     "anthropic_document_url_source_by_a_link_followed_by_a_data_url",
@@ -1496,6 +1688,9 @@ REQUIRED_PROVIDER_EXAMPLES = {
     "vercel_file_by_a_url_tag_holding_a_data_url_after_a_link",
     "vercel_image_by_a_link_followed_by_a_data_url",
     "openinference_image_url_by_a_link_followed_by_a_data_url",
+    "openinference_image_url_by_a_data_url_with_a_media_type",
+    "openinference_image_url_by_a_link_holding_a_data_url_with_a_media_type",
+    "openinference_image_url_by_a_link_with_a_media_type",
     "image_url_that_is_empty",
     "vercel_file_by_url_with_no_media_type",
 }
@@ -1548,7 +1743,11 @@ NATIVE_PART_EXAMPLES = [e for e in PART_EXAMPLES if "native" in e]
 
 
 def test_native_part_examples_cover_the_native_uri_holding_a_data_url():
-    assert "uri_led_by_whitespace_holding_a_data_url" in {e["name"] for e in NATIVE_PART_EXAMPLES}
+    assert {e["name"] for e in NATIVE_PART_EXAMPLES} >= {
+        "uri_led_by_whitespace_holding_a_data_url",
+        "uri_that_is_a_data_url_and_one_final_line_break",
+        "uri_that_is_a_percent_encoded_data_url",
+    }
 
 
 @pytest.mark.parametrize(
@@ -1595,6 +1794,22 @@ def test_native_parts_left_as_they_came(base_data, part):
         (
             '{"type":"uri","modality":"audio","mime_type":"image/png","uri":"x data:y"}',
             '{"type":"blob","modality":"image","mime_type":"image/png","stripped_reason":"not_captured"}',
+        ),
+        (
+            '{"type":"uri","uri":"data%3Aimage%2Fpng%2C"}',
+            '{"type":"blob","modality":"image","mime_type":"image/png","stripped_reason":"redacted_upstream"}',
+        ),
+        (
+            '{"type":"uri","mime_type":"audio/wav","uri":"data%3A%3Bbase64%2CQUFB%20"}',
+            '{"type":"blob","modality":"audio","mime_type":"audio/wav","stripped_reason":"not_captured"}',
+        ),
+        (
+            '{"type":"blob","content":"data%3Aimage%2Fpng%3Bbase64%2CQUFB"}',
+            '{"type":"blob","modality":"image","mime_type":"image/png","byte_size":3,"stripped_reason":"not_captured"}',
+        ),
+        (
+            '{"type":"uri","uri":"https://e/?u=data%3Aimage%2Fpng%3Bbase64%2CQUFB"}',
+            '{"type":"uri","modality":"document","uri":"https://e/?u=data%3Aimage%2Fpng%3Bbase64%2CQUFB"}',
         ),
         (
             '{"type":"blob","stripped_reason":"lost","content":null,"byte_size":-1}',

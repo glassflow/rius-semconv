@@ -35,7 +35,7 @@ NORMALIZED = {"blob", "uri", "file", "text", "generic", NONE}
 STRIPPED_REASONS = {"not_captured", "redacted_upstream"}
 #: The detection rules raw_payloads must define, and the fields each needs.
 DETECTION_FIELDS = {
-    "b": ("pattern",),
+    "b": ("pattern", "escaped_pattern", "percent_scheme", "percent_pattern"),
     "d": ("type", "array_key", "mime_keys"),
     "e": (
         "keys",
@@ -328,6 +328,14 @@ def lint_part_shapes(data: dict) -> list[str]:
     return errors
 
 
+#: Rule b's patterns, the groups each must have, and what they are.
+RULE_B_PATTERNS = (
+    ("pattern", 4, "mime, parameters, base64, continuation"),
+    ("escaped_pattern", 5, "mime, parameters, base64, continuation, escaped continuation"),
+    ("percent_pattern", 5, "header, header escape, base64, base64 escape, padding"),
+)
+
+
 def lint_raw_payloads(raw: Any) -> list[str]:
     """The raw_payloads section: the source rule, the strip rule, the
     replacement and the detection rules."""
@@ -367,17 +375,16 @@ def lint_raw_payloads(raw: Any) -> list[str]:
         for field in ("name", "description", *fields):
             if not rule.get(field):
                 errors.append(f"{where} detection rule {rule_id} needs {field}")
-    if rules.get("b", {}).get("pattern"):
+    for field, count, names in RULE_B_PATTERNS:
+        if not rules.get("b", {}).get(field):
+            continue
         try:
-            groups = re.compile(rules["b"]["pattern"]).groups
+            groups = re.compile(rules["b"][field]).groups
         except re.error as exc:
-            errors.append(f"{where} detection rule b pattern does not compile ({exc})")
+            errors.append(f"{where} detection rule b {field} does not compile ({exc})")
         else:
-            if groups != 4:
-                errors.append(
-                    f"{where} detection rule b pattern needs 4 groups"
-                    " (mime, parameters, base64, continuation)"
-                )
+            if groups != count:
+                errors.append(f"{where} detection rule b {field} needs {count} groups ({names})")
     for marker in rules.get("e", {}).get("base64_markers") or []:
         if (
             not marker.get("key")
@@ -571,10 +578,16 @@ def base64_size(value: str) -> int | None:
     return len(text) * 3 // 4 - padding
 
 
+#: A line break written as a JSON escape, as escaped_pattern reads one: a
+#: backslash, an optional r, an optional backslash, then n.
+_ESCAPED_LINE_BREAK = re.compile(r"\\r{0,1}\\{0,1}n")
+
+
 def run_size(run: str) -> int | None:
     """The size of a rule b run: its base64 size with the > of each quoted
-    line it goes on over removed too."""
-    return base64_size(run.replace(">", ""))
+    line and each escaped line break it goes on over removed too. Only
+    escaped_pattern's run holds a backslash."""
+    return base64_size(_ESCAPED_LINE_BREAK.sub("", run).replace(">", ""))
 
 
 @dataclass(frozen=True)
@@ -628,29 +641,83 @@ def _mime_or_unknown(raw: dict, mime: str | None) -> str | None:
 _DATA_ANYWHERE = re.compile("[dD][aA][tT][aA]:")
 
 
-def data_url_spans(raw: dict, value: str) -> list[Span]:
+#: A percent escape, as a percent-encoded data URL holds one: %XX in any case.
+_PERCENT_ESCAPE = re.compile("%([0-9A-Fa-f]{2})")
+#: Where a percent-encoded data URL's media type ends: its first %3B.
+_PERCENT_SEMICOLON = re.compile("%3[bB]")
+
+
+def _percent_decode(text: str) -> str:
+    """Each %XX escape as the character it encodes."""
+    return _PERCENT_ESCAPE.sub(lambda m: chr(int(m.group(1), 16)), text)
+
+
+def _is_percent(raw: dict, value: str, start: int = 0) -> bool:
+    """Whether a percent-encoded data URL's scheme (percent_scheme, data%3A in
+    any ASCII case) starts at `start`."""
+    return re.compile(_rules(raw)["b"]["percent_scheme"]).match(value, start) is not None
+
+
+def _match_token(raw: dict, m: re.Match) -> tuple[str | None, int | None]:
+    """The mime type and size of one rule b match. A percent-encoded one's
+    mime type is its header up to its first %3B, percent-decoded, and its run
+    is percent-decoded (%2B, %2F, %3D, and the line breaks %0A and %0D that
+    byte_size then removes) before it is sized."""
+    if m.group(0)[4] == ":":
+        return _mime_or_unknown(raw, m.group(1)), run_size(m.group(3))
+    head = _PERCENT_SEMICOLON.split(m.group(1), maxsplit=1)[0]
+    return _mime_or_unknown(raw, _percent_decode(head)), run_size(_percent_decode(m.group(3)))
+
+
+def data_url_spans(raw: dict, value: str, escaped: bool = False) -> list[Span]:
     """Rule b: every data URL token in a string, wherever it sits. The string
-    is cut before each data: (in any ASCII case), and the pattern is tried at
-    the start of each piece and never past its end, so a run that continues
-    over a line break never takes the start of the next data URL. A media type
-    that is not token/token is unknown."""
-    pattern = re.compile(_rules(raw)["b"]["pattern"])
-    starts = [m.start() for m in _DATA_ANYWHERE.finditer(value)]
+    is cut before each data: and each data%3A (in any ASCII case), and the
+    pattern is tried at the start of each piece and never past its end, so a
+    run that continues over a line break never takes the start of the next
+    data URL: pattern at a data:, percent_pattern at a data%3A. A media type
+    that is not token/token is unknown. `escaped`, for the text of a JSON
+    candidate that does not parse, tries escaped_pattern instead of pattern,
+    whose run also goes on over a line break written as a JSON escape."""
+    rule = _rules(raw)["b"]
+    plain = re.compile(rule["escaped_pattern" if escaped else "pattern"])
+    percent = re.compile(rule["percent_pattern"])
+    starts = sorted(
+        [m.start() for m in _DATA_ANYWHERE.finditer(value)]
+        + [m.start() for m in re.finditer(rule["percent_scheme"], value)]
+    )
     spans = []
     for start, end in zip(starts, [*starts[1:], len(value)], strict=False):
+        pattern = plain if value[start + 4] == ":" else percent
         m = pattern.match(value, start, end)
         if m:
-            mime = _mime_or_unknown(raw, m.group(1))
-            spans.append(Span(m.start(), m.end(), mime, run_size(m.group(3))))
+            spans.append(Span(m.start(), m.end(), *_match_token(raw, m)))
     return spans
 
 
-def whole_data_url(raw: dict, value: str) -> re.Match | None:
+#: The one final line break a key that keeps URLs lets follow a whole data
+#: URL: base64.encodebytes ends its output with a newline.
+FINAL_LINE_BREAKS = ("\n", "\r\n")
+#: The same line break percent-encoded, which a data URL percent-encoded whole
+#: may end in too, its hex digits in either case.
+PERCENT_FINAL_LINE_BREAKS = ("%0A", "%0D%0A")
+
+
+def whole_data_url(raw: dict, value: str, line_break: bool = False) -> re.Match | None:
     """Rule b's match when it is the whole string: the pattern anchored at the
-    start, its match ending at the end. The same as fullmatch, since the run's
-    greedy match reaches furthest, but fast when a long value fails."""
-    m = re.compile(_rules(raw)["b"]["pattern"]).match(value)
-    return m if m and m.end() == len(value) else None
+    start (percent_pattern for a value that starts with data%3A), its match
+    ending at the end. The same as fullmatch, since the run's greedy match
+    reaches furthest, but fast when a long value fails. With `line_break`, as
+    a key that keeps URLs reads it, the match may also end one final line
+    break (a newline, or a carriage return and newline) before the end, and
+    a percent-encoded one also one final %0A or %0D%0A."""
+    rule = _rules(raw)["b"]
+    percent = _is_percent(raw, value)
+    m = re.compile(rule["percent_pattern" if percent else "pattern"]).match(value)
+    if m is None:
+        return None
+    rest = value[m.end() :]
+    breaks = FINAL_LINE_BREAKS + (PERCENT_FINAL_LINE_BREAKS if percent else ())
+    return m if rest == "" or (line_break and rest.upper() in breaks) else None
 
 
 def is_data_url(raw: dict, value: str) -> bool:
@@ -778,14 +845,19 @@ def is_url(raw: dict, value: Any) -> bool:
 def kept_url(raw: dict, value: Any) -> bool:
     """Whether a typed key that keeps URLs leaves a string alone for rule b: it
     starts with a URL scheme, and either it holds no data: (in any ASCII case)
-    or the whole string is one rule b token, so rule b replaces all of it. Any
-    other string holding data: (a percent-encoded data URL, a broken run, a
-    link with a data URL after it) stays a rule e token and is replaced whole."""
+    or the whole string is one rule b token, or one rule b token and one final
+    line break, so rule b replaces all of it (see url_line_break_token). Any
+    other string holding data: (a data URL whose payload is percent-encoded,
+    a broken run, a link with a data URL after it) stays a rule e token and is
+    replaced whole. A value that starts with data%3A has no URL scheme, but it is left to rule
+    b when it is one whole percent-encoded data URL too."""
+    if isinstance(value, str) and _is_percent(raw, value):
+        return whole_data_url(raw, value, line_break=True) is not None
     if not is_url(raw, value):
         return False
     if _DATA_ANYWHERE.search(value) is None:
         return True
-    return whole_data_url(raw, value) is not None
+    return whole_data_url(raw, value, line_break=True) is not None
 
 
 def url_keys(
@@ -1127,18 +1199,20 @@ _Edit = tuple[int, int, str]
 def _strip_text(raw: dict, text: str, tokens: list[Token], depth: int = 0) -> list[_Edit]:
     """The edits on a string's text (a raw attribute, or a JSON string's
     unescaped value inside `depth` arrays and objects): the JSON walk when it is
-    a candidate that parses, else rule b alone. A complete replacement is never
-    stripped again."""
+    a candidate that parses, else rule b alone, by escaped_pattern for a
+    candidate that does not parse. A complete replacement is never stripped
+    again."""
     if is_replacement(raw, text):
         return []
-    if is_json_candidate(text):
+    candidate = is_json_candidate(text)
+    if candidate:
         document = _parse(text, depth)
         if document is not None:
             edits: list[_Edit] = []
             _walk(raw, document, None, None, depth, tokens, edits)
             return edits
     edits = []
-    for span in data_url_spans(raw, text):
+    for span in data_url_spans(raw, text, escaped=candidate):
         tokens.append(Token("b", span.mime, span.byte_size))
         edits.append((span.start, span.end, replacement(raw, span.mime, span.byte_size)))
     return edits
@@ -1171,18 +1245,20 @@ def _walk(
             return
         keyed = set(keyed_base64(raw, members, parent_key, holder))
         mime = keyed_mime(raw, members, parent_key, holder) if keyed else None
-        urls = url_keys(raw, members, parent_key, holder) if keyed else set()
+        urls = url_keys(raw, members, parent_key, holder)
         for i, (key, child) in enumerate(node.members):
-            if i not in keyed:
+            if key in urls and url_line_break_token(raw, child, tokens, edits):
+                continue
+            if i not in keyed and not (key in urls and child.items is not None):
                 _walk(raw, child, key, members, depth + 1, tokens, edits)
             elif child.items is None:
                 _keyed_token(raw, child, mime, tokens, edits)
             else:
                 # A string array under the key: each string element is a token.
                 for item in child.items:
-                    if keyed_token(raw, key, item.value, urls):
+                    if i in keyed and keyed_token(raw, key, item.value, urls):
                         _keyed_token(raw, item, mime, tokens, edits)
-                    else:
+                    elif not (key in urls and url_line_break_token(raw, item, tokens, edits)):
                         _walk(raw, item, key, members, depth + 2, tokens, edits)
     elif node.items is not None:
         for child in node.items:
@@ -1194,6 +1270,22 @@ def _walk(
             raw_start = node.chars[start][0]
             raw_end = node.chars[end - 1][1] if end > start else raw_start
             edits.append((raw_start, raw_end, json_escape(text)))
+
+
+def url_line_break_token(raw: dict, node: _Value, tokens: list[Token], edits: list[_Edit]) -> bool:
+    """Rule b on a string under a key that keeps URLs that is one data URL and
+    one final line break: the whole value, its line break included, replaced
+    inside its quotes, with the data URL's mime type and size. False, with no
+    edit, for any other value."""
+    if node.chars is None or not node.chars:
+        return False
+    m = whole_data_url(raw, node.value, line_break=True)
+    if m is None or m.end() == len(node.value):
+        return False
+    mime, size = _match_token(raw, m)
+    tokens.append(Token("b", mime, size))
+    edits.append((node.chars[0][0], node.chars[-1][1], json_escape(replacement(raw, mime, size))))
+    return True
 
 
 def _keyed_token(
@@ -1258,8 +1350,9 @@ def _usable(value: Any) -> bool:
 
 
 def _is_data_scheme(value: str) -> bool:
-    """A value that is a data URL: it starts with data:, in any ASCII case."""
-    return value[:5].lower() == "data:"
+    """A value that is a data URL: it starts with data:, or with data%3A (a
+    data URL percent-encoded whole), in any ASCII case."""
+    return value[:5].lower() == "data:" or value[:7].lower() == "data%3a"
 
 
 def _mime_modality(mime: str | None) -> str | None:
@@ -1292,17 +1385,20 @@ def _part(kind: str, modality: str, **members: Any) -> dict:
 
 
 def _data_url_part(data: dict, url: str, hint: str | None, kind_modality: str | None) -> dict:
-    """A data URL as a blob: rule (b)'s pattern matching the whole URL is
-    base64, with its run's size; any other is not base64, with no size, and
-    redacted_upstream when its payload is empty or None. The mime type is the
-    URL's when valid, else the hint."""
+    """A data URL as a blob: rule (b)'s pattern matching the whole URL, or all
+    of it but one final line break, is base64, with its run's size; any other
+    is not base64, with no size, and redacted_upstream when its payload is
+    empty or None. The mime type is the URL's when valid, else the hint. A
+    data URL percent-encoded whole is matched by percent_pattern, its mime
+    type and run percent-decoded as rule (b) reads them; when it does not
+    match, it is read as any other once each %XX is decoded."""
     raw = data["raw_payloads"]
-    match = whole_data_url(raw, url)
+    match = whole_data_url(raw, url, line_break=True)
     if match:
-        mime = _mime_or_unknown(raw, match.group(1)) or hint
-        size, reason = run_size(match.group(3)), "not_captured"
+        mime, size = _match_token(raw, match)
+        mime, reason = mime or hint, "not_captured"
     else:
-        rest = url.split(":", 1)[1]
+        rest = (url if url[4] == ":" else _percent_decode(url)).split(":", 1)[1]
         mime = _mime_or_unknown(raw, re.split("[;,]", rest, maxsplit=1)[0]) or hint
         payload = rest.split(",", 1)[1] if "," in rest else ""
         size, reason = None, "redacted_upstream" if payload in ("", "None") else "not_captured"
@@ -1449,6 +1545,7 @@ def native_part(data: dict, part: dict) -> dict | None:
 #: its message_content prefix.
 OPENINFERENCE_IMAGE_TYPE = "message_content.type"
 OPENINFERENCE_IMAGE_URL = "message_content.image.image.url"
+OPENINFERENCE_IMAGE_MEDIA_TYPE = "message_content.image.media_type"
 
 
 def _filename_modality(data: dict, filename: Any) -> str | None:
@@ -1462,7 +1559,8 @@ def _provider_uri(raw: dict, item: dict) -> tuple[Any, Any, str | None, bool] | 
     """The URI a provider item points at, with the item's MIME type, the
     modality its kind names (for an OpenAI input_file, its filename does) and
     whether a uri reads its path's extension. None for an item that points at
-    nothing by URI: a Vercel value with no URL scheme is base64."""
+    nothing by URI: a Vercel value with no URL scheme is base64, unless it is
+    a data URL percent-encoded whole (data%3A), which the data URL rules read."""
     kind = item.get("type")
     if kind == "image_url" and isinstance(item.get("image_url"), dict):
         return item["image_url"].get("url"), None, "image", False
@@ -1480,11 +1578,16 @@ def _provider_uri(raw: dict, item: dict) -> tuple[Any, Any, str | None, bool] | 
         value = item.get("data" if kind == "file" else "image")
         if isinstance(value, dict) and value.get("type") == "url":
             value = value.get("url")
-        elif not is_url(raw, value):
+        elif not (is_url(raw, value) or (isinstance(value, str) and _is_data_scheme(value))):
             return None
         return value, item.get("mediaType"), "image" if kind == "image" else None, kind == "file"
     if item.get(OPENINFERENCE_IMAGE_TYPE) == "image" and OPENINFERENCE_IMAGE_URL in item:
-        return item[OPENINFERENCE_IMAGE_URL], None, "image", False
+        return (
+            item[OPENINFERENCE_IMAGE_URL],
+            item.get(OPENINFERENCE_IMAGE_MEDIA_TYPE),
+            "image",
+            False,
+        )
     return None
 
 
@@ -1508,14 +1611,16 @@ def provider_uri_part(data: dict, item: dict) -> dict | None:
     document by a url source, an OpenAI input_file's file_url, a Gemini
     file_data's file_uri, a Vercel file or image part by URL (a value that
     starts with a URL scheme, or v7's {"type":"url"} data), and OpenInference's
-    flattened image url. None for any other item, for a URI that is not a
-    string, and for an item whose reader takes another usable reference first:
+    flattened image url, with its flattened image media_type as the MIME type
+    the item gives. None for any other item, for a URI that is not a string,
+    and for an item whose reader takes another usable reference first:
     an input_file's file_id or file_data, and an input_image's file_id when its
     image_url is empty or __REDACTED__. A usable image_url beside a file_id
     stays a uri (or a blob, for a data URL), as the readers take it first.
 
-    An empty or __REDACTED__ URI was dropped upstream. A data URL follows the
-    data URL rules. A URI that holds data: anywhere else, in any ASCII case, is
+    An empty or __REDACTED__ URI was dropped upstream. A data URL, plain or
+    percent-encoded whole, follows the data URL rules. A URI that holds data:
+    anywhere else, in any ASCII case, is
     a blob with no byte_size, so no byte of it is kept. Any other URI is a uri,
     as it came. A blob's modality comes from the MIME type, then the item's
     kind (an input_file's filename), then document; a uri's from the same, then
