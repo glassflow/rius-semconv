@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.3](https://github.com/glassflow/rius-semconv/compare/v1.8.2...v1.8.3) (2026-10-22)
+
+
+### Bug Fixes
+
+* list the credential headers every consumer drops, whatever the content settings ([#91](https://github.com/glassflow/rius-semconv/issues/91)) ([e7a5b6b](https://github.com/glassflow/rius-semconv/commit/e7a5b6bd14dbae14d77db1711fed3860d8eec522))
+
 ## [1.8.2](https://github.com/glassflow/rius-semconv/compare/v1.8.1...v1.8.2) (2026-10-22)
 
 
