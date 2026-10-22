@@ -129,6 +129,9 @@ const (
 	{{ "{" }}{{ lit(entry.prefix) }}, []string{ {%- for s in entry.suffixes %}{{ lit(s) }}{% if not loop.last %}, {% endif %}{% endfor %}}},
 {% endfor %}
 }
+{{ string_slice("credential_headers") -}}
+{{ string_slice("credential_header_suffixes") -}}
+{{ string_slice("header_attribute_segments") -}}
 {% for t in [
     ["operation_by_kind", "kind", "literal"],
     ["kind_by_operation", "literal", "kind"],

@@ -103,7 +103,10 @@ from enum import Enum
     ({{ lit(entry.prefix) }}, ({% for s in entry.suffixes %}{{ lit(s) }}{% if not loop.last %}, {% endif %}{% endfor %}{% if entry.suffixes | length == 1 %},{% endif %})),
 {% endfor %}
 )
-{% set ns.public = ns.public + [content.const, al.content_prefixes.const, al.content_prefix_identity.const, al.content_suffixes.const, block.const, kind_type] %}
+{{ string_tuple("credential_headers") -}}
+{{ string_tuple("credential_header_suffixes") -}}
+{{ string_tuple("header_attribute_segments") -}}
+{% set ns.public = ns.public + [content.const, al.content_prefixes.const, al.content_prefix_identity.const, al.content_suffixes.const, block.const, al.credential_headers.const, al.credential_header_suffixes.const, al.header_attribute_segments.const, kind_type] %}
 
 
 class {{ kind_type }}(str, Enum):

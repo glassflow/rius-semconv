@@ -172,6 +172,24 @@ def test_python_allowlists(py_module):
     assert "rius.compaction.summary.bytes" not in content
 
 
+CREDENTIAL_HEADER_NAMES = [
+    "authorization",
+    "proxy-authorization",
+    "cookie",
+    "set-cookie",
+    "x-api-key",
+    "api-key",
+    "x-goog-api-key",
+]
+
+
+def test_python_credential_headers(py_module):
+    # Dropped whatever capture_content and mask say: not content, a secret.
+    assert py_module["CREDENTIAL_HEADER_NAMES"] == {"__tuple__": CREDENTIAL_HEADER_NAMES}
+    assert py_module["CREDENTIAL_HEADER_NAME_SUFFIXES"] == {"__tuple__": ["-token", "-secret"]}
+    assert py_module["HEADER_ATTRIBUTE_SEGMENTS"] == {"__tuple__": [".headers.", ".header."]}
+
+
 def test_python_tables(py_module):
     assert py_module["_OPERATION_BY_KIND"]["LLM"] == "chat"
     assert "CHAIN" not in py_module["_OPERATION_BY_KIND"]
@@ -243,6 +261,9 @@ def test_typescript_values(base_data):
     assert len(values["PENDING_IDENTITY_ATTRIBUTES"]["__set__"]) == 17
     assert values["OTEL_KIND_BY_KIND"]["LLM"] == "CLIENT"
     assert values["SpanKind"]["RETRIEVER"] == "RETRIEVER"
+    assert values["CREDENTIAL_HEADER_NAMES"] == CREDENTIAL_HEADER_NAMES
+    assert values["CREDENTIAL_HEADER_NAME_SUFFIXES"] == ["-token", "-secret"]
+    assert values["HEADER_ATTRIBUTE_SEGMENTS"] == [".headers.", ".header."]
 
 
 def test_typescript_aliases_upstream_constant(base_data):
@@ -316,13 +337,27 @@ def test_go_compiles_and_holds_the_tables(base_data, tmp_path):
         '\t_, system := semconv.ContentAttributes[semconv.RiusRequestPrefix+"system"]\n'
         "\tfmt.Println(len(semconv.PendingIdentityAttributes), pending, bag, system,\n"
         '\t\tsemconv.KindByOperation["plan"], semconv.OperationByKind[semconv.SpanKindRetriever],\n'
-        '\t\tsemconv.GenAIRequestParameters["n"])\n'
+        '\t\tsemconv.GenAIRequestParameters["n"],\n'
+        "\t\tlen(semconv.CredentialHeaderNames), semconv.CredentialHeaderNames[0],\n"
+        "\t\tsemconv.CredentialHeaderNameSuffixes[1], semconv.HeaderAttributeSegments[0])\n"
         "}\n"
     )
     out = subprocess.run(
         ["go", "run", "."], cwd=tmp_path, capture_output=True, text=True, check=True
     ).stdout
-    expected = ["17", "false", "true", "true", "CHAIN", "retrieval", "gen_ai.request.choice.count"]
+    expected = [
+        "17",
+        "false",
+        "true",
+        "true",
+        "CHAIN",
+        "retrieval",
+        "gen_ai.request.choice.count",
+        "7",
+        "authorization",
+        "-secret",
+        ".headers.",
+    ]
     assert out.split() == expected
 
 

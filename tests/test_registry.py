@@ -89,6 +89,24 @@ def test_a_tool_definition_member_the_content_rule_misses_is_flagged(data):
     assert any("schemas is not in REQUEST_PARAMETERS_CONTENT_MEMBERS" in e for e in lint(data))
 
 
+def test_a_credential_header_name_with_upper_case_is_flagged(data):
+    # Consumers compare the lower-cased header name, so an upper-case entry
+    # would never match anything.
+    data["allowlists"]["credential_headers"]["values"].append("X-Auth")
+    assert any("credential_headers: X-Auth is not lower case" in e for e in lint(data))
+
+
+def test_a_credential_header_suffix_without_a_hyphen_is_flagged(data):
+    # A suffix names a whole hyphen-separated word, so it starts with the hyphen.
+    data["allowlists"]["credential_header_suffixes"]["values"].append("token")
+    assert any("credential_header_suffixes: token does not start with '-'" in e for e in lint(data))
+
+
+def test_a_header_segment_without_dots_is_flagged(data):
+    data["allowlists"]["header_attribute_segments"]["values"].append("headers")
+    assert any("header_attribute_segments: headers is not a .segment." in e for e in lint(data))
+
+
 def test_derived_content_members_must_name_an_allowlist(data):
     data["allowlists"]["content"]["derived"]["members"] = "NO_SUCH_MEMBERS"
     assert any("content.derived: unknown members NO_SUCH_MEMBERS" in e for e in lint(data))

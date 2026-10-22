@@ -1072,6 +1072,48 @@ export const CONTENT_ATTRIBUTE_PREFIXED_SUFFIXES: readonly (readonly [
   readonly string[],
 ])[] = [["llm.request.functions.", [".description", ".parameters", ".arguments"]]];
 
+// Header names that carry a credential, lower case. An attribute holding one
+// of these headers is dropped from every span (final and pending), whatever
+// capture_content and mask say: a credential is never content to be masked,
+// and a mask that is absent or passes it through would ship it. The Vercel
+// AI SDK's @ai-sdk/otel 1.0.141 writes a call's headers option as
+// ai.request.headers.<name>: its LegacyOpenTelemetry integration on every
+// call with no option to turn it off, its OpenTelemetry integration with
+// headers: true. generateText lower-cases the name, generateSpeech keeps the
+// caller's (ai.request.headers.Authorization). OpenTelemetry's HTTP
+// instrumentations write http.request.header.<name> and
+// http.response.header.<name> when header capture is configured. See
+// HEADER_ATTRIBUTE_SEGMENTS for how a consumer finds the header name.
+export const CREDENTIAL_HEADER_NAMES: readonly string[] = [
+  "authorization",
+  "proxy-authorization",
+  "cookie",
+  "set-cookie",
+  "x-api-key",
+  "api-key",
+  "x-goog-api-key",
+];
+
+// A header name ending in one of these is a credential too (x-auth-token,
+// x-amz-security-token, x-client-secret): vendors invent such headers faster
+// than a list of names can follow them.
+export const CREDENTIAL_HEADER_NAME_SUFFIXES: readonly string[] = ["-token", "-secret"];
+
+// The key segments after which an attribute key names a header. A consumer
+// lower-cases the key, takes what follows the LAST occurrence of a segment
+// as the header name, reads "_" in it as "-", and drops the attribute when
+// the name is in CREDENTIAL_HEADER_NAMES or ends with one of
+// CREDENTIAL_HEADER_NAME_SUFFIXES. .headers. is the Vercel AI SDK's
+// (ai.request.headers.<name>); .header. is OpenTelemetry's HTTP conventions'
+// (http.request.header.<name>, http.response.header.<name>). Matched as a
+// segment anywhere in the key, not as a fixed prefix, so a copy under
+// another namespace (the OpenInference transform's metadata.<key>) and any
+// other instrumentor's <ns>.headers.<name> are covered too. "_" reads as "-"
+// because OpenTelemetry Python's HTTP instrumentations write header names
+// with underscores (http.request.header.x_api_key), where the conventions
+// spell the header as sent (http.request.header.x-api-key).
+export const HEADER_ATTRIBUTE_SEGMENTS: readonly string[] = [".headers.", ".header."];
+
 // Observation kind. Values are OpenInference `openinference.span.kind` values.
 export enum SpanKind {
   AGENT = "AGENT", // an agent invocation or run
