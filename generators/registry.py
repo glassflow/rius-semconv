@@ -389,6 +389,20 @@ class Registry:
                             f"{derived['members']}, so gen_ai.request.{m} is not content"
                         )
 
+        # Consumers compare a lower-cased header name, so each list must be
+        # spelled the way that comparison can match.
+        for v in al["credential_headers"]["values"]:
+            if v != v.lower():
+                errors.append(f"credential_headers: {v} is not lower case")
+        for v in al["credential_header_suffixes"]["values"]:
+            if v != v.lower():
+                errors.append(f"credential_header_suffixes: {v} is not lower case")
+            if not v.startswith("-"):
+                errors.append(f"credential_header_suffixes: {v} does not start with '-'")
+        for v in al["header_attribute_segments"]["values"]:
+            if v != v.lower() or not (v.startswith(".") and v.endswith(".")) or len(v) < 3:
+                errors.append(f"header_attribute_segments: {v} is not a .segment.")
+
         pending_refs = {m["ref"] for m in al["pending_identity"]["attributes"] if "ref" in m}
         content_refs = {m["ref"] for m in al["content"]["attributes"] if "ref" in m}
         content_keys = {m["key"] for m in al["content"]["attributes"] if "key" in m}

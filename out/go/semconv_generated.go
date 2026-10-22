@@ -1245,6 +1245,64 @@ var ContentAttributePrefixedSuffixes = []struct {
 	{"llm.request.functions.", []string{".description", ".parameters", ".arguments"}},
 }
 
+// Header names that carry a credential, lower case. An attribute holding one
+// of these headers is dropped from every span (final and pending), whatever
+// capture_content and mask say: a credential is never content to be masked,
+// and a mask that is absent or passes it through would ship it. The Vercel
+// AI SDK's @ai-sdk/otel 1.0.141 writes a call's headers option as
+// ai.request.headers.<name>: its LegacyOpenTelemetry integration on every
+// call with no option to turn it off, its OpenTelemetry integration with
+// headers: true. generateText lower-cases the name, generateSpeech keeps the
+// caller's (ai.request.headers.Authorization). OpenTelemetry's HTTP
+// instrumentations write http.request.header.<name> and
+// http.response.header.<name> when header capture is configured. See
+// HEADER_ATTRIBUTE_SEGMENTS for how a consumer finds the header name.
+var CredentialHeaderNames = []string{
+	"authorization",
+	"proxy-authorization",
+	"cookie",
+	"set-cookie",
+	"x-api-key",
+	"api-key",
+	"x-goog-api-key",
+	"apikey",
+	"x-apikey",
+	"ocp-apim-subscription-key",
+	"helicone-auth",
+}
+
+// A header name ending in one of these is a credential too (x-auth-token,
+// x-amz-security-token, x-client-secret, x-portkey-api-key,
+// x-litellm-api-key): vendors invent such headers faster than a list of
+// names can follow them. The suffixes match a whole word, so
+// x-ratelimit-remaining-tokens and max-tokens are kept, and -api-key rather
+// than a bare -key keeps idempotency-key. Dropping a harmless token-like
+// header such as next-page-token or csrf-token is intended: a lost header
+// costs a little context, a shipped credential costs a rotation.
+var CredentialHeaderNameSuffixes = []string{
+	"-token",
+	"-secret",
+	"-api-key",
+}
+
+// The key segments after which an attribute key names a header. A consumer
+// lower-cases the key, takes what follows the LAST occurrence of a segment
+// as the header name, reads "_" in it as "-", and drops the attribute when
+// the name is in CREDENTIAL_HEADER_NAMES or ends with one of
+// CREDENTIAL_HEADER_NAME_SUFFIXES. .headers. is the Vercel AI SDK's
+// (ai.request.headers.<name>); .header. is OpenTelemetry's HTTP conventions'
+// (http.request.header.<name>, http.response.header.<name>). Matched as a
+// segment anywhere in the key, not as a fixed prefix, so a copy under
+// another namespace (the OpenInference transform's metadata.<key>) and any
+// other instrumentor's <ns>.headers.<name> are covered too. "_" reads as "-"
+// because OpenTelemetry Python's HTTP instrumentations write header names
+// with underscores (http.request.header.x_api_key), where the conventions
+// spell the header as sent (http.request.header.x-api-key).
+var HeaderAttributeSegments = []string{
+	".headers.",
+	".header.",
+}
+
 // SpanKind -> OTel GenAI gen_ai.operation.name, where a canonical operation exists.
 // CHAIN is deliberately absent: the conventions define no operation for a
 // generic workflow step, and inventing one would put a non-spec value in a

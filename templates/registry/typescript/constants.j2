@@ -134,6 +134,9 @@ import { {{ imp.names | join(", ") }} } from {{ lit(imp.from) }};
   string,
   readonly string[],
 {{ array("])[] = ", ns.entries) -}}
+{{ string_array("credential_headers") -}}
+{{ string_array("credential_header_suffixes") -}}
+{{ string_array("header_attribute_segments") -}}
 {{ "\n" }}{{ comment(sk.doc.replace("``", "`"), "//", "") }}export enum {{ kind_type }} {
 {% for k in sk["values"] %}
   {{ k.name }} = {{ lit(k.name) }}, // {{ k.doc }}
