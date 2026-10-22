@@ -1745,8 +1745,8 @@ def attribute_value(raw: dict, value: Any) -> Any:
     string. Anything else is kept. This is the form a raw OpenTelemetry
     Python span holds, a mapping and a nested array included; a walked
     mapping, or an array OpenTelemetry JS cannot hold, is the JSON of the
-    value in TypeScript. Both SDKs' own setters write a mapping, or an array
-    holding one, as one JSON encoding, byte objects as markers."""
+    value in TypeScript. Both SDKs' own setters write a mapping, or a mixed
+    or nested array, as one JSON encoding, byte objects as markers."""
     if isinstance(value, BYTE_OBJECT_TYPES):
         return replacement(raw, None, byte_object_size(value))
     if isinstance(value, KvList):
