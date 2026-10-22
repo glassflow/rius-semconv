@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.9.0](https://github.com/glassflow/rius-semconv/compare/v1.8.3...v1.9.0) (2026-10-22)
+
+
+### Features
+
+* add constants for the attribute keys the SDKs still hand-type ([#94](https://github.com/glassflow/rius-semconv/issues/94)) ([a9d613e](https://github.com/glassflow/rius-semconv/commit/a9d613e6707e53d8b025ea9bb156c78ee5daa1c8))
+
+
+### Bug Fixes
+
+* diff the two SDKs' control recordings and add shared SDK cases ([#93](https://github.com/glassflow/rius-semconv/issues/93)) ([97f9054](https://github.com/glassflow/rius-semconv/commit/97f90542b5593f1b2e2c8867fc11440e6a731dca))
+
 ## [1.8.3](https://github.com/glassflow/rius-semconv/compare/v1.8.2...v1.8.3) (2026-10-22)
 
 
