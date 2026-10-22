@@ -1092,12 +1092,21 @@ export const CREDENTIAL_HEADER_NAMES: readonly string[] = [
   "x-api-key",
   "api-key",
   "x-goog-api-key",
+  "apikey",
+  "x-apikey",
+  "ocp-apim-subscription-key",
+  "helicone-auth",
 ];
 
 // A header name ending in one of these is a credential too (x-auth-token,
-// x-amz-security-token, x-client-secret): vendors invent such headers faster
-// than a list of names can follow them.
-export const CREDENTIAL_HEADER_NAME_SUFFIXES: readonly string[] = ["-token", "-secret"];
+// x-amz-security-token, x-client-secret, x-portkey-api-key,
+// x-litellm-api-key): vendors invent such headers faster than a list of
+// names can follow them. The suffixes match a whole word, so
+// x-ratelimit-remaining-tokens and max-tokens are kept, and -api-key rather
+// than a bare -key keeps idempotency-key. Dropping a harmless token-like
+// header such as next-page-token or csrf-token is intended: a lost header
+// costs a little context, a shipped credential costs a rotation.
+export const CREDENTIAL_HEADER_NAME_SUFFIXES: readonly string[] = ["-token", "-secret", "-api-key"];
 
 // The key segments after which an attribute key names a header. A consumer
 // lower-cases the key, takes what follows the LAST occurrence of a segment

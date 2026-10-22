@@ -180,14 +180,49 @@ CREDENTIAL_HEADER_NAMES = [
     "x-api-key",
     "api-key",
     "x-goog-api-key",
+    "apikey",
+    "x-apikey",
+    "ocp-apim-subscription-key",
+    "helicone-auth",
 ]
+CREDENTIAL_HEADER_NAME_SUFFIXES = ["-token", "-secret", "-api-key"]
+
+
+def _drops(header, names, suffixes):
+    # The rule HEADER_ATTRIBUTE_SEGMENTS documents for consumers.
+    name = header.lower().replace("_", "-")
+    return name in names or name.endswith(tuple(suffixes))
 
 
 def test_python_credential_headers(py_module):
     # Dropped whatever capture_content and mask say: not content, a secret.
     assert py_module["CREDENTIAL_HEADER_NAMES"] == {"__tuple__": CREDENTIAL_HEADER_NAMES}
-    assert py_module["CREDENTIAL_HEADER_NAME_SUFFIXES"] == {"__tuple__": ["-token", "-secret"]}
+    assert py_module["CREDENTIAL_HEADER_NAME_SUFFIXES"] == {
+        "__tuple__": CREDENTIAL_HEADER_NAME_SUFFIXES
+    }
     assert py_module["HEADER_ATTRIBUTE_SEGMENTS"] == {"__tuple__": [".headers.", ".header."]}
+
+
+@pytest.mark.parametrize(
+    ("header", "dropped"),
+    [
+        ("x-portkey-api-key", True),
+        ("x-litellm-api-key", True),
+        ("X_LiteLLM_API_Key", True),
+        ("ocp-apim-subscription-key", True),
+        ("x-apikey", True),
+        ("x-auth-token", True),
+        # A suffix matches a whole word, and -api-key is not a bare -key.
+        ("idempotency-key", False),
+        ("x-ratelimit-remaining-tokens", False),
+        ("max-tokens", False),
+        ("content-type", False),
+    ],
+)
+def test_credential_header_rule(py_module, header, dropped):
+    names = py_module["CREDENTIAL_HEADER_NAMES"]["__tuple__"]
+    suffixes = py_module["CREDENTIAL_HEADER_NAME_SUFFIXES"]["__tuple__"]
+    assert _drops(header, names, suffixes) is dropped
 
 
 def test_python_tables(py_module):
@@ -262,7 +297,7 @@ def test_typescript_values(base_data):
     assert values["OTEL_KIND_BY_KIND"]["LLM"] == "CLIENT"
     assert values["SpanKind"]["RETRIEVER"] == "RETRIEVER"
     assert values["CREDENTIAL_HEADER_NAMES"] == CREDENTIAL_HEADER_NAMES
-    assert values["CREDENTIAL_HEADER_NAME_SUFFIXES"] == ["-token", "-secret"]
+    assert values["CREDENTIAL_HEADER_NAME_SUFFIXES"] == CREDENTIAL_HEADER_NAME_SUFFIXES
     assert values["HEADER_ATTRIBUTE_SEGMENTS"] == [".headers.", ".header."]
 
 
@@ -353,7 +388,7 @@ def test_go_compiles_and_holds_the_tables(base_data, tmp_path):
         "CHAIN",
         "retrieval",
         "gen_ai.request.choice.count",
-        "7",
+        "11",
         "authorization",
         "-secret",
         ".headers.",
