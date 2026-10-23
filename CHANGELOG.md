@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.1](https://github.com/glassflow/rius-semconv/compare/v1.9.0...v1.9.1) (2026-10-23)
+
+
+### Bug Fixes
+
+* treat the Anthropic SDK's anthropic.tool_result.content as content ([#96](https://github.com/glassflow/rius-semconv/issues/96)) ([31237d6](https://github.com/glassflow/rius-semconv/commit/31237d63effcd65c1eeb69eb796e46851a83cabd))
+
 ## [1.9.0](https://github.com/glassflow/rius-semconv/compare/v1.8.3...v1.9.0) (2026-10-22)
 
 
