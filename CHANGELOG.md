@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.2](https://github.com/glassflow/rius-semconv/compare/v1.9.1...v1.9.2) (2026-10-23)
+
+
+### Bug Fixes
+
+* treat the Anthropic SDK's url.query and url.full as content on its own spans ([#99](https://github.com/glassflow/rius-semconv/issues/99)) ([b582cdc](https://github.com/glassflow/rius-semconv/commit/b582cdca15657388b80282ff9b463e8b9aecd8e8))
+
 ## [1.9.1](https://github.com/glassflow/rius-semconv/compare/v1.9.0...v1.9.1) (2026-10-23)
 
 
