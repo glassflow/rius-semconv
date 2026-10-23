@@ -1044,6 +1044,14 @@ export const THIRD_PARTY_CONTENT_ATTRIBUTES: ReadonlySet<string> = new Set([
   "lmnr.span.output",
   "lmnr.association.properties.metadata",
   "lmnr.sdk.raw.response",
+  // anthropic 2.1.0 (anthropic/lib/_tracing/_attributes.py) and
+  // @anthropic-ai/sdk 1.1.0 (lib/internal/tracing/attributes.js), whose
+  // native spans are on by default. In their content mode the tool
+  // runner's execute_tool span carries the tool's output here. The other
+  // keys that mode writes (gen_ai.system_instructions,
+  // gen_ai.input.messages, gen_ai.output.messages,
+  // gen_ai.tool.call.arguments) are GenAI keys, listed under content.
+  "anthropic.tool_result.content",
 ]);
 
 // Attribute keys carrying user content, masked/stripped at export.
