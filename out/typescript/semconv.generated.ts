@@ -1057,8 +1057,8 @@ export const THIRD_PARTY_CONTENT_ATTRIBUTES: ReadonlySet<string> = new Set([
   // content (email and path_prefix among them, and more per endpoint). So
   // the SDKs' masking exporters treat them as content on a span whose
   // instrumentation scope starts with com.anthropic.sdk. only: with
-  // content capture off url.query is dropped and url.full loses its query
-  // and fragment, and with a mask both run through it (see
+  // content capture off url.query is dropped and url.full loses its query,
+  // fragment and userinfo, and with a mask both run through it (see
   // sdk_cases/masking.json).
   "anthropic.tool_result.content",
 ]);
