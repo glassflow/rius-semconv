@@ -15,7 +15,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 CASES = ROOT / "sdk_cases"
-FILES = ("values", "attributes", "messages", "masking", "env", "resource")
+FILES = ("values", "attributes", "messages", "masking", "env", "resource", "anthropic_error_type")
 NAME = re.compile(r"[a-z0-9]+(_[a-z0-9]+)*")
 NUMBERS = {"NaN", "Infinity", "-Infinity"}
 ENV_FIELDS = {
@@ -40,6 +40,7 @@ FIELDS = {
     "masking": ({"name", "capture_content", "mask", "span", "expected"}, set()),
     "env": ({"name", "env", "expected"}, {"warns"}),
     "resource": ({"name", "otel_resource_attributes", "options", "expected", "absent"}, set()),
+    "anthropic_error_type": ({"name", "scope", "attributes", "expected"}, set()),
 }
 
 
@@ -119,3 +120,11 @@ def test_env_cases_name_known_fields_and_only_rius_variables():
 def test_resource_options_are_names():
     for case in load("resource")["cases"]:
         assert set(case["options"]) <= {"service_name", "agent_name"}, case["name"]
+
+
+def test_anthropic_error_type_cases_hold_an_error_type():
+    for case in load("anthropic_error_type")["cases"]:
+        attributes = case["attributes"]
+        assert isinstance(attributes["error.type"], str), case["name"]
+        assert set(attributes) <= {"error.type", "http.response.status_code"}, case["name"]
+        assert isinstance(case["expected"], str), case["name"]
