@@ -37,7 +37,7 @@ FIELDS = {
     "values": ({"name", "value", "expected"}, set()),
     "attributes": ({"name", "value", "expected"}, set()),
     "messages": ({"name", "direction", "value", "messages", "context_sizes"}, set()),
-    "masking": ({"name", "capture_content", "mask", "span", "expected"}, set()),
+    "masking": ({"name", "capture_content", "mask", "span", "expected"}, {"scope"}),
     "env": ({"name", "env", "expected"}, {"warns"}),
     "resource": ({"name", "otel_resource_attributes", "options", "expected", "absent"}, set()),
     "anthropic_error_type": ({"name", "scope", "attributes", "expected"}, set()),
@@ -108,6 +108,8 @@ def test_masks_are_ones_the_sdk_tests_build():
             assert kind in {"returns", "format", "throws"}, case["name"]
             assert kind != "throws" or mask["throws"] is True, case["name"]
         assert set(case["expected"]) == {"attributes", "events", "status"}, case["name"]
+        scope = case.get("scope")
+        assert scope is None or (isinstance(scope, str) and scope), case["name"]
 
 
 def test_env_cases_name_known_fields_and_only_rius_variables():
