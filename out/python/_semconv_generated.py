@@ -352,6 +352,22 @@ GEN_AI_TOOL_CALL_ARGUMENTS = "gen_ai.tool.call.arguments"
 # ai.toolCall.result. Content, listed in CONTENT_ATTRIBUTES.
 GEN_AI_TOOL_CALL_RESULT = "gen_ai.tool.call.result"
 
+# The Agent Skill an execute_tool span loads, reads a resource of or runs
+# a script of (the GenAI conventions' load_skill, read_skill_resource and
+# command refinements). The coding-agent plugin sets it on the span of a
+# Claude Code Skill call that loaded a skill. Identity: the skill is named
+# in the call's input, so it is known before the tool runs and is sent
+# with content capture off. Its siblings gen_ai.skill.source.uri and
+# gen_ai.skill.description are content.
+GEN_AI_SKILL_NAME = "gen_ai.skill.name"
+
+# Where the skill was loaded from, not where it was unpacked to run. The
+# conventions mark it sensitive: a file:// URI carries a local path, user
+# name included, and a remote one can carry credentials. Content, listed
+# in CONTENT_ATTRIBUTES, so the coding-agent plugin writes it only with
+# content capture on.
+GEN_AI_SKILL_SOURCE_URI = "gen_ai.skill.source.uri"
+
 # The index, collection or knowledge base a retrieval ran against. Identity,
 # set at span creation: it is what a retriever span is named after and the
 # only thing that distinguishes two otherwise identical searches.
@@ -959,6 +975,9 @@ PENDING_IDENTITY_ATTRIBUTES = frozenset(
         # for it while the tool is still running.
         GEN_AI_TOOL_CALL_ID,
         GEN_AI_TOOL_TYPE,
+        # Which Agent Skill a still-running tool call loads is in the call's
+        # input, so it is known at creation, like the tool's own name.
+        GEN_AI_SKILL_NAME,
         # The requested output modality describes the request, so it is known
         # before the model answers. Listed explicitly because the key sits
         # outside gen_ai.request. and the prefix rule does not reach it.
@@ -1197,6 +1216,11 @@ CONTENT_ATTRIBUTES = frozenset(
         GEN_AI_SYSTEM_INSTRUCTIONS,
         GEN_AI_TOOL_CALL_ARGUMENTS,
         GEN_AI_TOOL_CALL_RESULT,
+        # Sensitive per the GenAI conventions (semconv-genai#498): a skill's
+        # source URI can carry a local path or credentials, and its description
+        # is prose the skill's author wrote. gen_ai.skill.name stays: identity.
+        GEN_AI_SKILL_SOURCE_URI,
+        "gen_ai.skill.description",
         # OpenInference TOOL-kind spans carry the definition under these two
         # bare keys, sensitive for the reason gen_ai.tool.description is.
         "tool.description",
@@ -1610,6 +1634,8 @@ __all__ = [
     "GEN_AI_RESPONSE_TIME_TO_FIRST_CHUNK",
     "GEN_AI_RETRIEVAL_DOCUMENTS",
     "GEN_AI_RETRIEVAL_TOP_K",
+    "GEN_AI_SKILL_NAME",
+    "GEN_AI_SKILL_SOURCE_URI",
     "GEN_AI_SYSTEM",
     "GEN_AI_SYSTEM_INSTRUCTIONS",
     "GEN_AI_TOOL_CALL_ARGUMENTS",

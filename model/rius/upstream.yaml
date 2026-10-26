@@ -1268,6 +1268,53 @@ attribute_groups:
         rationale: |
           What the tool returned. Written as gen_ai.tool.call.arguments is, from
           ai.toolCall.result. Content, listed in CONTENT_ATTRIBUTES.
+  - ref: gen_ai.skill.name
+    requirement_level:
+      conditionally_required: if the skill name is available
+    annotations:
+      rius:
+        const: GEN_AI_SKILL_NAME
+        key: gen_ai.skill.name
+        symbol: attribute
+        origin: otel
+        kinds:
+        - TOOL
+        category: identity
+        level: conditionally_required
+        level_note: if the skill name is available
+        type: string
+        fill:
+        - coding_agents
+        rationale: |
+          The Agent Skill an execute_tool span loads, reads a resource of or runs
+          a script of (the GenAI conventions' load_skill, read_skill_resource and
+          command refinements). The coding-agent plugin sets it on the span of a
+          Claude Code Skill call that loaded a skill. Identity: the skill is named
+          in the call's input, so it is known before the tool runs and is sent
+          with content capture off. Its siblings gen_ai.skill.source.uri and
+          gen_ai.skill.description are content.
+  - ref: gen_ai.skill.source.uri
+    requirement_level: recommended
+    annotations:
+      rius:
+        const: GEN_AI_SKILL_SOURCE_URI
+        key: gen_ai.skill.source.uri
+        symbol: attribute
+        origin: otel
+        kinds:
+        - TOOL
+        category: content
+        level: recommended
+        level_note: if the skill source URI is available
+        type: string
+        fill:
+        - coding_agents
+        rationale: |
+          Where the skill was loaded from, not where it was unpacked to run. The
+          conventions mark it sensitive: a file:// URI carries a local path, user
+          name included, and a remote one can carry credentials. Content, listed
+          in CONTENT_ATTRIBUTES, so the coding-agent plugin writes it only with
+          content capture on.
   - ref: gen_ai.data_source.id
     requirement_level:
       conditionally_required: when the retrieval has a single identifiable data source

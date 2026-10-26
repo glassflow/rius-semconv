@@ -99,6 +99,8 @@ params:
   - const: GEN_AI_TOOL_DEFINITIONS
   - const: GEN_AI_TOOL_CALL_ARGUMENTS
   - const: GEN_AI_TOOL_CALL_RESULT
+  - const: GEN_AI_SKILL_NAME
+  - const: GEN_AI_SKILL_SOURCE_URI
   - const: GEN_AI_DATA_SOURCE_ID
   - const: GEN_AI_RETRIEVAL_TOP_K
   - const: GEN_AI_RETRIEVAL_DOCUMENTS
@@ -1141,6 +1143,10 @@ params:
           what joins the pending tool span back to the generation that asked
           for it while the tool is still running.
       - ref: GEN_AI_TOOL_TYPE
+      - ref: GEN_AI_SKILL_NAME
+        note: |
+          Which Agent Skill a still-running tool call loads is in the call's
+          input, so it is known at creation, like the tool's own name.
       - ref: GEN_AI_OUTPUT_TYPE
         note: |
           The requested output modality describes the request, so it is known
@@ -1281,6 +1287,12 @@ params:
           the same sense messages are. gen_ai.tool.call.id stays: identity.
       - ref: GEN_AI_TOOL_CALL_ARGUMENTS
       - ref: GEN_AI_TOOL_CALL_RESULT
+      - ref: GEN_AI_SKILL_SOURCE_URI
+        note: |
+          Sensitive per the GenAI conventions (semconv-genai#498): a skill's
+          source URI can carry a local path or credentials, and its description
+          is prose the skill's author wrote. gen_ai.skill.name stays: identity.
+      - key: gen_ai.skill.description
       - key: tool.description
         note: |
           OpenInference TOOL-kind spans carry the definition under these two
