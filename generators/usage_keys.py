@@ -95,6 +95,11 @@ def lint(data: dict, registry_keys: set[str], registry_prefixes: set[str]) -> li
             continue
         if decision in REASONED and not str(entry.get("reason", "")).strip():
             errors.append(f"{label}: a {decision} key needs a reason")
+        if "omit_zero" in entry:
+            if entry["omit_zero"] is not True:
+                errors.append(f"{label}: omit_zero is true or absent")
+            elif decision != "canonical" or not str(entry.get("key", "")).startswith(_USAGE):
+                errors.append(f"{label}: omit_zero is only for a canonical gen_ai.usage.* key")
         if "type" in entry and entry["type"] not in VALUE_TYPES:
             errors.append(f"{label}: type must be one of {sorted(VALUE_TYPES)}")
         foreign = decision != "canonical" and name not in registry_keys
@@ -143,6 +148,8 @@ class Observation:
     normalizer: str
     kept: bool
     after: set[str]
+    #: the recorded value is the number 0 (or a string that parses as it)
+    zero: bool = False
 
 
 @dataclass
@@ -152,16 +159,61 @@ class Scan:
     #: usage key -> families whose expected result has it (output only)
     produced: dict[str, set[str]] = field(default_factory=lambda: defaultdict(set))
     observations: list[Observation] = field(default_factory=list)
+    #: (key, normalizer, family, scenario, span id) for every usage key an
+    #: expected result carries at 0
+    zeros: list[tuple[str, str, str, str, str]] = field(default_factory=list)
 
 
 def _keys(attributes: list[dict]) -> set[str]:
     return {a["key"] for a in attributes}
 
 
+def _is_zero(value: Any) -> bool:
+    """An OTLP/JSON value, or a stored row's string, that holds the count 0.
+
+    A string counts when it parses as the integer 0: every normalizer parses a
+    mapped count before deciding, and the sink's rows hold every value as a
+    string.
+    """
+    if isinstance(value, str):
+        try:
+            return int(value.strip()) == 0
+        except ValueError:
+            return False
+    if not isinstance(value, dict):
+        return False
+    if "intValue" in value:
+        return _is_zero(str(value["intValue"]))
+    if "doubleValue" in value:
+        return isinstance(value["doubleValue"], (int, float)) and value["doubleValue"] == 0
+    if "stringValue" in value:
+        return _is_zero(value["stringValue"])
+    return False
+
+
+def _attribute_lists(span: dict) -> list[list[dict]]:
+    """The span's attributes and each of its events', the places a key can be."""
+    return [span.get("attributes", []), *(e.get("attributes", []) for e in span.get("events", []))]
+
+
+def _zero_keys(span: dict) -> set[str]:
+    """The keys whose value is 0 everywhere the span (or an event) carries them.
+
+    A key that is 0 in one place and a count in another is not a zero: the
+    count is what a normalizer must keep.
+    """
+    zeros: set[str] = set()
+    counts: set[str] = set()
+    for attributes in _attribute_lists(span):
+        for a in attributes:
+            (zeros if _is_zero(a.get("value")) else counts).add(a["key"])
+    return zeros - counts
+
+
 def _span_keys(span: dict) -> set[str]:
-    keys = _keys(span.get("attributes", []))
-    for event in span.get("events", []):
-        keys |= _keys(event.get("attributes", []))
+    keys: set[str] = set()
+    for attributes in _attribute_lists(span):
+        keys |= _keys(attributes)
     return keys
 
 
@@ -186,6 +238,7 @@ def scan(data: dict, fixtures: pathlib.Path) -> Scan:
                     span = wrapped["span"]
                     before = _span_keys(span)
                     after = after_by_span.get((scenario["scenario"], span["spanId"]))
+                    zero = _zero_keys(span)
                     for key in before:
                         if not is_usage_key(data, key):
                             continue
@@ -200,12 +253,19 @@ def scan(data: dict, fixtures: pathlib.Path) -> Scan:
                                     normalizer,
                                     key in after,
                                     after,
+                                    key in zero,
                                 )
                             )
             for keys in after_by_span.values():
                 for key in keys:
                     if is_usage_key(data, key):
                         result.produced[key].add(family)
+            if normalizer is not None:
+                for (name, span_id), key in _produced_zeros(
+                    expected, expected_entry["file"].endswith(ROWS_SUFFIX)
+                ):
+                    if is_usage_key(data, key):
+                        result.zeros.append((key, normalizer, family, name, span_id))
     return result
 
 
@@ -223,8 +283,40 @@ def _after(expected: dict, rows: bool) -> dict[tuple[str, str], set[str]]:
     return out
 
 
+def _produced_zeros(expected: dict, rows: bool) -> list[tuple[tuple[str, str], str]]:
+    """((scenario, span id), key) for every key an expected result holds at 0."""
+    out: list[tuple[tuple[str, str], str]] = []
+    for scenario in expected["recordings"]:
+        name = scenario["scenario"]
+        if rows:
+            for row in scenario["rows"]:
+                for key, value in (row.get("SpanAttributes") or {}).items():
+                    if _is_zero(value):
+                        out.append(((name, row["SpanID"]), key))
+        else:
+            for wrapped in scenario["spans"]:
+                span = wrapped["span"]
+                zeros = {
+                    a["key"]
+                    for attributes in _attribute_lists(span)
+                    for a in attributes
+                    if _is_zero(a.get("value"))
+                }
+                for key in sorted(zeros):
+                    out.append(((name, span["spanId"]), key))
+    return out
+
+
 _USAGE = "gen_ai.usage."
 _AGGREGATED = "rius.aggregated_usage."
+
+
+def omits_zero(data: dict, key: str) -> bool:
+    """A canonical usage breakdown no normalizer leaves at 0, or its moved-aside twin."""
+    if key.startswith(_AGGREGATED):
+        key = _USAGE + key[len(_AGGREGATED) :]
+    entry = decision_for(data, key)
+    return entry is not None and entry.get("key") == key and entry.get("omit_zero") is True
 
 
 def _target_set(target: str, after: Any) -> bool:
@@ -252,6 +344,22 @@ def check(data: dict, result: Scan) -> list[str]:
     reported: set[tuple[str, str, str]] = set()
     for obs in result.observations:
         entry = decision_for(data, obs.key)
+        if (
+            entry is not None
+            and entry["decision"] == "canonical"
+            and omits_zero(data, obs.key)
+            and not _target_set(obs.key, obs.after)
+            and not obs.zero
+            and (obs.key, obs.normalizer, obs.family) not in reported
+        ):
+            # A breakdown leaves the span only at 0. One that held a count
+            # must be kept, or moved aside with the rest of its usage.
+            reported.add((obs.key, obs.normalizer, obs.family))
+            errors.append(
+                f"{obs.key}: {obs.normalizer} dropped it, but it was not 0"
+                f" ({obs.family}/{obs.scenario} {obs.span!r})"
+            )
+            continue
         if entry is None or entry["decision"] in ("canonical", "not_usage"):
             # A canonical key may legitimately move (a run total to
             # rius.aggregated_usage.*); what happens to it is not a mapping.
@@ -263,13 +371,24 @@ def check(data: dict, result: Scan) -> list[str]:
         problem = None
         if maps and obs.kept:
             problem = f"{obs.normalizer} should map it to {entry['target']}, but kept it"
-        elif maps and not _target_set(entry["target"], obs.after):
+        elif (
+            maps
+            and not _target_set(entry["target"], obs.after)
+            and not (obs.zero and omits_zero(data, entry["target"]))
+        ):
             problem = f"{obs.normalizer} removed it without setting {entry['target']}"
         elif not maps and not obs.kept:
             problem = f"{obs.normalizer} removed it, but mapped_by does not list {obs.normalizer}"
         if problem and (obs.key, obs.normalizer, obs.family) not in reported:
             reported.add((obs.key, obs.normalizer, obs.family))
             errors.append(f"{obs.key}: {problem} ({obs.family}/{obs.scenario} {obs.span!r})")
+    for key, normalizer, family, scenario, span_id in result.zeros:
+        if omits_zero(data, key) and (key, normalizer, family) not in reported:
+            reported.add((key, normalizer, family))
+            errors.append(
+                f"{key}: {normalizer} left it at 0, but the registry records it only when"
+                f" non-zero ({family}/{scenario} span {span_id})"
+            )
     return errors
 
 

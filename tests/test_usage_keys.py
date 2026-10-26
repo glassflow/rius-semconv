@@ -224,6 +224,182 @@ def test_a_mapping_must_leave_its_target(data, recorded):
     )
 
 
+BREAKDOWNS = [
+    "gen_ai.usage.cache_read.input_tokens",
+    "gen_ai.usage.cache_write.input_tokens",
+    "gen_ai.usage.reasoning.output_tokens",
+    "gen_ai.usage.text.input_tokens",
+    "gen_ai.usage.text.output_tokens",
+    "gen_ai.usage.text.cache_read.input_tokens",
+    "gen_ai.usage.image.input_tokens",
+    "gen_ai.usage.image.output_tokens",
+    "gen_ai.usage.image.cache_read.input_tokens",
+    "gen_ai.usage.audio.input_tokens",
+    "gen_ai.usage.audio.output_tokens",
+    "gen_ai.usage.audio.cache_read.input_tokens",
+]
+
+
+def test_the_breakdowns_omit_zero_and_the_totals_do_not(base_data):
+    omitted = [e["key"] for e in base_data["usage_keys"]["keys"] if e.get("omit_zero") is True]
+    assert sorted(omitted) == sorted(BREAKDOWNS)
+    data = base_data["usage_keys"]
+    assert usage_keys.omits_zero(data, "rius.aggregated_usage.cache_read.input_tokens")
+    assert not usage_keys.omits_zero(data, "gen_ai.usage.input_tokens")
+    assert not usage_keys.omits_zero(data, "rius.aggregated_usage.input_tokens")
+
+
+def test_omit_zero_is_only_true(data):
+    entry(data, "gen_ai.usage.cache_read.input_tokens")["omit_zero"] = "yes"
+    assert_flags(lint(data), "omit_zero is true or absent")
+
+
+def test_omit_zero_is_only_for_a_canonical_usage_key(data):
+    entry(data, "llm.token_count.prompt")["omit_zero"] = True
+    assert_flags(lint(data), "llm.token_count.prompt: omit_zero is only for a canonical")
+
+
+def test_a_mapped_zero_may_leave_no_target_when_the_target_omits_zero(data, recorded):
+    # openinference-openai records llm.token_count.prompt_details.audio at 0;
+    # the normalizer drops the zero it maps, and the source with it.
+    assert not usage_keys.check(data["usage_keys"], recorded)
+    entry(data, "gen_ai.usage.audio.input_tokens").pop("omit_zero")
+    assert_flags(
+        usage_keys.check(data["usage_keys"], recorded),
+        "python removed it without setting gen_ai.usage.audio.input_tokens",
+    )
+
+
+def test_a_zero_left_on_an_omitted_key_fails(data, tmp_path):
+    copy = tmp_path / "fixtures"
+    shutil.copytree(FIXTURES / "openinference-openai", copy / "openinference-openai")
+    expected = next((copy / "openinference-openai").glob("*.expected.json"))
+    payload = json.loads(expected.read_text())
+    span = payload["recordings"][0]["spans"][0]["span"]
+    span["attributes"].append(
+        {"key": "gen_ai.usage.cache_read.input_tokens", "value": {"intValue": "0"}}
+    )
+    expected.write_text(json.dumps(payload))
+    assert_flags(
+        usage_keys.check(data["usage_keys"], usage_keys.scan(data["usage_keys"], copy)),
+        "gen_ai.usage.cache_read.input_tokens: python left it at 0",
+    )
+
+
+def _pydantic_ai_copy(tmp_path: Path) -> tuple[Path, Path, dict]:
+    copy = tmp_path / "fixtures"
+    shutil.copytree(FIXTURES / "pydantic-ai", copy / "pydantic-ai")
+    expected = copy / "pydantic-ai" / "pydantic-ai-2.55.0.expected.json"
+    return copy, expected, json.loads(expected.read_text())
+
+
+def test_a_dropped_breakdown_that_was_not_zero_fails(data, tmp_path):
+    # pydantic-ai records gen_ai.usage.cache_read.input_tokens at 16: a
+    # normalizer whose zero test also caught a count would drop it.
+    copy, expected, payload = _pydantic_ai_copy(tmp_path)
+    key = "gen_ai.usage.cache_read.input_tokens"
+    dropped = 0
+    for scenario in payload["recordings"]:
+        for wrapped in scenario["spans"]:
+            attributes = wrapped["span"]["attributes"]
+            kept = [a for a in attributes if a["key"] != key]
+            dropped += len(attributes) - len(kept)
+            wrapped["span"]["attributes"] = kept
+    assert dropped == 5
+    expected.write_text(json.dumps(payload))
+    assert_flags(
+        usage_keys.check(data["usage_keys"], usage_keys.scan(data["usage_keys"], copy)),
+        f"{key}: python dropped it, but it was not 0",
+    )
+
+
+def test_a_breakdown_moved_aside_is_not_dropped(data, tmp_path):
+    copy, expected, payload = _pydantic_ai_copy(tmp_path)
+    for scenario in payload["recordings"]:
+        for wrapped in scenario["spans"]:
+            for a in wrapped["span"]["attributes"]:
+                if a["key"] == "gen_ai.usage.cache_read.input_tokens":
+                    a["key"] = "rius.aggregated_usage.cache_read.input_tokens"
+    expected.write_text(json.dumps(payload))
+    assert not usage_keys.check(data["usage_keys"], usage_keys.scan(data["usage_keys"], copy))
+
+
+def test_a_zero_left_on_an_event_fails(data, tmp_path):
+    copy = tmp_path / "fixtures"
+    shutil.copytree(FIXTURES / "openinference-openai", copy / "openinference-openai")
+    expected = next((copy / "openinference-openai").glob("*.expected.json"))
+    payload = json.loads(expected.read_text())
+    payload["recordings"][0]["spans"][0]["span"]["events"] = [
+        {
+            "name": "final_chunk",
+            "timeUnixNano": "1700000000000000000",
+            "attributes": [
+                {"key": "gen_ai.usage.reasoning.output_tokens", "value": {"intValue": "0"}}
+            ],
+        }
+    ]
+    expected.write_text(json.dumps(payload))
+    assert_flags(
+        usage_keys.check(data["usage_keys"], usage_keys.scan(data["usage_keys"], copy)),
+        "gen_ai.usage.reasoning.output_tokens: python left it at 0",
+    )
+
+
+def test_a_mapped_zero_on_an_event_may_leave_no_target(data, tmp_path):
+    # The recorded llm.token_count.prompt_details.audio is 0 on an event
+    # instead of the span: still a zero, so dropping it with its source is fine.
+    copy = tmp_path / "fixtures"
+    shutil.copytree(FIXTURES / "openinference-openai", copy / "openinference-openai")
+    path = copy / "openinference-openai" / "openinference-openai-0.1.65.json"
+    recording = json.loads(path.read_text())
+    key = "llm.token_count.prompt_details.audio"
+    moved = 0
+    for scenario in recording["recordings"]:
+        for wrapped in scenario["spans"]:
+            span = wrapped["span"]
+            on_span = [a for a in span["attributes"] if a["key"] == key]
+            if not on_span:
+                continue
+            span["attributes"] = [a for a in span["attributes"] if a["key"] != key]
+            span.setdefault("events", []).append(
+                {"name": "usage", "timeUnixNano": "1700000000000000000", "attributes": on_span}
+            )
+            moved += 1
+    assert moved
+    path.write_text(json.dumps(recording))
+    assert not usage_keys.check(data["usage_keys"], usage_keys.scan(data["usage_keys"], copy))
+
+
+def test_a_key_at_0_in_one_place_and_a_count_in_another_is_no_zero():
+    key = "gen_ai.usage.cache_read.input_tokens"
+    span = {
+        "attributes": [{"key": key, "value": {"intValue": "4"}}],
+        "events": [{"attributes": [{"key": key, "value": {"intValue": "0"}}]}],
+    }
+    assert usage_keys._zero_keys(span) == set()
+    span["attributes"][0]["value"] = {"intValue": "0"}
+    assert usage_keys._zero_keys(span) == {key}
+
+
+@pytest.mark.parametrize(
+    ("value", "zero"),
+    [
+        ({"intValue": "0"}, True),
+        ({"intValue": 0}, True),
+        ({"doubleValue": 0.0}, True),
+        ({"stringValue": "0"}, True),
+        ("0", True),
+        ({"intValue": "3"}, False),
+        ({"doubleValue": 0.5}, False),
+        ({"boolValue": False}, False),
+        ({"stringValue": "lots"}, False),
+        ("", False),
+    ],
+)
+def test_what_reads_as_zero(value, zero):
+    assert usage_keys._is_zero(value) is zero
+
+
 # --- the table ------------------------------------------------------------------
 
 

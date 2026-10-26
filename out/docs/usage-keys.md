@@ -19,10 +19,10 @@ families it produced them for.
 | Key | python | typescript | sink | Recorded in | Why |
 | -- | -- | -- | -- | -- | -- |
 | `gen_ai.usage.audio.cache_read.input_tokens` | canonical | canonical | canonical | not in any recording |  |
-| `gen_ai.usage.audio.input_tokens` | canonical | canonical | canonical | produced in openinference-js-langchain-openai, openinference-js-openai, openinference-langchain, openinference-langchain-openai, openinference-litellm, openinference-litellm-openai, openinference-llama-index, openinference-llama-index-openai, openinference-openai, vercel-ai-otel |  |
-| `gen_ai.usage.audio.output_tokens` | canonical | canonical | canonical | produced in openinference-js-langchain-openai, openinference-js-openai, openinference-langchain, openinference-langchain-openai, openinference-litellm, openinference-litellm-openai, openinference-llama-index, openinference-llama-index-openai, openinference-openai |  |
+| `gen_ai.usage.audio.input_tokens` | canonical | canonical | canonical | produced in vercel-ai-otel |  |
+| `gen_ai.usage.audio.output_tokens` | canonical | canonical | canonical | not in any recording |  |
 | `gen_ai.usage.cache_read.input_tokens` | canonical | canonical | canonical | openllmetry, pydantic-ai, rius-python, rius-typescript, vercel-ai-otel |  |
-| `gen_ai.usage.cache_write.input_tokens` | canonical | canonical | canonical | produced in laminar, openinference-anthropic, openinference-js-anthropic, openinference-litellm, openinference-litellm-openai, openllmetry |  |
+| `gen_ai.usage.cache_write.input_tokens` | canonical | canonical | canonical | produced in openinference-anthropic, openinference-js-anthropic, openinference-litellm, openinference-litellm-openai, openllmetry |  |
 | `gen_ai.usage.image.cache_read.input_tokens` | canonical | canonical | canonical | not in any recording |  |
 | `gen_ai.usage.image.input_tokens` | canonical | canonical | canonical | not in any recording |  |
 | `gen_ai.usage.image.output_tokens` | canonical | canonical | canonical | not in any recording |  |
