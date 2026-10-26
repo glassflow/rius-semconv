@@ -33,7 +33,7 @@ templates:
       def wanted: ($params.include_planned or ((.status // "shipped") == "shipped"))
         and ((.shipped_in // ["python", "typescript", "go"]) | index($params.lang) != null);
       def initialisms: {"ID": "ID", "GEN": "Gen", "AI": "AI", "MCP": "MCP", "LLM": "LLM",
-        "URL": "URL", "SDK": "SDK", "TTL": "TTL"};
+        "URL": "URL", "URI": "URI", "SDK": "SDK", "TTL": "TTL"};
       ( [ .registry.attributes[], .registry.attribute_groups[].attributes[], .registry.events[] ]
         | map(select(.annotations.rius.const != null)
               | .annotations.rius + (if .deprecated then {deprecated: .deprecated} else {} end))

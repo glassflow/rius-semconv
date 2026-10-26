@@ -98,7 +98,7 @@ def test_python_constants(py_module):
 
 def test_python_allowlists(py_module):
     pending = py_module["PENDING_IDENTITY_ATTRIBUTES"]["__set__"]
-    assert len(pending) == 17
+    assert len(pending) == 18
     assert "rius.span.pending" not in pending
     assert py_module["PENDING_IDENTITY_PREFIXES"] == {
         "__tuple__": ["gen_ai.request.", "rius.request."]
@@ -307,7 +307,7 @@ def test_typescript_values(base_data):
     assert values["CONTENT_ATTRIBUTE_PREFIXED_SUFFIXES"] == [
         ["llm.request.functions.", [".description", ".parameters", ".arguments"]]
     ]
-    assert len(values["PENDING_IDENTITY_ATTRIBUTES"]["__set__"]) == 17
+    assert len(values["PENDING_IDENTITY_ATTRIBUTES"]["__set__"]) == 18
     assert values["OTEL_KIND_BY_KIND"]["LLM"] == "CLIENT"
     assert values["SpanKind"]["RETRIEVER"] == "RETRIEVER"
     assert values["CREDENTIAL_HEADER_NAMES"] == CREDENTIAL_HEADER_NAMES
@@ -401,7 +401,7 @@ def test_go_compiles_and_holds_the_tables(base_data, tmp_path):
         ["go", "run", "."], cwd=tmp_path, capture_output=True, text=True, check=True
     ).stdout
     expected = [
-        "17",
+        "18",
         "false",
         "true",
         "true",
