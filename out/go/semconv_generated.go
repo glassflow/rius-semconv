@@ -344,10 +344,11 @@ const (
 	// The Agent Skill an execute_tool span loads, reads a resource of or runs
 	// a script of (the GenAI conventions' load_skill, read_skill_resource and
 	// command refinements). The coding-agent plugin sets it on the span of a
-	// Claude Code Skill call that loaded a skill. Identity: the skill is named
-	// in the call's input, so it is known before the tool runs and is sent
-	// with content capture off. Its siblings gen_ai.skill.source.uri and
-	// gen_ai.skill.description are content.
+	// Claude Code Skill call that loaded a skill, from the name Claude Code
+	// resolved, and leaves it off a call that failed. Identity: it names the
+	// skill, not what the skill says, so it is sent with content capture off.
+	// Its siblings gen_ai.skill.source.uri and gen_ai.skill.description are
+	// content.
 	GenAISkillName = "gen_ai.skill.name"
 
 	// Where the skill was loaded from, not where it was unpacked to run. The
@@ -866,8 +867,10 @@ var PendingIdentityAttributes = map[string]struct{}{
 	// for it while the tool is still running.
 	GenAIToolCallID: {},
 	GenAIToolType:   {},
-	// Which Agent Skill a still-running tool call loads is in the call's
-	// input, so it is known at creation, like the tool's own name.
+	// Which Agent Skill a still-running tool call loads. An identity, so a
+	// producer that knows it at creation (from the call's input, like the
+	// tool's own name) may put it on the pending span. The coding-agent
+	// plugin sets it only once the call has resolved the skill.
 	GenAISkillName: {},
 	// The requested output modality describes the request, so it is known
 	// before the model answers. Listed explicitly because the key sits

@@ -287,10 +287,11 @@ of the request, known before the search runs, so it rides pending snapshots.
 **[22] `gen_ai.skill.name`:** The Agent Skill an execute_tool span loads, reads a resource of or runs
 a script of (the GenAI conventions' load_skill, read_skill_resource and
 command refinements). The coding-agent plugin sets it on the span of a
-Claude Code Skill call that loaded a skill. Identity: the skill is named
-in the call's input, so it is known before the tool runs and is sent
-with content capture off. Its siblings gen_ai.skill.source.uri and
-gen_ai.skill.description are content.
+Claude Code Skill call that loaded a skill, from the name Claude Code
+resolved, and leaves it off a call that failed. Identity: it names the
+skill, not what the skill says, so it is sent with content capture off.
+Its siblings gen_ai.skill.source.uri and gen_ai.skill.description are
+content.
 
 **[23] `gen_ai.skill.source.uri`:** Where the skill was loaded from, not where it was unpacked to run. The
 conventions mark it sensitive: a file:// URI carries a local path, user

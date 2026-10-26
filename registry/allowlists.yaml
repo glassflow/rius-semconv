@@ -37,8 +37,10 @@ pending_identity:
     - ref: GEN_AI_TOOL_TYPE
     - ref: GEN_AI_SKILL_NAME
       note: |
-        Which Agent Skill a still-running tool call loads is in the call's
-        input, so it is known at creation, like the tool's own name.
+        Which Agent Skill a still-running tool call loads. An identity, so a
+        producer that knows it at creation (from the call's input, like the
+        tool's own name) may put it on the pending span. The coding-agent
+        plugin sets it only once the call has resolved the skill.
     - ref: GEN_AI_OUTPUT_TYPE
       note: |
         The requested output modality describes the request, so it is known
