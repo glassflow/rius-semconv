@@ -286,6 +286,101 @@ def test_a_zero_left_on_an_omitted_key_fails(data, tmp_path):
     )
 
 
+def _pydantic_ai_copy(tmp_path: Path) -> tuple[Path, Path, dict]:
+    copy = tmp_path / "fixtures"
+    shutil.copytree(FIXTURES / "pydantic-ai", copy / "pydantic-ai")
+    expected = copy / "pydantic-ai" / "pydantic-ai-2.55.0.expected.json"
+    return copy, expected, json.loads(expected.read_text())
+
+
+def test_a_dropped_breakdown_that_was_not_zero_fails(data, tmp_path):
+    # pydantic-ai records gen_ai.usage.cache_read.input_tokens at 16: a
+    # normalizer whose zero test also caught a count would drop it.
+    copy, expected, payload = _pydantic_ai_copy(tmp_path)
+    key = "gen_ai.usage.cache_read.input_tokens"
+    dropped = 0
+    for scenario in payload["recordings"]:
+        for wrapped in scenario["spans"]:
+            attributes = wrapped["span"]["attributes"]
+            kept = [a for a in attributes if a["key"] != key]
+            dropped += len(attributes) - len(kept)
+            wrapped["span"]["attributes"] = kept
+    assert dropped == 5
+    expected.write_text(json.dumps(payload))
+    assert_flags(
+        usage_keys.check(data["usage_keys"], usage_keys.scan(data["usage_keys"], copy)),
+        f"{key}: python dropped it, but it was not 0",
+    )
+
+
+def test_a_breakdown_moved_aside_is_not_dropped(data, tmp_path):
+    copy, expected, payload = _pydantic_ai_copy(tmp_path)
+    for scenario in payload["recordings"]:
+        for wrapped in scenario["spans"]:
+            for a in wrapped["span"]["attributes"]:
+                if a["key"] == "gen_ai.usage.cache_read.input_tokens":
+                    a["key"] = "rius.aggregated_usage.cache_read.input_tokens"
+    expected.write_text(json.dumps(payload))
+    assert not usage_keys.check(data["usage_keys"], usage_keys.scan(data["usage_keys"], copy))
+
+
+def test_a_zero_left_on_an_event_fails(data, tmp_path):
+    copy = tmp_path / "fixtures"
+    shutil.copytree(FIXTURES / "openinference-openai", copy / "openinference-openai")
+    expected = next((copy / "openinference-openai").glob("*.expected.json"))
+    payload = json.loads(expected.read_text())
+    payload["recordings"][0]["spans"][0]["span"]["events"] = [
+        {
+            "name": "final_chunk",
+            "timeUnixNano": "1700000000000000000",
+            "attributes": [
+                {"key": "gen_ai.usage.reasoning.output_tokens", "value": {"intValue": "0"}}
+            ],
+        }
+    ]
+    expected.write_text(json.dumps(payload))
+    assert_flags(
+        usage_keys.check(data["usage_keys"], usage_keys.scan(data["usage_keys"], copy)),
+        "gen_ai.usage.reasoning.output_tokens: python left it at 0",
+    )
+
+
+def test_a_mapped_zero_on_an_event_may_leave_no_target(data, tmp_path):
+    # The recorded llm.token_count.prompt_details.audio is 0 on an event
+    # instead of the span: still a zero, so dropping it with its source is fine.
+    copy = tmp_path / "fixtures"
+    shutil.copytree(FIXTURES / "openinference-openai", copy / "openinference-openai")
+    path = copy / "openinference-openai" / "openinference-openai-0.1.65.json"
+    recording = json.loads(path.read_text())
+    key = "llm.token_count.prompt_details.audio"
+    moved = 0
+    for scenario in recording["recordings"]:
+        for wrapped in scenario["spans"]:
+            span = wrapped["span"]
+            on_span = [a for a in span["attributes"] if a["key"] == key]
+            if not on_span:
+                continue
+            span["attributes"] = [a for a in span["attributes"] if a["key"] != key]
+            span.setdefault("events", []).append(
+                {"name": "usage", "timeUnixNano": "1700000000000000000", "attributes": on_span}
+            )
+            moved += 1
+    assert moved
+    path.write_text(json.dumps(recording))
+    assert not usage_keys.check(data["usage_keys"], usage_keys.scan(data["usage_keys"], copy))
+
+
+def test_a_key_at_0_in_one_place_and_a_count_in_another_is_no_zero():
+    key = "gen_ai.usage.cache_read.input_tokens"
+    span = {
+        "attributes": [{"key": key, "value": {"intValue": "4"}}],
+        "events": [{"attributes": [{"key": key, "value": {"intValue": "0"}}]}],
+    }
+    assert usage_keys._zero_keys(span) == set()
+    span["attributes"][0]["value"] = {"intValue": "0"}
+    assert usage_keys._zero_keys(span) == {key}
+
+
 @pytest.mark.parametrize(
     ("value", "zero"),
     [

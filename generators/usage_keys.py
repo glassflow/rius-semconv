@@ -191,15 +191,29 @@ def _is_zero(value: Any) -> bool:
     return False
 
 
+def _attribute_lists(span: dict) -> list[list[dict]]:
+    """The span's attributes and each of its events', the places a key can be."""
+    return [span.get("attributes", []), *(e.get("attributes", []) for e in span.get("events", []))]
+
+
 def _zero_keys(span: dict) -> set[str]:
-    """The span's attribute keys whose value is 0."""
-    return {a["key"] for a in span.get("attributes", []) if _is_zero(a.get("value"))}
+    """The keys whose value is 0 everywhere the span (or an event) carries them.
+
+    A key that is 0 in one place and a count in another is not a zero: the
+    count is what a normalizer must keep.
+    """
+    zeros: set[str] = set()
+    counts: set[str] = set()
+    for attributes in _attribute_lists(span):
+        for a in attributes:
+            (zeros if _is_zero(a.get("value")) else counts).add(a["key"])
+    return zeros - counts
 
 
 def _span_keys(span: dict) -> set[str]:
-    keys = _keys(span.get("attributes", []))
-    for event in span.get("events", []):
-        keys |= _keys(event.get("attributes", []))
+    keys: set[str] = set()
+    for attributes in _attribute_lists(span):
+        keys |= _keys(attributes)
     return keys
 
 
@@ -282,7 +296,13 @@ def _produced_zeros(expected: dict, rows: bool) -> list[tuple[tuple[str, str], s
         else:
             for wrapped in scenario["spans"]:
                 span = wrapped["span"]
-                for key in sorted(_zero_keys(span)):
+                zeros = {
+                    a["key"]
+                    for attributes in _attribute_lists(span)
+                    for a in attributes
+                    if _is_zero(a.get("value"))
+                }
+                for key in sorted(zeros):
                     out.append(((name, span["spanId"]), key))
     return out
 
@@ -324,6 +344,22 @@ def check(data: dict, result: Scan) -> list[str]:
     reported: set[tuple[str, str, str]] = set()
     for obs in result.observations:
         entry = decision_for(data, obs.key)
+        if (
+            entry is not None
+            and entry["decision"] == "canonical"
+            and omits_zero(data, obs.key)
+            and not _target_set(obs.key, obs.after)
+            and not obs.zero
+            and (obs.key, obs.normalizer, obs.family) not in reported
+        ):
+            # A breakdown leaves the span only at 0. One that held a count
+            # must be kept, or moved aside with the rest of its usage.
+            reported.add((obs.key, obs.normalizer, obs.family))
+            errors.append(
+                f"{obs.key}: {obs.normalizer} dropped it, but it was not 0"
+                f" ({obs.family}/{obs.scenario} {obs.span!r})"
+            )
+            continue
         if entry is None or entry["decision"] in ("canonical", "not_usage"):
             # A canonical key may legitimately move (a run total to
             # rius.aggregated_usage.*); what happens to it is not a mapping.

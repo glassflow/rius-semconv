@@ -7,7 +7,15 @@ Reads registry/usage_keys.yaml and every recording under fixtures/. Fails when:
 - a recording (or an expected result) carries a key matching the file's
   `match` words that no entry decides;
 - a normalizer's expected output contradicts an entry: a normalizer listed in
-  `mapped_by` kept the key or left no target, or one not listed removed it.
+  `mapped_by` kept the key or left no target, or one not listed removed it. A
+  mapped source recorded at 0 may leave no target when the target is an
+  `omit_zero` key;
+- an expected result holds an `omit_zero` key (or its rius.aggregated_usage.*
+  twin) at 0;
+- a normalizer dropped an `omit_zero` key the recording carried with a count:
+  it must be kept, or moved to its rius.aggregated_usage.* twin.
+
+A span's event attributes count with its own, for every rule.
 
 Exit 0 when clean, 1 otherwise, with one line per problem. The rules live in
 generators/usage_keys.py and are tested in tests/test_usage_keys.py.
