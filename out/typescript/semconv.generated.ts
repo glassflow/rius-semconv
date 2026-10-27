@@ -168,6 +168,7 @@ export const WORKSPACE_ROUTE = "rius.workspace";
 
 // OTel GenAI (subset we emit)
 export const GEN_AI_OPERATION_NAME = "gen_ai.operation.name";
+export const GEN_AI_OPERATION_NAME_COMPACTION = "compaction";
 export const GEN_AI_PROVIDER_NAME = "gen_ai.provider.name";
 export const GEN_AI_REQUEST_MODEL = "gen_ai.request.model";
 export const GEN_AI_REQUEST_REASONING_LEVEL = "gen_ai.request.reasoning.level";

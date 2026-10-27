@@ -184,6 +184,7 @@ WORKSPACE_ROUTE = "rius.workspace"
 
 # OTel GenAI (subset we emit)
 GEN_AI_OPERATION_NAME = "gen_ai.operation.name"
+GEN_AI_OPERATION_NAME_COMPACTION = "compaction"
 GEN_AI_PROVIDER_NAME = "gen_ai.provider.name"
 GEN_AI_REQUEST_MODEL = "gen_ai.request.model"
 GEN_AI_REQUEST_REASONING_LEVEL = "gen_ai.request.reasoning.level"
@@ -1611,6 +1612,7 @@ __all__ = [
     "GEN_AI_MAIN_AGENT_ID",
     "GEN_AI_MAIN_AGENT_NAME",
     "GEN_AI_OPERATION_NAME",
+    "GEN_AI_OPERATION_NAME_COMPACTION",
     "GEN_AI_OUTPUT_MESSAGES",
     "GEN_AI_OUTPUT_TYPE",
     "GEN_AI_PROVIDER_NAME",

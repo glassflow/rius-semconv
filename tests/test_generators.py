@@ -237,6 +237,9 @@ def test_python_tables(py_module):
     assert "CHAIN" not in py_module["_OPERATION_BY_KIND"]
     assert py_module["_KIND_BY_OPERATION"]["plan"] == "CHAIN"
     assert py_module["_KIND_BY_OPERATION"]["compaction"] == "CHAIN"
+    compaction = py_module["GEN_AI_OPERATION_NAME_COMPACTION"]
+    assert compaction == "compaction"
+    assert py_module["_KIND_BY_OPERATION"][compaction] == "CHAIN"
     assert py_module["_OPERATION_BY_KIND"]["RERANKER"] == "rerank"
     assert py_module["_KIND_BY_OPERATION"]["rerank"] == "RERANKER"
     assert py_module["_OTEL_KIND_BY_KIND"]["TOOL"] == "INTERNAL"
@@ -313,6 +316,8 @@ def test_typescript_values(base_data):
     assert values["CREDENTIAL_HEADER_NAMES"] == CREDENTIAL_HEADER_NAMES
     assert values["CREDENTIAL_HEADER_NAME_SUFFIXES"] == CREDENTIAL_HEADER_NAME_SUFFIXES
     assert values["HEADER_ATTRIBUTE_SEGMENTS"] == [".headers.", ".header."]
+    assert values["GEN_AI_OPERATION_NAME_COMPACTION"] == "compaction"
+    assert values["KIND_BY_OPERATION"][values["GEN_AI_OPERATION_NAME_COMPACTION"]] == "CHAIN"
 
 
 def test_typescript_aliases_upstream_constant(base_data):
@@ -375,6 +380,7 @@ def test_go_header_and_names(base_data):
     # Source spellings stay in the backend's hand-written semconv.go.
     assert "LLMSystem" not in consts
     assert "LLMTokenCountPrompt" not in consts
+    assert consts["GenAIOperationNameCompaction"] == "compaction"
 
 
 @requires_go
@@ -392,6 +398,7 @@ def test_go_compiles_and_holds_the_tables(base_data, tmp_path):
         '\t_, system := semconv.ContentAttributes[semconv.RiusRequestPrefix+"system"]\n'
         "\tfmt.Println(len(semconv.PendingIdentityAttributes), pending, bag, system,\n"
         '\t\tsemconv.KindByOperation["plan"], semconv.OperationByKind[semconv.SpanKindRetriever],\n'
+        "\t\tsemconv.KindByOperation[semconv.GenAIOperationNameCompaction],\n"
         '\t\tsemconv.GenAIRequestParameters["n"],\n'
         "\t\tlen(semconv.CredentialHeaderNames), semconv.CredentialHeaderNames[0],\n"
         "\t\tsemconv.CredentialHeaderNameSuffixes[1], semconv.HeaderAttributeSegments[0])\n"
@@ -407,6 +414,7 @@ def test_go_compiles_and_holds_the_tables(base_data, tmp_path):
         "true",
         "CHAIN",
         "retrieval",
+        "CHAIN",
         "gen_ai.request.choice.count",
         "11",
         "authorization",
