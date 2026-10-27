@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.10.0](https://github.com/glassflow/rius-semconv/compare/v1.9.2...v1.10.0) (2026-10-26)
+
+
+### Features
+
+* reference the GenAI Agent Skill keys the coding-agent plugin emits ([#104](https://github.com/glassflow/rius-semconv/issues/104)) ([28c9bc1](https://github.com/glassflow/rius-semconv/commit/28c9bc19760e8f6abca69159fb8389ec01def879))
+
+
+### Bug Fixes
+
+* record the usage breakdowns only when non-zero ([#102](https://github.com/glassflow/rius-semconv/issues/102)) ([ab957f2](https://github.com/glassflow/rius-semconv/commit/ab957f21453782a0e47350f3b6f964533785cf17))
+
 ## [1.9.2](https://github.com/glassflow/rius-semconv/compare/v1.9.1...v1.9.2) (2026-10-23)
 
 
