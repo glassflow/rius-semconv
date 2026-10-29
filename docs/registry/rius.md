@@ -25,27 +25,32 @@ convention names gets a key here.
 | <a id="rius-compaction-tool-results-cleared"></a>`rius.compaction.tool_results.cleared` | ![Development](https://img.shields.io/badge/-development-blue) | int | How many tool results the compaction emptied. [14] | `18` |
 | <a id="rius-compaction-trigger"></a>`rius.compaction.trigger` | ![Development](https://img.shields.io/badge/-development-blue) | string | What started the compaction: the context filling up (auto) or a request to compact (manual). [15] | `auto`; `manual` |
 | <a id="rius-context-sizes"></a>`rius.context.sizes` | ![Development](https://img.shields.io/badge/-development-blue) | any | Byte sizes of each part of a generation's context (tool definitions, input and output messages), as compact JSON. [16] | `{"version":1,"input_messages":[{"role":"system","parts":[{"type":"text","bytes":19}]},{"role":"user","parts":[{"type":"text","bytes":18}]}],"output_messages":[{"role":"assistant","parts":[{"type":"text","bytes":6}]}]}`; `{"version":1,"input_messages":[{"role":"user","parts":[{"type":"text","bytes":14},{"type":"blob","modality":"image","byte_size":48213}]}],"output_messages":[{"role":"assistant","parts":[{"type":"text","bytes":31}]}]}` |
-| <a id="rius-main-agent-version"></a>`rius.main_agent.version` | ![Development](https://img.shields.io/badge/-development-blue) | string | Version of the agent definition (prompt, tools and policy) this process runs, independent of service.version. [20] | `7`; `2026-10-01` |
-| <a id="rius-parent-foreign"></a>`rius.parent.foreign` | ![Development](https://img.shields.io/badge/-development-blue) | boolean | The span's parent is local to this process but was never received by Rius, so the trace arrives without it. [21] | `true` |
-| <a id="rius-request"></a>`rius.request.<key>` | ![Development](https://img.shields.io/badge/-development-blue) | any | A request parameter the GenAI conventions do not define, keyed by the parameter's name as the caller spelled it. [22] | `flex`; `true`; `{"type":"json_object"}` |
-| <a id="rius-request-tool-choice"></a>`rius.request.tool_choice` | ![Development](https://img.shields.io/badge/-development-blue) | string | How the request constrained tool use: a mode string, or the provider's forced-call object as compact JSON. [23] | `auto`; `required`; `{"type":"function","function":{"name":"get_weather"}}` |
-| <a id="rius-sdk-global-provider"></a>`rius.sdk.global_provider` | ![Development](https://img.shields.io/badge/-development-blue) | string | The tracer provider that already held the OpenTelemetry global when Rius initialized, as foreign:&lt;class&gt;. [24] | `foreign:opentelemetry.sdk.trace.TracerProvider`; `foreign:NodeTracerProvider` |
-| <a id="rius-span-pending"></a>`rius.span.pending` | ![Development](https://img.shields.io/badge/-development-blue) | boolean | Marks the content-free snapshot of a span that is exported when the span starts, before the real span ends. [25] Former spelling: <a id="glassflow-span-pending"></a>`glassflow.span.pending`. | `true` |
-| <a id="rius-workspace"></a>`rius.workspace` | ![Development](https://img.shields.io/badge/-development-blue) | string | Alias of the workspace a span is exported to when one process sends to several; stripped before the span leaves the process. [26] | `acme`; `customer-eu` |
+| <a id="rius-hint-channel"></a>`rius.hint.channel` | ![Development](https://img.shields.io/badge/-development-blue) | string | How the hint reached the agent: drain, callback or inject. [17] | `drain`; `inject` |
+| <a id="rius-hint-code"></a>`rius.hint.code` | ![Development](https://img.shields.io/badge/-development-blue) | string | The code of the detector that produced the hint. [18] | `CF-01` |
+| <a id="rius-hint-id"></a>`rius.hint.id` | ![Development](https://img.shields.io/badge/-development-blue) | string | The identifier of the hint that was delivered: h_ followed by a ULID. [19] | `h_01JCX9Q4M8T6Y2S3K7B5N0RZ1A` |
+| <a id="rius-hint-template-version"></a>`rius.hint.template_version` | ![Development](https://img.shields.io/badge/-development-blue) | int | The version of the wording template the hint's text was rendered from. [20] | `1`; `3` |
+| <a id="rius-main-agent-version"></a>`rius.main_agent.version` | ![Development](https://img.shields.io/badge/-development-blue) | string | Version of the agent definition (prompt, tools and policy) this process runs, independent of service.version. [24] | `7`; `2026-10-01` |
+| <a id="rius-parent-foreign"></a>`rius.parent.foreign` | ![Development](https://img.shields.io/badge/-development-blue) | boolean | The span's parent is local to this process but was never received by Rius, so the trace arrives without it. [25] | `true` |
+| <a id="rius-request"></a>`rius.request.<key>` | ![Development](https://img.shields.io/badge/-development-blue) | any | A request parameter the GenAI conventions do not define, keyed by the parameter's name as the caller spelled it. [26] | `flex`; `true`; `{"type":"json_object"}` |
+| <a id="rius-request-tool-choice"></a>`rius.request.tool_choice` | ![Development](https://img.shields.io/badge/-development-blue) | string | How the request constrained tool use: a mode string, or the provider's forced-call object as compact JSON. [27] | `auto`; `required`; `{"type":"function","function":{"name":"get_weather"}}` |
+| <a id="rius-sdk-global-provider"></a>`rius.sdk.global_provider` | ![Development](https://img.shields.io/badge/-development-blue) | string | The tracer provider that already held the OpenTelemetry global when Rius initialized, as foreign:&lt;class&gt;. [28] | `foreign:opentelemetry.sdk.trace.TracerProvider`; `foreign:NodeTracerProvider` |
+| <a id="rius-span-pending"></a>`rius.span.pending` | ![Development](https://img.shields.io/badge/-development-blue) | boolean | Marks the content-free snapshot of a span that is exported when the span starts, before the real span ends. [29] Former spelling: <a id="glassflow-span-pending"></a>`glassflow.span.pending`. | `true` |
+| <a id="rius-workspace"></a>`rius.workspace` | ![Development](https://img.shields.io/badge/-development-blue) | string | Alias of the workspace a span is exported to when one process sends to several; stripped before the span leaves the process. [30] | `acme`; `customer-eu` |
 
 ## Events
 
 | Name | Stability | Description |
 | -- | -- | -- |
-| <a id="rius-compaction"></a>`rius.compaction` | ![Development](https://img.shields.io/badge/-development-blue) | The context of this model call was compacted inside the request. [27] |
+| <a id="rius-compaction"></a>`rius.compaction` | ![Development](https://img.shields.io/badge/-development-blue) | The context of this model call was compacted inside the request. [31] |
+| <a id="rius-hint-delivered"></a>`rius.hint.delivered` | ![Development](https://img.shields.io/badge/-development-blue) | The SDK handed a hint from Rius to the agent. [32] |
 
 ## Deprecated
 
 | Key | Type | Replaced by | Description |
 | -- | -- | -- | -- |
-| <a id="rius-main-agent-description"></a>`rius.main_agent.description` | string | [`gen_ai.main_agent.description`](upstream.md#gen-ai-main-agent-description) | What the agent this process is does, in free text. [17] Moved to gen_ai.main_agent.description, which the OpenTelemetry GenAI conventions now define for the same fact. The SDKs stamp both through the deprecation window; readers take gen_ai.main_agent.description first. |
-| <a id="rius-main-agent-id"></a>`rius.main_agent.id` | string | [`gen_ai.main_agent.id`](upstream.md#gen-ai-main-agent-id) | Stable identifier of the agent this process is, unchanged across restarts and deployments. [18] Moved to gen_ai.main_agent.id, which the OpenTelemetry GenAI conventions now define for the same fact. The SDKs stamp both through the deprecation window; readers take gen_ai.main_agent.id first. This key only ever carried a configured id, while gen_ai.main_agent.id falls back to the agent name when none is configured. |
-| <a id="rius-main-agent-name"></a>`rius.main_agent.name` | string | [`gen_ai.main_agent.name`](upstream.md#gen-ai-main-agent-name) | Name of the agent this process is, stamped once on the resource. [19] Moved to gen_ai.main_agent.name, which the OpenTelemetry GenAI conventions now define for the same fact. The SDKs stamp both through the deprecation window; readers take gen_ai.main_agent.name first. |
+| <a id="rius-main-agent-description"></a>`rius.main_agent.description` | string | [`gen_ai.main_agent.description`](upstream.md#gen-ai-main-agent-description) | What the agent this process is does, in free text. [21] Moved to gen_ai.main_agent.description, which the OpenTelemetry GenAI conventions now define for the same fact. The SDKs stamp both through the deprecation window; readers take gen_ai.main_agent.description first. |
+| <a id="rius-main-agent-id"></a>`rius.main_agent.id` | string | [`gen_ai.main_agent.id`](upstream.md#gen-ai-main-agent-id) | Stable identifier of the agent this process is, unchanged across restarts and deployments. [22] Moved to gen_ai.main_agent.id, which the OpenTelemetry GenAI conventions now define for the same fact. The SDKs stamp both through the deprecation window; readers take gen_ai.main_agent.id first. This key only ever carried a configured id, while gen_ai.main_agent.id falls back to the agent name when none is configured. |
+| <a id="rius-main-agent-name"></a>`rius.main_agent.name` | string | [`gen_ai.main_agent.name`](upstream.md#gen-ai-main-agent-name) | Name of the agent this process is, stamped once on the resource. [23] Moved to gen_ai.main_agent.name, which the OpenTelemetry GenAI conventions now define for the same fact. The SDKs stamp both through the deprecation window; readers take gen_ai.main_agent.name first. |
 
 ## Notes
 
@@ -167,27 +172,52 @@ masking and capture_content=False; that is its whole point when the
 messages are truncated or stripped) and from PENDING_IDENTITY_ATTRIBUTES
 (content is unknown at span start, so a pending snapshot never has it).
 
-**[17] `rius.main_agent.description`:** Deprecated: moved to gen_ai.main_agent.description.
+**[17] `rius.hint.channel`:** drain when the agent's own code pulled the hint (drain_hints()),
+callback when the SDK passed it to an on_hint callback, inject when a
+framework hook added it to a model call just before the call. Only
+inject guarantees the model saw the hint; with drain and callback the
+agent's code decides what to do with it. Measuring whether hints help
+needs to tell the two apart.
 
-**[18] `rius.main_agent.id`:** Deprecated: moved to gen_ai.main_agent.id.
+**[18] `rius.hint.code`:** Which problem the hint is about, as Rius named it. Copied from the hint
+so that measuring whether hints help can group deliveries by detector
+straight from the trace. The SDK copies it and never interprets it.
+Not gen_ai.prompt.name: that names the prompt of the operation the span
+describes, and a hint is one note added to it, not the prompt.
+
+**[19] `rius.hint.id`:** The hint's id exactly as Rius sent it, the same on every redelivery. It
+is the join key: the backend stores each hint it writes under this id,
+with the run it is about and when it was written, so a reader finds
+what the hint said and how long it took to arrive without the event
+repeating any of it. The SDK de-duplicates on the id before delivery,
+so a hint Rius sends again gives no second event.
+
+**[20] `rius.hint.template_version`:** Each code's wording is versioned, and a change of wording bumps the
+version, so two wordings of the same hint can be compared. An int, as
+Rius sends it. Not gen_ai.prompt.version, for the reason given on
+rius.hint.code, and that key is a string.
+
+**[21] `rius.main_agent.description`:** Deprecated: moved to gen_ai.main_agent.description.
+
+**[22] `rius.main_agent.id`:** Deprecated: moved to gen_ai.main_agent.id.
 Took the same stability constraint the conventions put on gen_ai.agent.id:
 a transient in-memory or process-local id here would mint a new "agent"
 every restart and make the key useless for grouping.
 
-**[19] `rius.main_agent.name`:** Deprecated: moved to gen_ai.main_agent.name.
+**[23] `rius.main_agent.name`:** Deprecated: moved to gen_ai.main_agent.name.
 Named the agent this process is before the conventions had a key for it.
 
-**[20] `rius.main_agent.version`:** The version of the agent DEFINITION (its prompt, tools and policy), which is
+**[24] `rius.main_agent.version`:** The version of the agent DEFINITION (its prompt, tools and policy), which is
 deliberately NOT service.version. A service can sit at 2.3.1 while its
 agent definition is at 7, and the two move independently; deriving either
 from the other produces confidently wrong data on every deployment where
 they disagree, which is most of them.
 
-**[21] `rius.parent.foreign`:** On a span: its parent is local to this process, yet rius never received
+**[25] `rius.parent.foreign`:** On a span: its parent is local to this process, yet rius never received
 it, so the trace arrives without that parent. Remote parents are never
 flagged.
 
-**[22] `rius.request.<key>`:** Where a request parameter the GenAI registry does NOT define goes. Our own
+**[26] `rius.request.<key>`:** Where a request parameter the GenAI registry does NOT define goes. Our own
 namespace rather than gen_ai.request.&lt;key&gt;, per OTel's naming guidance: an
 existing semantic-convention namespace must not be used as a prefix for
 application-specific attributes, because the convention is free to define
@@ -200,18 +230,18 @@ the current value: if request parameters ever become maskable, both
 namespaces change together, and neither may join the content allowlist
 alone.
 
-**[23] `rius.request.tool_choice`:** How the request constrained tool use: a mode string ("auto", "required")
+**[27] `rius.request.tool_choice`:** How the request constrained tool use: a mode string ("auto", "required")
 or, for a forced call, the provider's object as compact JSON. The GenAI
 conventions define no tool_choice, so it lives in our namespace. Context
 attribution reads it to price the tool-use preamble, which is why the
 normalizer lifts it out of the OpenInference request bag (content) into
 here (not content).
 
-**[24] `rius.sdk.global_provider`:** On the resource: foreign:&lt;module.Class&gt; when another provider already
+**[28] `rius.sdk.global_provider`:** On the resource: foreign:&lt;module.Class&gt; when another provider already
 held the OpenTelemetry global at init(). Absent when rius registered the
 global.
 
-**[25] `rius.span.pending`:** Marks the content-free snapshot exported at span START; the backend maps it
+**[29] `rius.span.pending`:** Marks the content-free snapshot exported at span START; the backend maps it
 to Finished=0 and the real span replaces it at end. This key knowingly bends
 the convention-native rule (no vendor namespace): OpenTelemetry has NO
 pending-span mechanism to align with (spec #3732/#4646, semconv #2133, all
@@ -220,15 +250,33 @@ logfire.span_type) is equally vendor-namespaced. Spelled glassflow.span.pending
 before the vendor keys moved under rius.\*; the backend reads both spellings
 for as long as pre-rename SDK versions are in the field.
 
-**[26] `rius.workspace`:** Process-local routing marker for multi-workspace export. Stamped at span
+**[30] `rius.workspace`:** Process-local routing marker for multi-workspace export. Stamped at span
 start so pending snapshots route too, and ALWAYS stripped by the routing
 exporter before spans leave the process: the destination's API key is what
 tells the backend which workspace a span belongs to.
 
-**[27] `rius.compaction`:** A compaction that happens inside one request, with no step of its own:
+**[31] `rius.compaction`:** A compaction that happens inside one request, with no step of its own:
 the provider edits the context as part of the call, or the agent's hook
 reports it while the call is open. It is an event on that LLM span and
 carries the rius.compaction.\* attributes. A compaction that is a step of
 its own is a CHAIN span with gen_ai.operation.name "compaction" instead,
 never both for the same compaction. Every LLM call that runs on the
 compacted context sets gen_ai.conversation.compacted.
+
+**[32] `rius.hint.delivered`:** Recorded on the span current at delivery, when drain_hints() returns
+the hint, an on_hint callback receives it, or a framework hook adds it
+to a model call. With inject, that is the model call's span, or the
+span around it when the hook runs before the call's span starts. It
+carries the rius.hint.\* attributes and never the hint's text, which
+Rius already holds under the id.
+It records delivery, not the acknowledgement on the heartbeat: an ack
+only tells Rius to stop sending the hint, and the SDK acks hints it
+drops as well.
+Nothing else is needed to measure whether a hint helped. The event's
+span puts it in the run's trace, and its timestamp says when it was
+delivered, so the model calls after it are the LLM spans of that
+trace that start later. The hint's id joins the event to what Rius
+stored for it (code, the run it was about, when it was written). A key
+on each later model call naming the hints it carried would repeat
+what that join gives for inject, and with drain or callback the SDK
+cannot know whether the agent passed the hint on at all.

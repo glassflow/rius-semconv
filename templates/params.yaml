@@ -195,8 +195,25 @@ params:
   - const: RIUS_COMPACTION_ID
   - const: RIUS_COMPACTION_SUMMARY_BYTES
   - const: RIUS_COMPACTION_SUMMARY_TEXT
+  - const: RIUS_HINT_ID
+  - const: RIUS_HINT_CODE
+  - const: RIUS_HINT_TEMPLATE_VERSION
+  - const: RIUS_HINT_CHANNEL
+  - const: RIUS_HINT_CHANNEL_DRAIN
+    key: drain
+    symbol: value
+    of: RIUS_HINT_CHANNEL
+  - const: RIUS_HINT_CHANNEL_CALLBACK
+    key: callback
+    symbol: value
+    of: RIUS_HINT_CHANNEL
+  - const: RIUS_HINT_CHANNEL_INJECT
+    key: inject
+    symbol: value
+    of: RIUS_HINT_CHANNEL
   - const: GEN_AI_FIRST_TOKEN_EVENT
   - const: RIUS_COMPACTION_EVENT
+  - const: RIUS_HINT_DELIVERED_EVENT
   - const: RIUS_SPAN_PENDING
   - const: RIUS_PARENT_FOREIGN
   - const: RIUS_SDK_GLOBAL_PROVIDER
