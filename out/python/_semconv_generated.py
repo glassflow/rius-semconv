@@ -619,24 +619,29 @@ RIUS_COMPACTION_SUMMARY_TEXT = "rius.compaction.summary.text"
 # moment, and are never set on a span. No convention defines a hint or
 # its delivery.
 # The hint's id exactly as Rius sent it, the same on every redelivery. It
-# is the join key: the backend stores each hint it writes under this id,
-# with the run it is about and when it was written, so a reader finds
-# what the hint said and how long it took to arrive without the event
-# repeating any of it. The SDK de-duplicates on the id before delivery,
-# so a hint Rius sends again gives no second event.
+# is the join key to the record Rius keeps for each hint it writes, which
+# holds the run the hint is about, its code, the text the agent received
+# and when it was written, so a reader finds what the hint said and how
+# long it took to arrive without the event repeating any of it.
+# The SDK de-duplicates on the id, so a hint Rius sends again gives no
+# second event on the same channel. A hint can reach the agent through
+# more than one channel and gives one event for each: at most one per
+# (rius.hint.id, rius.hint.channel). A count of hints delivered must
+# deduplicate on rius.hint.id.
 RIUS_HINT_ID = "rius.hint.id"
 
 # Which problem the hint is about, as Rius named it. Copied from the hint
 # so that measuring whether hints help can group deliveries by detector
 # straight from the trace. The SDK copies it and never interprets it.
-# Not gen_ai.prompt.name: that names the prompt of the operation the span
-# describes, and a hint is one note added to it, not the prompt.
+# Not gen_ai.prompt.name: a hint is not a managed prompt, and the model
+# call a hint is injected into may carry the agent's own
+# gen_ai.prompt.name and gen_ai.prompt.version, naming that call's prompt.
 RIUS_HINT_CODE = "rius.hint.code"
 
 # Each code's wording is versioned, and a change of wording bumps the
 # version, so two wordings of the same hint can be compared. An int, as
 # Rius sends it. Not gen_ai.prompt.version, for the reason given on
-# rius.hint.code, and that key is a string.
+# rius.hint.code.
 RIUS_HINT_TEMPLATE_VERSION = "rius.hint.template_version"
 
 # drain when the agent's own code pulled the hint (drain_hints()),
@@ -673,23 +678,31 @@ GEN_AI_FIRST_TOKEN_EVENT = "gen_ai.first_token"
 # compacted context sets gen_ai.conversation.compacted.
 RIUS_COMPACTION_EVENT = "rius.compaction"
 
-# Recorded on the span current at delivery, when drain_hints() returns
-# the hint, an on_hint callback receives it, or a framework hook adds it
-# to a model call. With inject, that is the model call's span, or the
-# span around it when the hook runs before the call's span starts. It
-# carries the rius.hint.* attributes and never the hint's text, which
-# Rius already holds under the id.
+# Recorded when the SDK hands a hint to the agent: drain_hints() returns
+# it, an on_hint callback receives it, or a framework hook adds it to a
+# model call. For every channel, the event goes on the root span of the
+# run the hint is about (the hint's trace_id). The SDK keeps each run's
+# root span while the run is open, and Rius delivers a hint only while
+# its run is open. A hint with no trace_id is about the instance as a
+# whole: its event goes on the current span if one is recording, and
+# otherwise no event is recorded.
+# One run can get several hints, so its root span can carry several of
+# these events, one per hint and channel: at most one per
+# (rius.hint.id, rius.hint.channel). A count of hints delivered must
+# deduplicate on rius.hint.id.
+# It carries the rius.hint.* attributes and never the hint's text, which
+# the record Rius keeps for each hint it writes holds under the id.
 # It records delivery, not the acknowledgement on the heartbeat: an ack
 # only tells Rius to stop sending the hint, and the SDK acks hints it
 # drops as well.
-# Nothing else is needed to measure whether a hint helped. The event's
-# span puts it in the run's trace, and its timestamp says when it was
-# delivered, so the model calls after it are the LLM spans of that
-# trace that start later. The hint's id joins the event to what Rius
-# stored for it (code, the run it was about, when it was written). A key
-# on each later model call naming the hints it carried would repeat
-# what that join gives for inject, and with drain or callback the SDK
-# cannot know whether the agent passed the hint on at all.
+# Nothing else is needed to measure whether a hint helped. The hint's run
+# is the trace the event sits in, and the model calls after the hint are
+# the LLM spans of that trace that start after the event's timestamp.
+# The hint's id joins the event to the record Rius keeps for each hint it
+# writes (its code, its run, when it was written). A key on each later
+# model call naming the hints it carried would repeat what that join
+# gives for inject, and with drain or callback the SDK cannot know
+# whether the agent passed the hint on at all.
 RIUS_HINT_DELIVERED_EVENT = "rius.hint.delivered"
 
 # --- Pending (partial) spans ---
