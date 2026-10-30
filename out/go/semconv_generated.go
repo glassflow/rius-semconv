@@ -660,14 +660,16 @@ const (
 	// It records delivery, not the acknowledgement on the heartbeat: an ack
 	// only tells Rius to stop sending the hint, and the SDK acks hints it
 	// drops as well.
-	// Nothing else is needed to measure whether a hint helped. The hint's run
-	// is the trace the event sits in, and the model calls after the hint are
-	// the LLM spans of that trace that start after the event's timestamp.
-	// The hint's id joins the event to the record Rius keeps for each hint it
-	// writes (its code, its run, when it was written). A key on each later
-	// model call naming the hints it carried would repeat what that join
-	// gives for inject, and with drain or callback the SDK cannot know
-	// whether the agent passed the hint on at all.
+	// For inject, nothing else is needed to measure whether a hint helped. The
+	// hint's run is the trace the event sits in, and the model calls after the
+	// hint are the LLM spans of that trace that start after the event's
+	// timestamp. The hint's id joins the event to the record Rius keeps for each
+	// hint it writes (its code, its run, when it was written). A key on each
+	// later model call naming the hints it carried would repeat what that join
+	// gives. With drain or callback, this event only says the agent's code
+	// received the hint: the SDK cannot know whether the code passed it to the
+	// model, acted on it itself, or ignored it, so measuring those needs a
+	// record from the agent's code.
 	RiusHintDeliveredEvent = "rius.hint.delivered"
 
 	// --- Pending (partial) spans ---
