@@ -122,7 +122,7 @@ def test_no_attribute_name_is_also_a_namespace(own):
 
 def test_the_rius_events_are_events(own):
     events = {e["name"]: e for e in own["events"]}
-    assert set(events) == {"gen_ai.first_token", "rius.compaction"}
+    assert set(events) == {"gen_ai.first_token", "rius.compaction", "rius.hint.delivered"}
     for event in events.values():
         assert event["requirement_level"] == "recommended"
 

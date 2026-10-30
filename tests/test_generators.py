@@ -177,6 +177,8 @@ def test_python_allowlists(py_module):
     # A summary restates the conversation; its size does not.
     assert "rius.compaction.summary.text" in content
     assert "rius.compaction.summary.bytes" not in content
+    # A delivered hint is recorded by id, code and version, never by its text.
+    assert not any(key.startswith("rius.hint.") for key in content)
 
 
 CREDENTIAL_HEADER_NAMES = [
