@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.0](https://github.com/glassflow/rius-semconv/compare/v1.10.0...v1.11.0) (2026-10-30)
+
+
+### Features
+
+* hint delivery event and attributes ([#106](https://github.com/glassflow/rius-semconv/issues/106)) ([69b5af2](https://github.com/glassflow/rius-semconv/commit/69b5af25ae83482108787cbed19dfbf47524ad64))
+
 ## [1.10.0](https://github.com/glassflow/rius-semconv/compare/v1.9.2...v1.10.0) (2026-10-26)
 
 
