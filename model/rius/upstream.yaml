@@ -393,6 +393,8 @@ attribute_groups:
         - native
         - openinference
         - vercel
+        values:
+          GEN_AI_OPERATION_NAME_COMPACTION: compaction
   - ref: gen_ai.provider.name
     requirement_level:
       conditionally_required: when known

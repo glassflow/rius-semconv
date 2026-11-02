@@ -172,11 +172,12 @@ const (
 	WorkspaceRoute = "rius.workspace"
 
 	// OTel GenAI (subset we emit)
-	GenAIOperationName         = "gen_ai.operation.name"
-	GenAIProviderName          = "gen_ai.provider.name"
-	GenAIRequestModel          = "gen_ai.request.model"
-	GenAIRequestReasoningLevel = "gen_ai.request.reasoning.level"
-	GenAIResponseModel         = "gen_ai.response.model"
+	GenAIOperationName           = "gen_ai.operation.name"
+	GenAIOperationNameCompaction = "compaction"
+	GenAIProviderName            = "gen_ai.provider.name"
+	GenAIRequestModel            = "gen_ai.request.model"
+	GenAIRequestReasoningLevel   = "gen_ai.request.reasoning.level"
+	GenAIResponseModel           = "gen_ai.response.model"
 
 	// The provider's own identifier for the completion ("chatcmpl-123"),
 	// Recommended on an inference span. Metadata: it exists only once the provider

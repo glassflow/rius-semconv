@@ -54,6 +54,10 @@ params:
   - const: USER_ID
   - const: WORKSPACE_ROUTE
   - const: GEN_AI_OPERATION_NAME
+  - const: GEN_AI_OPERATION_NAME_COMPACTION
+    key: compaction
+    symbol: value
+    of: GEN_AI_OPERATION_NAME
   - const: GEN_AI_PROVIDER_NAME
   - const: GEN_AI_REQUEST_MODEL
   - const: GEN_AI_REQUEST_REASONING_LEVEL
