@@ -21,7 +21,7 @@ same result.
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-6b7280?style=flat-square)](LICENSE)
 [![Latest release](https://img.shields.io/github/v/release/glassflow/rius-semconv?style=flat-square&label=release)](https://github.com/glassflow/rius-semconv/releases/latest)
 [![OpenTelemetry Weaver](https://img.shields.io/badge/OpenTelemetry-Weaver-425cc7?style=flat-square&logo=opentelemetry&logoColor=white)](https://github.com/open-telemetry/weaver)
-[![OTel semconv](https://img.shields.io/badge/OTel_semconv-v1.44.0-425cc7?style=flat-square)](versions.env)
+[![OTel semconv](https://img.shields.io/badge/OTel_semconv-v1.45.0-425cc7?style=flat-square)](versions.env)
 ![Generates Python, TypeScript and Go](https://img.shields.io/badge/generates-Python_%C2%B7_TypeScript_%C2%B7_Go-6b7280?style=flat-square)
 
 ## Who it is for
