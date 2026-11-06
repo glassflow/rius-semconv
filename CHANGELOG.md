@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.12.0](https://github.com/glassflow/rius-semconv/compare/v1.11.0...v1.12.0) (2026-11-06)
+
+
+### Features
+
+* generate a constant for the compaction operation value (RIUS-1576) ([#105](https://github.com/glassflow/rius-semconv/issues/105)) ([43cf275](https://github.com/glassflow/rius-semconv/commit/43cf275cdf458d02b48fd178536f61a5c63eb7e9))
+
 ## [1.11.0](https://github.com/glassflow/rius-semconv/compare/v1.10.0...v1.11.0) (2026-10-30)
 
 
