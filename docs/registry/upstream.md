@@ -3,7 +3,7 @@
 # Upstream keys
 
 The OpenTelemetry keys the Rius SDKs emit or read, referenced from the
-registries this one pins: core semantic conventions `v1.44.0`
+registries this one pins: core semantic conventions `v1.45.0`
 and the GenAI semantic conventions at
 [`e6658f1`](https://github.com/open-telemetry/semantic-conventions-genai/tree/e6658f14c9d9ea0760825f029cb82e7673f48fab).
 Their definitions, types and stability are upstream's: each key links to it.
@@ -14,15 +14,15 @@ Rius uses it.
 
 | Key | Type | Requirement level | Defined in | How Rius uses it |
 | -- | -- | -- | -- | -- |
-| <a id="error-type"></a>[`error.type`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/error.md#error-type) | string | conditionally required (on error) | OpenTelemetry v1.44.0 | Emitted. [1] |
+| <a id="error-type"></a>[`error.type`](https://github.com/open-telemetry/semantic-conventions/blob/v1.45.0/docs/registry/attributes/error.md#error-type) | string | conditionally required (on error) | OpenTelemetry v1.45.0 | Emitted. [1] |
 
 ## `exception`
 
 | Key | Type | Requirement level | Defined in | How Rius uses it |
 | -- | -- | -- | -- | -- |
-| <a id="exception-message"></a>[`exception.message`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/exception.md#exception-message) | string | recommended | OpenTelemetry v1.44.0 | Read, never written. [2] |
-| <a id="exception-stacktrace"></a>[`exception.stacktrace`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/exception.md#exception-stacktrace) | string | recommended | OpenTelemetry v1.44.0 | Read, never written. [3] |
-| <a id="exception-type"></a>[`exception.type`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/exception.md#exception-type) | string | recommended | OpenTelemetry v1.44.0 | Read, never written. |
+| <a id="exception-message"></a>[`exception.message`](https://github.com/open-telemetry/semantic-conventions/blob/v1.45.0/docs/registry/attributes/exception.md#exception-message) | string | recommended | OpenTelemetry v1.45.0 | Read, never written. [2] |
+| <a id="exception-stacktrace"></a>[`exception.stacktrace`](https://github.com/open-telemetry/semantic-conventions/blob/v1.45.0/docs/registry/attributes/exception.md#exception-stacktrace) | string | recommended | OpenTelemetry v1.45.0 | Read, never written. [3] |
+| <a id="exception-type"></a>[`exception.type`](https://github.com/open-telemetry/semantic-conventions/blob/v1.45.0/docs/registry/attributes/exception.md#exception-type) | string | recommended | OpenTelemetry v1.45.0 | Read, never written. |
 
 ## `gen_ai`
 
@@ -98,41 +98,41 @@ Rius uses it.
 
 | Key | Type | Requirement level | Defined in | How Rius uses it |
 | -- | -- | -- | -- | -- |
-| <a id="process-exit-code"></a>[`process.exit.code`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/process.md#process-exit-code) | int | recommended | OpenTelemetry v1.44.0 | Emitted. [42] |
-| <a id="process-working-directory"></a>[`process.working_directory`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/process.md#process-working-directory) | string | recommended | OpenTelemetry v1.44.0 | Emitted. [43] |
+| <a id="process-exit-code"></a>[`process.exit.code`](https://github.com/open-telemetry/semantic-conventions/blob/v1.45.0/docs/registry/attributes/process.md#process-exit-code) | int | recommended | OpenTelemetry v1.45.0 | Emitted. [42] |
+| <a id="process-working-directory"></a>[`process.working_directory`](https://github.com/open-telemetry/semantic-conventions/blob/v1.45.0/docs/registry/attributes/process.md#process-working-directory) | string | recommended | OpenTelemetry v1.45.0 | Emitted. [43] |
 
 ## `service`
 
 | Key | Type | Requirement level | Defined in | How Rius uses it |
 | -- | -- | -- | -- | -- |
-| <a id="service-instance-id"></a>[`service.instance.id`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/service.md#service-instance-id) | string | required | OpenTelemetry v1.44.0 | Emitted. [44] |
-| <a id="service-name"></a>[`service.name`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/service.md#service-name) | string | required | OpenTelemetry v1.44.0 | Emitted. [45] |
-| <a id="service-version"></a>[`service.version`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/service.md#service-version) | string | recommended | OpenTelemetry v1.44.0 | Emitted. [46] |
+| <a id="service-instance-id"></a>[`service.instance.id`](https://github.com/open-telemetry/semantic-conventions/blob/v1.45.0/docs/registry/attributes/service.md#service-instance-id) | string | required | OpenTelemetry v1.45.0 | Emitted. [44] |
+| <a id="service-name"></a>[`service.name`](https://github.com/open-telemetry/semantic-conventions/blob/v1.45.0/docs/registry/attributes/service.md#service-name) | string | required | OpenTelemetry v1.45.0 | Emitted. [45] |
+| <a id="service-version"></a>[`service.version`](https://github.com/open-telemetry/semantic-conventions/blob/v1.45.0/docs/registry/attributes/service.md#service-version) | string | recommended | OpenTelemetry v1.45.0 | Emitted. [46] |
 
 ## `session`
 
 | Key | Type | Requirement level | Defined in | How Rius uses it |
 | -- | -- | -- | -- | -- |
-| <a id="session-id"></a>[`session.id`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/session.md#session-id) | string | recommended | OpenTelemetry v1.44.0 | Emitted. [47] |
+| <a id="session-id"></a>[`session.id`](https://github.com/open-telemetry/semantic-conventions/blob/v1.45.0/docs/registry/attributes/session.md#session-id) | string | recommended | OpenTelemetry v1.45.0 | Emitted. [47] |
 
 ## `telemetry`
 
 | Key | Type | Requirement level | Defined in | How Rius uses it |
 | -- | -- | -- | -- | -- |
-| <a id="telemetry-distro-name"></a>[`telemetry.distro.name`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/telemetry.md#telemetry-distro-name) | string | required | OpenTelemetry v1.44.0 | Emitted. [48] |
-| <a id="telemetry-distro-version"></a>[`telemetry.distro.version`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/telemetry.md#telemetry-distro-version) | string | required | OpenTelemetry v1.44.0 | Emitted. [49] |
+| <a id="telemetry-distro-name"></a>[`telemetry.distro.name`](https://github.com/open-telemetry/semantic-conventions/blob/v1.45.0/docs/registry/attributes/telemetry.md#telemetry-distro-name) | string | required | OpenTelemetry v1.45.0 | Emitted. [48] |
+| <a id="telemetry-distro-version"></a>[`telemetry.distro.version`](https://github.com/open-telemetry/semantic-conventions/blob/v1.45.0/docs/registry/attributes/telemetry.md#telemetry-distro-version) | string | required | OpenTelemetry v1.45.0 | Emitted. [49] |
 
 ## `user`
 
 | Key | Type | Requirement level | Defined in | How Rius uses it |
 | -- | -- | -- | -- | -- |
-| <a id="user-id"></a>[`user.id`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/user.md#user-id) | string | recommended | OpenTelemetry v1.44.0 | Emitted. [50] |
+| <a id="user-id"></a>[`user.id`](https://github.com/open-telemetry/semantic-conventions/blob/v1.45.0/docs/registry/attributes/user.md#user-id) | string | recommended | OpenTelemetry v1.45.0 | Emitted. [50] |
 
 ## `vcs`
 
 | Key | Type | Requirement level | Defined in | How Rius uses it |
 | -- | -- | -- | -- | -- |
-| <a id="vcs-ref-head-name"></a>[`vcs.ref.head.name`](https://github.com/open-telemetry/semantic-conventions/blob/v1.44.0/docs/registry/attributes/vcs.md#vcs-ref-head-name) | string | recommended | OpenTelemetry v1.44.0 | Emitted. [51] |
+| <a id="vcs-ref-head-name"></a>[`vcs.ref.head.name`](https://github.com/open-telemetry/semantic-conventions/blob/v1.45.0/docs/registry/attributes/vcs.md#vcs-ref-head-name) | string | recommended | OpenTelemetry v1.45.0 | Emitted. [51] |
 
 ## Notes
 
