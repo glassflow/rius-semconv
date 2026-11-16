@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.13.0](https://github.com/glassflow/rius-semconv/compare/v1.12.0...v1.13.0) (2026-11-16)
+
+
+### Features
+
+* map invoke_runner and other framework entrypoint operations to CHAIN (RIUS-1877) ([#112](https://github.com/glassflow/rius-semconv/issues/112)) ([fbacfc1](https://github.com/glassflow/rius-semconv/commit/fbacfc173d7eed5990abde98d3c0df292fd6f606))
+
+
+### Bug Fixes
+
+* size a blob whose content is a complete replacement from the replacement ([#115](https://github.com/glassflow/rius-semconv/issues/115)) ([9d64dbf](https://github.com/glassflow/rius-semconv/commit/9d64dbfc7cee281fd6be10082ff3f63e7ec3b054))
+
 ## [1.12.0](https://github.com/glassflow/rius-semconv/compare/v1.11.0...v1.12.0) (2026-11-06)
 
 
