@@ -15,7 +15,16 @@ import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 CASES = ROOT / "sdk_cases"
-FILES = ("values", "attributes", "messages", "masking", "env", "resource", "anthropic_error_type")
+FILES = (
+    "values",
+    "attributes",
+    "messages",
+    "masking",
+    "env",
+    "resource",
+    "anthropic_error_type",
+    "structured_content",
+)
 NAME = re.compile(r"[a-z0-9]+(_[a-z0-9]+)*")
 NUMBERS = {"NaN", "Infinity", "-Infinity"}
 ENV_FIELDS = {
@@ -41,6 +50,14 @@ FIELDS = {
     "env": ({"name", "env", "expected"}, {"warns"}),
     "resource": ({"name", "otel_resource_attributes", "options", "expected", "absent"}, set()),
     "anthropic_error_type": ({"name", "scope", "attributes", "expected"}, set()),
+    "structured_content": ({"name", "attributes", "expected"}, set()),
+}
+#: The content keys the GenAI conventions ask for as structured values.
+STRUCTURED_CONTENT_KEYS = {
+    "gen_ai.input.messages",
+    "gen_ai.output.messages",
+    "gen_ai.system_instructions",
+    "gen_ai.tool.definitions",
 }
 
 
@@ -154,3 +171,23 @@ def test_anthropic_error_type_cases_cover_every_mapped_status():
     }
     assert ANTHROPIC_OWN_CLASS_STATUSES | {500, 502} <= mapped
     assert not mapped & ANTHROPIC_UNMAPPED_5XX
+
+
+def test_structured_content_cases_set_only_content_keys_and_export_no_structure():
+    for case in load("structured_content")["cases"]:
+        attributes, expected = case["attributes"], case["expected"]
+        assert attributes and set(attributes) <= STRUCTURED_CONTENT_KEYS, case["name"]
+        assert set(expected) == set(attributes), case["name"]
+        assert not any(isinstance(v, (dict, list)) for v in expected.values()), case["name"]
+
+
+def test_structured_content_cases_keep_every_object_key_out_of_javascripts_integer_order():
+    def keys(value: Any) -> list[str]:
+        if isinstance(value, dict):
+            return [*value, *(key for item in value.values() for key in keys(item))]
+        if isinstance(value, list):
+            return [key for item in value for key in keys(item)]
+        return []
+
+    for case in load("structured_content")["cases"]:
+        assert not any(k.isdigit() for k in keys(case["attributes"])), case["name"]
