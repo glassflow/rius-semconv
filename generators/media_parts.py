@@ -807,10 +807,18 @@ def is_buffer(raw: dict, value: dict | Members) -> bool:
     return buffer_data(raw, value) is not None
 
 
+# 2^53 - 1 has 16 digits, so a run with more significant digits is past it.
+_MAX_BYTE_SIZE_DIGITS = 16
+
+
 def parse_replacement(raw: dict, value: str) -> tuple[str | None, int | None] | None:
     """The mime and byte_size a complete replacement names, each None when it
     is unknown; None when the string is no complete replacement (see
-    is_replacement)."""
+    is_replacement). The byte_size is the digit run read as a decimal number,
+    leading zeros of any length allowed. A run with more significant digits
+    than 2^53 - 1 has is None, never converted: int() refuses a string over
+    4300 digits. The caller still bounds a shorter one to 2^53 - 1
+    (_byte_size_kept), as for a byte_size the part has."""
     form = str(raw["replacement"]["format"])
     head, rest = form.split("<mime>")
     between, tail = rest.split("<byte_size>")
@@ -823,7 +831,12 @@ def parse_replacement(raw: dict, value: str) -> tuple[str | None, int | None] | 
     digits = bool(size) and all("0" <= ch <= "9" for ch in size)
     if not (sep and (mime == unknown or is_mime(raw, mime)) and (digits or size == unknown)):
         return None
-    return (None if mime == unknown else mime), (int(size) if digits else None)
+    byte_size = None
+    if digits:
+        significant = size.lstrip("0") or "0"
+        if len(significant) <= _MAX_BYTE_SIZE_DIGITS:
+            byte_size = int(significant)
+    return (None if mime == unknown else mime), byte_size
 
 
 def is_replacement(raw: dict, value: str) -> bool:
