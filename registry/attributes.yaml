@@ -1163,9 +1163,11 @@ attributes:
     type: json
     fill: [native, openinference, vercel]
     rationale: |
-      The request's tool/function definitions, serialized verbatim (provider
-      shapes differ; the backend reads names and sizes from either). Content,
-      not identity, so it is listed in CONTENT_ATTRIBUTES.
+      The request's tool/function definitions, in the conventions' shape: a
+      function tool is {type: function, name, description, parameters}
+      whatever the provider's spelling, and a provider's built-in tool keeps
+      its fields with its type prefixed by the provider name. Content, not
+      identity, so it is listed in CONTENT_ATTRIBUTES.
 
   - const: GEN_AI_TOOL_CALL_ARGUMENTS
     key: gen_ai.tool.call.arguments

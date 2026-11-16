@@ -339,9 +339,11 @@ GEN_AI_TOOL_CALL_ID = "gen_ai.tool.call.id"
 # A free string, not an enum, in the registry.
 GEN_AI_TOOL_TYPE = "gen_ai.tool.type"
 
-# The request's tool/function definitions, serialized verbatim (provider
-# shapes differ; the backend reads names and sizes from either). Content,
-# not identity, so it is listed in CONTENT_ATTRIBUTES.
+# The request's tool/function definitions, in the conventions' shape: a
+# function tool is {type: function, name, description, parameters}
+# whatever the provider's spelling, and a provider's built-in tool keeps
+# its fields with its type prefixed by the provider name. Content, not
+# identity, so it is listed in CONTENT_ATTRIBUTES.
 GEN_AI_TOOL_DEFINITIONS = "gen_ai.tool.definitions"
 
 # The arguments the model passed to the tool. The TypeScript SDK writes it

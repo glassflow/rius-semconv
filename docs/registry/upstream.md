@@ -319,9 +319,11 @@ CONTENT_ATTRIBUTES; an opaque id is not.
 **[27] `gen_ai.tool.call.result`:** What the tool returned. Written as gen_ai.tool.call.arguments is, from
 ai.toolCall.result. Content, listed in CONTENT_ATTRIBUTES.
 
-**[28] `gen_ai.tool.definitions`:** The request's tool/function definitions, serialized verbatim (provider
-shapes differ; the backend reads names and sizes from either). Content,
-not identity, so it is listed in CONTENT_ATTRIBUTES.
+**[28] `gen_ai.tool.definitions`:** The request's tool/function definitions, in the conventions' shape: a
+function tool is \{type: function, name, description, parameters\}
+whatever the provider's spelling, and a provider's built-in tool keeps
+its fields with its type prefixed by the provider name. Content, not
+identity, so it is listed in CONTENT_ATTRIBUTES.
 
 **[29] `gen_ai.tool.type`:** What KIND of tool ran, the conventions' own examples being "function"
 (client-side), "extension" (agent-side) and "datastore". Identity for the
