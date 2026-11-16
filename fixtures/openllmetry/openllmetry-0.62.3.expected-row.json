@@ -1,7 +1,7 @@
 {
   "normalizer": {
     "package": "rius sink",
-    "commit": "a8b08582654846f56fca09de8bd39a8792e8de5e"
+    "commit": "4654ba5329024119045e761cd864b7041abd3b9d"
   },
   "recordings": [
     {
@@ -66,6 +66,7 @@
           "InputValue": "",
           "OutputValue": "",
           "ToolArgumentsFingerprint": "",
+          "ToolDefinitionNames": [],
           "EventTimestamps": null,
           "EventNames": null,
           "EventAttributes": null,
@@ -130,6 +131,7 @@
           "InputValue": "",
           "OutputValue": "",
           "ToolArgumentsFingerprint": "",
+          "ToolDefinitionNames": [],
           "EventTimestamps": [
             "2023-11-14T22:13:20.001Z",
             "2023-11-14T22:13:20.002Z",
@@ -215,6 +217,9 @@
           "InputValue": "",
           "OutputValue": "",
           "ToolArgumentsFingerprint": "",
+          "ToolDefinitionNames": [
+            "get_weather"
+          ],
           "EventTimestamps": null,
           "EventNames": null,
           "EventAttributes": null,
@@ -283,6 +288,9 @@
           "InputValue": "",
           "OutputValue": "",
           "ToolArgumentsFingerprint": "",
+          "ToolDefinitionNames": [
+            "get_weather"
+          ],
           "EventTimestamps": null,
           "EventNames": null,
           "EventAttributes": null,
@@ -339,6 +347,7 @@
           "InputValue": "",
           "OutputValue": "",
           "ToolArgumentsFingerprint": "",
+          "ToolDefinitionNames": [],
           "EventTimestamps": [
             "2023-11-14T22:13:20.001Z"
           ],
@@ -411,6 +420,7 @@
           "InputValue": "",
           "OutputValue": "",
           "ToolArgumentsFingerprint": "",
+          "ToolDefinitionNames": [],
           "EventTimestamps": null,
           "EventNames": null,
           "EventAttributes": null,
@@ -478,6 +488,7 @@
           "InputValue": "",
           "OutputValue": "",
           "ToolArgumentsFingerprint": "",
+          "ToolDefinitionNames": [],
           "EventTimestamps": null,
           "EventNames": null,
           "EventAttributes": null,
@@ -542,6 +553,7 @@
           "InputValue": "",
           "OutputValue": "",
           "ToolArgumentsFingerprint": "",
+          "ToolDefinitionNames": [],
           "EventTimestamps": null,
           "EventNames": null,
           "EventAttributes": null,
@@ -607,6 +619,9 @@
           "InputValue": "",
           "OutputValue": "",
           "ToolArgumentsFingerprint": "",
+          "ToolDefinitionNames": [
+            "get_weather"
+          ],
           "EventTimestamps": null,
           "EventNames": null,
           "EventAttributes": null,
@@ -672,6 +687,9 @@
           "InputValue": "",
           "OutputValue": "",
           "ToolArgumentsFingerprint": "",
+          "ToolDefinitionNames": [
+            "get_weather"
+          ],
           "EventTimestamps": null,
           "EventNames": null,
           "EventAttributes": null,
@@ -727,6 +745,7 @@
           "InputValue": "",
           "OutputValue": "",
           "ToolArgumentsFingerprint": "",
+          "ToolDefinitionNames": [],
           "EventTimestamps": [
             "2023-11-14T22:13:20.001Z"
           ],
@@ -791,6 +810,7 @@
           "InputValue": "{\"args\": [\"weather?\"], \"kwargs\": {}}",
           "OutputValue": "\"ok\"",
           "ToolArgumentsFingerprint": "",
+          "ToolDefinitionNames": [],
           "EventTimestamps": null,
           "EventNames": null,
           "EventAttributes": null,
@@ -840,6 +860,7 @@
           "InputValue": "{\"args\": [\"weather?\"], \"kwargs\": {}}",
           "OutputValue": "\"ok\"",
           "ToolArgumentsFingerprint": "",
+          "ToolDefinitionNames": [],
           "EventTimestamps": null,
           "EventNames": null,
           "EventAttributes": null,
@@ -890,6 +911,7 @@
           "InputValue": "{\"args\": [\"Paris\"], \"kwargs\": {}}",
           "OutputValue": "\"sunny in Paris\"",
           "ToolArgumentsFingerprint": "37c81b8c1c6afcf8012ec564a219e470dfa1702162287d9d22ef1c2745b29bb8",
+          "ToolDefinitionNames": [],
           "EventTimestamps": null,
           "EventNames": null,
           "EventAttributes": null,
@@ -938,6 +960,7 @@
           "InputValue": "{\"args\": [\"weather?\"], \"kwargs\": {}}",
           "OutputValue": "\"ok\"",
           "ToolArgumentsFingerprint": "",
+          "ToolDefinitionNames": [],
           "EventTimestamps": null,
           "EventNames": null,
           "EventAttributes": null,
@@ -1002,6 +1025,7 @@
           "InputValue": "",
           "OutputValue": "",
           "ToolArgumentsFingerprint": "",
+          "ToolDefinitionNames": [],
           "EventTimestamps": null,
           "EventNames": null,
           "EventAttributes": null,
@@ -1068,6 +1092,7 @@
           "InputValue": "",
           "OutputValue": "",
           "ToolArgumentsFingerprint": "",
+          "ToolDefinitionNames": [],
           "EventTimestamps": null,
           "EventNames": null,
           "EventAttributes": null,
@@ -1135,6 +1160,7 @@
           "InputValue": "",
           "OutputValue": "",
           "ToolArgumentsFingerprint": "",
+          "ToolDefinitionNames": [],
           "EventTimestamps": null,
           "EventNames": null,
           "EventAttributes": null,
