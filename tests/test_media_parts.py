@@ -1421,11 +1421,53 @@ def test_portability_check_bites():
         ("[stripped image/png bytes]", False),
         ("[stripped image/png \u0663 bytes]", False),
         ("x[stripped image/png 3 bytes]", False),
+        pytest.param("[stripped unknown " + "9" * 5000 + " bytes]", True, id="5000-nines"),
+        pytest.param("[stripped unknown " + "0" * 5000 + "8 bytes]", True, id="5000-zeros-then-8"),
     ],
 )
 def test_complete_replacement(base_data, value, complete):
     raw = base_data["media_parts"]["raw_payloads"]
     assert media_parts.is_replacement(raw, value) is complete
+
+
+@pytest.mark.parametrize(
+    ("value", "parsed"),
+    [
+        ("[stripped image/png 8 bytes]", ("image/png", 8)),
+        ("[stripped unknown unknown bytes]", (None, None)),
+        pytest.param(
+            "[stripped unknown " + "0" * 5000 + "8 bytes]", (None, 8), id="5000-zeros-then-8"
+        ),
+        pytest.param("[stripped unknown " + "0" * 5000 + " bytes]", (None, 0), id="5000-zeros"),
+        ("[stripped unknown 9007199254740991 bytes]", (None, 9007199254740991)),
+        ("[stripped unknown 9999999999999999 bytes]", (None, 9999999999999999)),
+        ("[stripped unknown 10000000000000000 bytes]", (None, None)),
+        ("[stripped image/png 99999999999999999999 bytes]", ("image/png", None)),
+        pytest.param("[stripped unknown " + "9" * 5000 + " bytes]", (None, None), id="5000-nines"),
+    ],
+)
+def test_parse_replacement_reads_any_digit_run_without_raising(base_data, value, parsed):
+    """A digit run longer than Python's int() string limit (4300 digits,
+    leading zeros included) still parses: zeros are dropped first, and a run
+    with more significant digits than 2^53 - 1 has is unknown."""
+    raw = base_data["media_parts"]["raw_payloads"]
+    assert media_parts.parse_replacement(raw, value) == parsed
+
+
+@pytest.mark.parametrize(
+    "size", ["9" * 4301, "0" * 5000 + "8"], ids=["4301-nines", "5000-zeros-then-8"]
+)
+def test_strip_reads_a_long_digit_replacement_as_context_without_raising(base_data, size):
+    """The strip asks whether each sibling string is a replacement, so a
+    replacement with a long digit run must not make it raise: it is read as
+    any other replacement is."""
+    raw = base_data["media_parts"]["raw_payloads"]
+    short = "[stripped unknown 3 bytes]"
+    value = "[stripped unknown " + size + " bytes]"
+    text = json.dumps({"mime_type": short, "data": "QUJD"})
+    expected = media_parts.strip_raw_payload(raw, text).replace(short, value)
+    long_text = json.dumps({"mime_type": value, "data": "QUJD"})
+    assert media_parts.strip_raw_payload(raw, long_text) == expected
 
 
 # --- URLs under a typed key that keeps them ------------------------------------

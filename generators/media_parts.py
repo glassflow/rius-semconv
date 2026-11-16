@@ -807,21 +807,43 @@ def is_buffer(raw: dict, value: dict | Members) -> bool:
     return buffer_data(raw, value) is not None
 
 
-def is_replacement(raw: dict, value: str) -> bool:
-    """Whether a string is already a complete replacement: the format with a
-    mime that is unknown or a valid mime (the only mimes a replacement holds)
-    and a byte_size of ASCII digits or unknown."""
+# 2^53 - 1 has 16 digits, so a run with more significant digits is past it.
+_MAX_BYTE_SIZE_DIGITS = 16
+
+
+def parse_replacement(raw: dict, value: str) -> tuple[str | None, int | None] | None:
+    """The mime and byte_size a complete replacement names, each None when it
+    is unknown; None when the string is no complete replacement (see
+    is_replacement). The byte_size is the digit run read as a decimal number,
+    leading zeros of any length allowed. A run with more significant digits
+    than 2^53 - 1 has is None, never converted: int() refuses a string over
+    4300 digits. The caller still bounds a shorter one to 2^53 - 1
+    (_byte_size_kept), as for a byte_size the part has."""
     form = str(raw["replacement"]["format"])
     head, rest = form.split("<mime>")
     between, tail = rest.split("<byte_size>")
     if len(value) < len(head) + len(between) + len(tail):
-        return False
+        return None
     if not (value.startswith(head) and value.endswith(tail)):
-        return False
+        return None
     mime, sep, size = value[len(head) : len(value) - len(tail)].rpartition(between)
     unknown = str(raw["replacement"]["unknown"])
     digits = bool(size) and all("0" <= ch <= "9" for ch in size)
-    return bool(sep) and (mime == unknown or is_mime(raw, mime)) and (digits or size == unknown)
+    if not (sep and (mime == unknown or is_mime(raw, mime)) and (digits or size == unknown)):
+        return None
+    byte_size = None
+    if digits:
+        significant = size.lstrip("0") or "0"
+        if len(significant) <= _MAX_BYTE_SIZE_DIGITS:
+            byte_size = int(significant)
+    return (None if mime == unknown else mime), byte_size
+
+
+def is_replacement(raw: dict, value: str) -> bool:
+    """Whether a string is already a complete replacement: the format with a
+    mime that is unknown or a valid mime (the only mimes a replacement holds)
+    and a byte_size of ASCII digits or unknown."""
+    return parse_replacement(raw, value) is not None
 
 
 def _sibling_string(raw: dict, value: Any) -> bool:
@@ -1539,6 +1561,20 @@ def native_part(data: dict, part: dict) -> dict | None:
         if isinstance(content, str):
             if _is_data_scheme(content):
                 return _data_url_part(data, content, mime, own)
+            replaced = parse_replacement(raw, content)
+            if replaced is not None:
+                # Bytes a strip already measured (an OTLP bytes value, an
+                # SDK byte object): the part names the size the base64 of the
+                # same bytes would give, and its own MIME type comes first.
+                replaced_mime, replaced_size = replaced
+                mime = mime or replaced_mime
+                return _part(
+                    "blob",
+                    _mime_modality(mime) or own or "document",
+                    mime_type=mime,
+                    byte_size=_byte_size_kept(replaced_size),
+                    stripped_reason="not_captured",
+                )
             return _part(
                 "blob",
                 _mime_modality(mime) or own or "document",
