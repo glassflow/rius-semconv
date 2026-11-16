@@ -339,9 +339,17 @@ GEN_AI_TOOL_CALL_ID = "gen_ai.tool.call.id"
 # A free string, not an enum, in the registry.
 GEN_AI_TOOL_TYPE = "gen_ai.tool.type"
 
-# The request's tool/function definitions, serialized verbatim (provider
-# shapes differ; the backend reads names and sizes from either). Content,
-# not identity, so it is listed in CONTENT_ATTRIBUTES.
+# The request's tool/function definitions, in the conventions' shape
+# where the SDKs recognise the provider's spelling: a function tool
+# (OpenAI, Anthropic, Bedrock toolSpec, Gemini function declarations,
+# the Vercel AI SDK) becomes {type: function, name, description,
+# parameters}, and a provider's built-in tool keeps its fields with its
+# type prefixed by the provider name. A built-in tool without a name
+# (OpenAI's web_search, Gemini's google_search) stays without one on
+# purpose: an invented name would read as a tool that was offered and
+# never called. A definition in a shape the SDKs do not recognise is
+# recorded as given. Content, not identity, so it is listed in
+# CONTENT_ATTRIBUTES.
 GEN_AI_TOOL_DEFINITIONS = "gen_ai.tool.definitions"
 
 # The arguments the model passed to the tool. The TypeScript SDK writes it
