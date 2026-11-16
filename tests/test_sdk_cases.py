@@ -24,6 +24,7 @@ FILES = (
     "resource",
     "anthropic_error_type",
     "structured_content",
+    "tool_definitions",
 )
 NAME = re.compile(r"[a-z0-9]+(_[a-z0-9]+)*")
 NUMBERS = {"NaN", "Infinity", "-Infinity"}
@@ -51,6 +52,7 @@ FIELDS = {
     "resource": ({"name", "otel_resource_attributes", "options", "expected", "absent"}, set()),
     "anthropic_error_type": ({"name", "scope", "attributes", "expected"}, set()),
     "structured_content": ({"name", "attributes", "expected"}, set()),
+    "tool_definitions": ({"name", "provider", "tools", "expected"}, set()),
 }
 #: The content keys the GenAI conventions ask for as structured values.
 STRUCTURED_CONTENT_KEYS = {
@@ -191,3 +193,33 @@ def test_structured_content_cases_keep_every_object_key_out_of_javascripts_integ
 
     for case in load("structured_content")["cases"]:
         assert not any(k.isdigit() for k in keys(case["attributes"])), case["name"]
+
+
+def test_tool_definitions_cases_expect_a_json_list_and_hold_no_integer_like_key():
+    def keys(value: Any) -> list[str]:
+        if isinstance(value, dict):
+            return [*value, *(key for item in value.values() for key in keys(item))]
+        if isinstance(value, list):
+            return [key for item in value for key in keys(item)]
+        return []
+
+    def floats(value: Any) -> bool:
+        if isinstance(value, float):
+            return True
+        if isinstance(value, dict):
+            return any(floats(item) for item in value.values())
+        if isinstance(value, list):
+            return any(floats(item) for item in value)
+        return False
+
+    for case in load("tool_definitions")["cases"]:
+        assert case["provider"] is None or isinstance(case["provider"], str), case["name"]
+        assert isinstance(case["tools"], list), case["name"]
+        assert isinstance(case["expected"], str), case["name"]
+        expected = json.loads(case["expected"])
+        assert isinstance(expected, list), case["name"]
+        compact = json.dumps(expected, separators=(",", ":"), ensure_ascii=False)
+        assert compact == case["expected"], case["name"]
+        for value in (case["tools"], expected):
+            assert not any(k.isdigit() for k in keys(value)), case["name"]
+            assert not floats(value), case["name"]
