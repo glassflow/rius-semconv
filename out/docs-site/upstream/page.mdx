@@ -323,11 +323,17 @@ CONTENT_ATTRIBUTES; an opaque id is not.
 **[27] `gen_ai.tool.call.result`:** What the tool returned. Written as gen_ai.tool.call.arguments is, from
 ai.toolCall.result. Content, listed in CONTENT_ATTRIBUTES.
 
-**[28] `gen_ai.tool.definitions`:** The request's tool/function definitions, in the conventions' shape: a
-function tool is \{type: function, name, description, parameters\}
-whatever the provider's spelling, and a provider's built-in tool keeps
-its fields with its type prefixed by the provider name. Content, not
-identity, so it is listed in CONTENT_ATTRIBUTES.
+**[28] `gen_ai.tool.definitions`:** The request's tool/function definitions, in the conventions' shape
+where the SDKs recognise the provider's spelling: a function tool
+(OpenAI, Anthropic, Bedrock toolSpec, Gemini function declarations,
+the Vercel AI SDK) becomes \{type: function, name, description,
+parameters\}, and a provider's built-in tool keeps its fields with its
+type prefixed by the provider name. A built-in tool without a name
+(OpenAI's web_search, Gemini's google_search) stays without one on
+purpose: an invented name would read as a tool that was offered and
+never called. A definition in a shape the SDKs do not recognise is
+recorded as given. Content, not identity, so it is listed in
+CONTENT_ATTRIBUTES.
 
 **[29] `gen_ai.tool.type`:** What KIND of tool ran, the conventions' own examples being "function"
 (client-side), "extension" (agent-side) and "datastore". Identity for the
