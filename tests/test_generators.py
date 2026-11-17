@@ -245,6 +245,7 @@ def test_python_tables(py_module):
     assert py_module["_OPERATION_BY_KIND"]["RERANKER"] == "rerank"
     assert py_module["_KIND_BY_OPERATION"]["rerank"] == "RERANKER"
     assert py_module["_OTEL_KIND_BY_KIND"]["TOOL"] == "INTERNAL"
+    assert py_module["_OTEL_KIND_BY_KIND"]["RETRIEVER"] == "INTERNAL"
     assert py_module["_NAME_TARGET_BY_KIND"]["RETRIEVER"] == "gen_ai.data_source.id"
     params = py_module["GEN_AI_REQUEST_PARAMETERS"]
     assert params["maxOutputTokens"] == "gen_ai.request.max_tokens"
@@ -314,6 +315,7 @@ def test_typescript_values(base_data):
     ]
     assert len(values["PENDING_IDENTITY_ATTRIBUTES"]["__set__"]) == 18
     assert values["OTEL_KIND_BY_KIND"]["LLM"] == "CLIENT"
+    assert values["OTEL_KIND_BY_KIND"]["RETRIEVER"] == "INTERNAL"
     assert values["SpanKind"]["RETRIEVER"] == "RETRIEVER"
     assert values["CREDENTIAL_HEADER_NAMES"] == CREDENTIAL_HEADER_NAMES
     assert values["CREDENTIAL_HEADER_NAME_SUFFIXES"] == CREDENTIAL_HEADER_NAME_SUFFIXES

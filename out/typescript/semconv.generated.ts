@@ -1465,11 +1465,13 @@ export const KIND_BY_OPERATION: Record<string, SpanKind> = {
 
 // SpanKind (our taxonomy ATTRIBUTE) -> the OpenTelemetry SpanKind FIELD, set
 // centrally at span creation. The GenAI conventions decide the field per
-// operation: inference, embeddings and retrieval call out of the process
-// (CLIENT); execute_tool is INTERNAL; invoke_agent is CLIENT only for a hosted
-// agent. Hence:
-// - LLM / EMBEDDING / RETRIEVER / RERANKER -> CLIENT: a remote model or
-//   index is called.
+// operation: inference and embeddings call out of the process (CLIENT);
+// retrieval and execute_tool are INTERNAL; invoke_agent is CLIENT only for a
+// hosted agent. Hence:
+// - LLM / EMBEDDING / RERANKER -> CLIENT: a remote model is called.
+// - RETRIEVER -> INTERNAL: the conventions deprecated their client retrieval
+//   span for an internal one, since a retriever wraps embedding, database,
+//   HTTP or rerank calls that have CLIENT spans of their own.
 // - TOOL -> INTERNAL: a bare TOOL span is an in-process function, and the
 //   execute-tool convention says INTERNAL. The MCP wrapper overrides this to
 //   CLIENT at its own call site because a tools/call crosses a process
@@ -1486,7 +1488,7 @@ export const KIND_BY_OPERATION: Record<string, SpanKind> = {
 export const OTEL_KIND_BY_KIND: Record<SpanKind, OtelSpanKind> = {
   [SpanKind.LLM]: OtelSpanKind.CLIENT,
   [SpanKind.EMBEDDING]: OtelSpanKind.CLIENT,
-  [SpanKind.RETRIEVER]: OtelSpanKind.CLIENT,
+  [SpanKind.RETRIEVER]: OtelSpanKind.INTERNAL,
   [SpanKind.RERANKER]: OtelSpanKind.CLIENT,
   [SpanKind.TOOL]: OtelSpanKind.INTERNAL,
   [SpanKind.AGENT]: OtelSpanKind.INTERNAL,
