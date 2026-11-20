@@ -1869,6 +1869,39 @@ attributes:
       name is not also the namespace of rius.compaction.summary.bytes, which
       the OpenTelemetry naming rules do not allow for an attribute.
 
+  - const: RIUS_RUN_SKIPPED_REASON
+    section: |
+      --- Intentional skips ---
+      A run can finish with nothing to do on purpose: a scheduled agent that
+      found an empty queue, a guard that decided the input needs no work. To a
+      backend that run looks the same as one whose work went missing, so the
+      producer says which it was.
+    key: rius.run.skipped_reason
+    brief: "Why an agent run intentionally did no LLM or tool work, set on the run's agent root span."
+    stability: development
+    examples: ["no new tickets", "input already processed"]
+    symbol: attribute
+    origin: rius
+    kinds: [AGENT]
+    category: metadata
+    level: vendor
+    type: string
+    fill: [native]
+    status: planned
+    rationale: |
+      Marks an intentional skip on the run's agent root span: the run finished
+      without calling a model or a tool, and meant to. A nonempty value is the
+      marker; an absent, empty or whitespace-only value is no marker. The
+      backend's empty-run detector reports a marked run as an informational
+      finding (or not at all) instead of a warning, and leaves it out of the
+      agent's baseline. The value is a short operational reason written by the
+      producer, not message content: metadata, so it survives masking and
+      capture_content=False, and never on a pending snapshot, since the
+      decision to skip is known only once the run decided it. The backend
+      treats it as untrusted display text: it bounds, strips control
+      characters from and quotes it, and never acts on it. Producers must not
+      put user content or secrets in it.
+
   - const: RIUS_HINT_ID
     section: |
       --- Agent hints ---
